@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "homecloud-shell",
+  "description": "Allow the main HomeCloud shell window to close itself from the power menu.",
+  "windows": ["main"],
+  "permissions": ["core:window:allow-close"]
+}

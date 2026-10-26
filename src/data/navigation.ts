@@ -1,0 +1,51 @@
+export type NavItem = {
+    id: string;
+    label: string;
+    shortLabel: string;
+    description: string;
+};
+
+export const navigationItems: NavItem[] = [
+    {
+        id: 'home',
+        label: 'Главная',
+        shortLabel: 'Главная',
+        description: 'Общий обзор дома и системы',
+    },
+    {
+        id: 'devices',
+        label: 'Устройства',
+        shortLabel: 'Устройства',
+        description: 'Комнаты, устройства и управление',
+    },
+    {
+        id: 'media',
+        label: 'Мультимедиа',
+        shortLabel: 'Медиа',
+        description: 'ТВ, аудио, стриминг и воспроизведение',
+    },
+    {
+        id: 'storage',
+        label: 'Хранилища',
+        shortLabel: 'Хранилища',
+        description: 'Локальные диски, NFS и файлы',
+    },
+    {
+        id: 'servers',
+        label: 'Серверы',
+        shortLabel: 'Серверы',
+        description: 'HomeCloudBackend и системные службы',
+    },
+    {
+        id: 'automation',
+        label: 'Автоматизация',
+        shortLabel: 'Сценарии',
+        description: 'Сценарии, события и автоматические действия',
+    },
+    {
+        id: 'settings',
+        label: 'Настройки',
+        shortLabel: 'Настройки',
+        description: 'Параметры оболочки и профили устройств',
+    },
+];

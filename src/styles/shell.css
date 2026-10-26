@@ -1,0 +1,131 @@
+/* HomeCloud shell controls — scoped; does not change the wallpaper or Tailwind setup. */
+.homecloud-screen { position: relative; isolation: isolate; }
+
+.hc-power-layer,
+.hc-lock-screen { position: fixed; inset: 0; z-index: 1000; }
+
+.hc-power-layer { display: grid; place-items: center; padding: 24px; }
+.hc-power-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(2, 6, 20, .40);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.hc-power-panel {
+  position: relative; width: min(100%, 402px);
+  overflow: hidden;
+  color: #eef7ff;
+  border: 1px solid rgba(185, 225, 255, .21);
+  border-radius: 24px;
+  background: linear-gradient(140deg, rgba(31, 47, 89, .76), rgba(13, 15, 40, .77) 58%, rgba(34, 20, 67, .70));
+  box-shadow: 0 26px 90px rgba(0, 0, 0, .48), inset 0 1px rgba(255, 255, 255, .13), 0 0 45px rgba(88, 79, 194, .12);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+  /* Entry and exit animations are controlled by Motion. */
+  transform-origin: center center;
+}
+.hc-power-panel::before {
+  content: ''; position: absolute; top: 0; left: 10%; width: 80%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(112, 226, 255, .8), rgba(195, 122, 255, .7), transparent);
+  pointer-events: none;
+}
+.hc-power-header { display: flex; align-items: center; gap: 13px; padding: 23px 20px 18px; }
+.hc-power-symbol {
+  display: grid; place-items: center; flex: 0 0 47px; height: 47px;
+  border-radius: 15px; border: 1px solid rgba(112, 226, 255, .22);
+  background: rgba(112, 226, 255, .09); color: #98ecff;
+}
+.hc-power-symbol svg { width: 23px; height: 23px; }
+.hc-power-heading { flex: 1; min-width: 0; }
+.hc-power-heading h2 { margin: 0; font-size: 19px; line-height: 1.35; font-weight: 600; letter-spacing: .01em; }
+.hc-power-heading p { margin: 3px 0 0; font-size: 11px; color: rgba(225, 235, 255, .54); }
+.hc-power-dismiss {
+  display: grid; place-items: center; flex: 0 0 32px; height: 32px;
+  border: 1px solid transparent; border-radius: 10px;
+  background: transparent; color: rgba(235, 245, 255, .58); cursor: pointer;
+}
+.hc-power-dismiss svg { width: 16px; height: 16px; }
+.hc-power-dismiss:hover { background: rgba(255, 255, 255, .10); color: white; }
+.hc-power-actions { padding: 0 12px 12px; }
+.hc-power-action {
+  appearance: none; border: 1px solid transparent; width: 100%; min-height: 68px;
+  border-radius: 14px; padding: 10px 12px;
+  display: flex; align-items: center; gap: 13px; text-align: left;
+  color: #f2f7ff; background: transparent; cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.hc-power-action:hover { background: rgba(190, 211, 255, .11); border-color: rgba(204, 231, 255, .09); }
+.hc-power-action-icon {
+  display: grid; place-items: center; flex: 0 0 43px; height: 43px;
+  border-radius: 12px; color: #b9eaff; background: rgba(153, 207, 255, .09);
+}
+.hc-power-action-icon svg { width: 21px; height: 21px; }
+.hc-power-action-text { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.hc-power-action-text strong { font-size: 13px; line-height: 1.3; font-weight: 600; }
+.hc-power-action-text small { font-size: 11px; line-height: 1.4; color: rgba(225, 236, 255, .54); }
+.hc-power-chevron { width: 16px; height: 16px; color: rgba(207, 229, 255, .3); }
+.hc-power-action:hover .hc-power-chevron { color: rgba(207, 229, 255, .8); }
+.hc-power-separator { height: 1px; margin: 8px 12px; background: rgba(235, 246, 255, .11); }
+.hc-power-action-danger .hc-power-action-icon { background: rgba(255, 120, 156, .09); color: #ff99ac; }
+.hc-power-action-danger:hover { background: rgba(255, 110, 145, .09); }
+.hc-power-error { margin: 0 24px 12px; font-size: 12px; color: #ffb3c4; overflow-wrap: anywhere; }
+.hc-power-footer {
+  padding: 12px 16px 15px; text-align: center; font-size: 10px;
+  border-top: 1px solid rgba(225, 236, 255, .08);
+  color: rgba(228, 239, 255, .42);
+}
+.hc-power-footer kbd {
+  display: inline-block; padding: 2px 5px;
+  border: 1px solid rgba(235, 245, 255, .16); border-radius: 5px;
+  font: inherit; color: rgba(230, 242, 255, .65);
+}
+.hc-power-footer span { padding: 0 7px; }
+
+.hc-lock-screen {
+  z-index: 1100; color: #f1f8ff; display: grid; place-items: center;
+  padding: max(22px, env(safe-area-inset-top)) 22px max(24px, env(safe-area-inset-bottom));
+  background: radial-gradient(ellipse at 48% 38%, rgba(49, 59, 119, .34), transparent 60%),
+              linear-gradient(130deg, rgba(3, 13, 39, .88), rgba(7, 9, 29, .85) 60%, rgba(25, 12, 49, .88));
+  -webkit-backdrop-filter: blur(22px) saturate(110%);
+  backdrop-filter: blur(22px) saturate(110%);
+  overflow: hidden;
+}
+.hc-lock-orbit {
+  pointer-events: none; position: absolute; top: 50%; left: 50%;
+  border: 1px solid rgba(122, 209, 255, .09);
+  border-radius: 50%; transform: translate(-50%, -50%) rotate(-20deg);
+}
+.hc-lock-orbit-one { width: min(95vw, 840px); height: min(80vh, 650px); }
+.hc-lock-orbit-two { width: min(120vw, 1120px); height: min(105vh, 820px); border-color: rgba(204, 133, 255, .07); transform: translate(-50%, -50%) rotate(24deg); }
+.hc-lock-content { position: relative; z-index: 1; width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.hc-lock-brand { display: flex; align-items: center; gap: 9px; margin-bottom: clamp(30px, 6vh, 70px); font-size: 18px; letter-spacing: .06em; font-weight: 600; }
+.hc-lock-brand svg { height: 27px; width: 27px; color: #80e3ff; filter: drop-shadow(0 0 12px rgba(118, 217, 255, .3)); }
+.hc-lock-time { font-size: clamp(72px, 12.5vw, 154px); font-weight: 200; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.06em; text-shadow: 0 0 45px rgba(118, 169, 255, .13); }
+.hc-lock-date { margin-top: 14px; font-size: clamp(15px, 2.3vw, 21px); color: rgba(231, 242, 255, .78); text-transform: capitalize; }
+.hc-lock-status { display: flex; align-items: center; justify-content: center; gap: 8px; margin: clamp(28px, 6vh, 60px) 0 22px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: rgba(227, 241, 255, .53); }
+.hc-lock-status svg { height: 15px; width: 15px; }
+.hc-lock-unlock {
+  appearance: none; display: flex; align-items: center; justify-content: center; gap: 13px;
+  min-height: 56px; width: min(100%, 290px); padding: 13px 19px;
+  border: 1px solid rgba(177, 224, 255, .30); border-radius: 16px;
+  color: #eaf8ff; background: linear-gradient(105deg, rgba(105, 206, 255, .17), rgba(153, 119, 255, .17));
+  -webkit-backdrop-filter: blur(15px); backdrop-filter: blur(15px);
+  box-shadow: 0 9px 36px rgba(0, 0, 0, .18);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.hc-lock-unlock svg { flex: 0 0 19px; width: 19px; height: 19px; }
+.hc-lock-unlock-arrow { opacity: .55; margin-left: auto; }
+.hc-lock-unlock:hover { background: linear-gradient(105deg, rgba(105, 206, 255, .28), rgba(153, 119, 255, .28)); border-color: rgba(177, 224, 255, .55); }
+.hc-lock-caption { position: absolute; z-index: 1; bottom: 23px; left: 20px; right: 20px; text-align: center; font-size: 11px; color: rgba(232, 243, 255, .38); }
+.hc-power-panel button:focus-visible,
+.hc-lock-screen button:focus-visible { outline: 2px solid #9bddff; outline-offset: 3px; }
+@media (max-width: 440px) {
+  .hc-power-layer { padding: 14px; }
+  .hc-power-panel { border-radius: 20px; }
+  .hc-power-footer { font-size: 9px; }
+  .hc-power-footer span { padding: 0 3px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc-power-action, .hc-lock-unlock { transition: none; }
+}

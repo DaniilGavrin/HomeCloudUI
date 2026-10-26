@@ -1,0 +1,217 @@
+.homecloud-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.homecloud-shell__overlay {
+    position: absolute;
+    inset: 0;
+    background:
+            radial-gradient(circle at top right, rgba(0, 255, 255, 0.08), transparent 30%),
+            radial-gradient(circle at bottom left, rgba(110, 0, 255, 0.12), transparent 32%),
+            linear-gradient(
+                    135deg,
+                    rgba(8, 12, 20, 0.28) 0%,
+                    rgba(8, 12, 20, 0.2) 40%,
+                    rgba(8, 12, 20, 0.3) 100%
+            );
+    pointer-events: none;
+}
+
+.homecloud-shell__content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    gap: 18px;
+    padding: 18px;
+}
+
+.homecloud-glass {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+            0 8px 40px rgba(0, 0, 0, 0.16),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(26px) saturate(160%);
+    -webkit-backdrop-filter: blur(26px) saturate(160%);
+}
+
+.homecloud-sidebar {
+    height: 100%;
+    border-radius: 28px;
+    overflow: hidden;
+}
+
+.homecloud-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.homecloud-brand__orb {
+    width: 42px;
+    height: 42px;
+    border-radius: 9999px;
+    background:
+            radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.12) 24%, rgba(0, 238, 255, 0.32) 52%, rgba(0, 0, 0, 0) 74%),
+            linear-gradient(145deg, rgba(120, 255, 255, 0.55), rgba(128, 70, 255, 0.5));
+    box-shadow:
+            0 0 24px rgba(0, 240, 255, 0.28),
+            inset 0 1px 10px rgba(255, 255, 255, 0.24);
+}
+
+.homecloud-brand__title {
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.02em;
+}
+
+.homecloud-brand__subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.48);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+}
+
+.homecloud-nav-item {
+    width: 100%;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 22px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.025);
+    transition:
+            background 0.2s ease,
+            border-color 0.2s ease,
+            box-shadow 0.2s ease;
+}
+
+.homecloud-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.homecloud-nav-item--active {
+    background: linear-gradient(
+            135deg,
+            rgba(0, 240, 255, 0.18),
+            rgba(110, 92, 255, 0.14)
+    );
+    border-color: rgba(116, 233, 255, 0.22);
+    box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.12),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.homecloud-nav-item__icon {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    background:
+            linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.homecloud-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.homecloud-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-height: 64px;
+    border-radius: 28px;
+    padding: 8px 20px;
+}
+
+.homecloud-workspace {
+    flex: 1;
+    min-height: 0;
+}
+
+.homecloud-card {
+    border-radius: 28px;
+    padding: 22px 22px 20px;
+}
+
+.homecloud-card__eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: rgba(165, 243, 252, 0.75);
+}
+
+.homecloud-card__title {
+    margin-top: 12px;
+    font-size: 26px;
+    line-height: 1.1;
+    font-weight: 600;
+    color: white;
+}
+
+.homecloud-card__text {
+    margin-top: 10px;
+    font-size: 15px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.64);
+}
+
+@media (max-width: 1100px) {
+    .homecloud-shell__content {
+        gap: 14px;
+        padding: 14px;
+    }
+
+    .homecloud-topbar {
+        height: 64px;
+        min-height: 64px;
+        flex-shrink: 0;
+        padding: 8px 20px;
+    }
+
+    .homecloud-card {
+        padding: 18px;
+    }
+}
+
+/* Narrow touch displays: preserve the left sidebar and make the top bar fit. */
+.homecloud-nav-item:focus-visible { outline: 2px solid #9cecff; outline-offset: -2px; }
+@media (max-width: 900px) {
+  .homecloud-shell__content { gap: 11px; padding: 11px; }
+  .homecloud-sidebar { border-radius: 20px; }
+  .homecloud-topbar { padding: 8px 14px; gap: 10px; border-radius: 20px; }
+  .hc-shell-topbar__right { gap: 10px; }
+}
+@media (max-width: 630px) {
+  .homecloud-shell__content { gap: 8px; padding: 8px; }
+  .homecloud-topbar { padding: 8px 10px; min-height: 60px; }
+  .homecloud-topbar .text-\[22px\] { font-size: 16px; }
+  .homecloud-topbar .text-\[30px\] { font-size: 19px; }
+  .hc-shell-topbar__clock .text-\[13px\] { display: none; }
+  .hc-shell-topbar__right { gap: 7px; }
+  .hc-shell-topbar__right > div:first-child { padding: 6px 8px; gap: 5px; }
+  .hc-shell-topbar__right > div:first-child span { font-size: 11px; }
+}
