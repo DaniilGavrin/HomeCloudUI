@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudServer, type ServerStatusData } from '../../hooks/useHomeCloudServer';
 import { useHomeCloudPool, type PoolServer } from '../../hooks/useHomeCloudPool';
@@ -62,11 +62,13 @@ function Progress({ label, value, caption }: { label: string; value?: number; ca
     </div>
   </div>;
 }
-function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, addresses }: {
+function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, addresses, startAtDiagnostics }: {
   data: ServerStatusData; onClose: () => void; onRefresh: () => void; canRefresh: boolean;
   reduced: boolean; phase: 'offline' | 'loading' | 'connecting' | 'ready' | 'error'; name: string; addresses: string;
+  startAtDiagnostics?: boolean;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const partitions = data.disks?.partitions ?? [];
   const network = data.network?.interfaces ?? [];
   const cpu = data.cpu;
@@ -76,6 +78,17 @@ function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, a
   const errors = Object.entries(data.collection_errors ?? {}).sort(([a], [b]) => a.localeCompare(b));
 
   useEffect(() => { closeRef.current?.focus(); }, []);
+  useEffect(() => {
+    if (!startAtDiagnostics) return;
+    const frame = window.requestAnimationFrame(() => {
+      const scroller = scrollRef.current;
+      const target = scroller?.querySelector<HTMLElement>('#hc-server-process');
+      if (!scroller || !target) return;
+      const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      scroller.scrollTo({ top: Math.max(0, offset - 8), behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [startAtDiagnostics]);
   return <motion.div className="hc-server-details"
     initial={{ opacity: 0, x: reduced ? 0 : 22 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduced ? 0 : 15 }}
     transition={{ duration: reduced ? .1 : .25, ease: 'easeOut' }} role="region" aria-label="Подробная информация о сервере">
@@ -101,7 +114,7 @@ function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, a
           ? 'Соединение восстановлено. Ожидаем новую телеметрию; пока показаны сохранённые данные.'
           : 'Не удалось обновить телеметрию. Показаны последние полученные показатели.'}
     </p>}
-    <div className="hc-server-details__scroll">
+    <div className="hc-server-details__scroll" ref={scrollRef}>
       <div className="hc-server-detail-grid">
         <Section title="Процессор" description="CPU" id="hc-server-cpu">
           <div className="hc-server-fields">
@@ -203,98 +216,312 @@ function addressLabel(server: DisplayServer): string {
   return [server.ipv4, server.ipv6].filter(Boolean).join(' · ') || 'Адрес не задан';
 }
 
+
+function statusLabel(phase: DisplayServer['phase']) {
+  if (phase === 'ready') return 'Online';
+  if (phase === 'offline') return 'Offline';
+  if (phase === 'error') return 'Ошибка данных';
+  return 'Connecting';
+}
+
+function loadWidth(value: number | undefined) {
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value!)) : 0;
+}
+
+function nodeCount(value: number) {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  const word = mod100 >= 11 && mod100 <= 14 ? 'узлов'
+    : mod10 === 1 ? 'узел' : mod10 >= 2 && mod10 <= 4 ? 'узла' : 'узлов';
+  return `${value} ${word}`;
+}
+
+function coreCount(value: number) {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  const word = mod100 >= 11 && mod100 <= 14 ? 'ядер'
+    : mod10 === 1 ? 'ядро' : mod10 >= 2 && mod10 <= 4 ? 'ядра' : 'ядер';
+  return `${value} ${word}`;
+}
+
 export function ServersPage() {
   const primary = useHomeCloudServer();
   const pool = useHomeCloudPool();
   const [openedId, setOpenedId] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: '', ipv4: '', ipv6: '' });
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const focusTo = useRef<string | null>(null);
   const reduced = Boolean(useReducedMotion());
 
-  // The builtin node uses its existing single connection and system.status.
-  // Other nodes are separately monitored by Rust, not by React WebSockets.
+  // The primary node uses the original Rust connection. All other nodes are
+  // monitored by the independent Rust WebSocket sessions in Server Pool.
   const fallback: PoolServer = {
     id: 'primary', name: 'HomeCloudBackend', ipv4: '127.0.0.1', ipv6: null,
     builtin: true, phase: 'offline', latency_ms: null, data: null, error: null,
   };
   const entries = pool.snapshot.servers.length ? pool.snapshot.servers : [fallback];
   const servers: DisplayServer[] = entries.map(server => server.builtin ? {
-    ...server, phase: primary.snapshot.phase, data: primary.snapshot.data, error: primary.snapshot.error,
+    ...server,
+    phase: primary.snapshot.phase,
+    data: primary.snapshot.data ?? server.data,
+    error: primary.snapshot.error ?? server.error,
   } : server);
   const selected = servers.find(server => server.id === openedId);
-  const close = useCallback(() => {
+
+  const closeDetails = useCallback(() => {
     focusTo.current = openedId;
     setOpenedId(null);
+    setDiagnostics(false);
   }, [openedId]);
+
   const refresh = useCallback(async (id: string) => {
     if (id === 'primary') await primary.refresh();
     else await pool.refresh(id);
   }, [primary.refresh, pool.refresh]);
 
   useEffect(() => {
-    if (!openedId) return;
+    if (!openedId && !adding) return;
     const handler = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' && event.key !== 'Backspace') return;
       if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]')) return;
       event.preventDefault();
-      close();
+      if (adding && !saving) { setAdding(false); setActionError(null); }
+      else if (openedId) closeDetails();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [openedId, close]);
+  }, [openedId, adding, saving, closeDetails]);
 
-  const onlineCount = servers.filter(s => s.phase === 'ready' || s.phase === 'loading').length;
+  const showDetails = (id: string, toDiagnostics = false) => {
+    setDiagnostics(toDiagnostics);
+    setOpenedId(id);
+  };
+
+  const submitNewServer = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setActionError(null);
+    try {
+      await pool.add({
+        name: form.name.trim(),
+        ipv4: form.ipv4.trim() || null,
+        ipv6: form.ipv6.trim() || null,
+      });
+      setAdding(false);
+      setForm({ name: '', ipv4: '', ipv6: '' });
+    } catch (error) {
+      setActionError(String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Aggregate live server measurements only. Cached telemetry on Offline nodes
+  // remains on their cards but is deliberately excluded from pool-wide KPIs.
+  const online = servers.filter(server => server.phase === 'ready' || server.phase === 'loading');
+  const onlineCount = online.length;
+  const cores = online.reduce((sum, server) => sum + (server.data?.cpu?.logical_cores ?? 0), 0);
+  const memoryTotal = online.reduce((sum, server) => sum + (server.data?.memory?.total_bytes ?? 0), 0);
+  const memoryUsed = online.reduce((sum, server) => sum + (server.data?.memory?.used_bytes ?? 0), 0);
+  const pings = online.map(server => server.latency_ms)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const averagePing = pings.length
+    ? `${numeric(pings.reduce((sum, value) => sum + value, 0) / pings.length)} мс`
+    : '—';
+
+  const status = (server: DisplayServer) => (
+    <span className={[
+      'hc-server-online',
+      server.phase === 'offline' ? 'hc-server-online--offline' : '',
+      server.phase !== 'ready' && server.phase !== 'offline' ? 'hc-server-online--pending' : '',
+    ].filter(Boolean).join(' ')}>
+      <i aria-hidden="true" />{statusLabel(server.phase)}
+    </span>
+  );
+
   return <section className="hc-servers-page homecloud-glass" aria-label="Серверы HomeCloud">
     <AnimatePresence mode="wait" initial={false}>
-      {selected ? (
-        selected.data ? (
-          <Details key={`details-${selected.id}`} data={selected.data} name={selected.name} addresses={addressLabel(selected)}
-            onClose={close} onRefresh={() => void refresh(selected.id)} canRefresh={selected.phase !== 'offline' && selected.phase !== 'connecting'}
-            reduced={reduced} phase={selected.phase} />
-        ) : (
-          <motion.div key={`empty-${selected.id}`} className="hc-server-details" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <div className="hc-server-details__header">
-              <div className="hc-server-details__identity"><span className="hc-server-icon"><HostIcon /></span><div>
-                <div className="hc-servers-eyebrow">HomeCloud · Server</div><h2>{selected.name}</h2><p>{addressLabel(selected)}</p>
-                <span className="hc-server-online hc-server-online--offline"><i />{selected.phase === 'offline' ? 'Offline' : 'Ожидание данных'}</span>
-              </div></div>
-              <div className="hc-server-details__actions"><button type="button" className="hc-server-action" disabled={selected.phase === 'offline'} onClick={() => void refresh(selected.id)}><RefreshIcon /> Обновить</button>
-                <button type="button" className="hc-server-close" onClick={close} aria-label="Назад к списку серверов">×</button></div>
+      {adding ? (
+        <motion.div key="add-server" className="hc-server-add-page"
+          initial={{ opacity: 0, x: reduced ? 0 : 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: reduced ? 0 : 16 }}
+          transition={{ duration: reduced ? .08 : .2 }}>
+          <div className="hc-server-add-page__header">
+            <button type="button" className="hc-server-action" disabled={saving}
+              onClick={() => { setAdding(false); setActionError(null); }}>
+              ← Назад к серверам
+            </button>
+            <div className="hc-servers-eyebrow">HomeCloud · Server Pool</div>
+            <h2>Добавить сервер</h2>
+            <p>Добавление узла в общий пул по IPv4 или IPv6. Порт HomeCloudBackend — 8080.</p>
+          </div>
+          <form className="hc-server-add-form homecloud-glass" onSubmit={event => void submitNewServer(event)}>
+            <label>Название сервера
+              <input autoFocus required maxLength={64} value={form.name} placeholder="Например, HomeCloud Mini"
+                onChange={event => setForm(current => ({ ...current, name: event.target.value }))}/>
+            </label>
+            <div className="hc-server-add-form__pair">
+              <label>IPv4-адрес
+                <input inputMode="decimal" value={form.ipv4} placeholder="192.168.1.100"
+                  onChange={event => setForm(current => ({ ...current, ipv4: event.target.value }))}/>
+              </label>
+              <label>IPv6-адрес
+                <input value={form.ipv6} placeholder="2001:db8::10"
+                  onChange={event => setForm(current => ({ ...current, ipv6: event.target.value }))}/>
+              </label>
             </div>
-            <p className="hc-servers-message" role="status">{selected.error || 'Телеметрия этого сервера ещё не получена. Карточка остаётся в списке даже при отсутствии соединения.'}</p>
+            <p className="hc-server-add-form__hint">Укажи хотя бы один сетевой адрес. Узлы в другой сети можно подключать через Tailscale.</p>
+            {actionError && <p className="hc-servers-message hc-servers-message--warning" role="alert">{actionError}</p>}
+            <div className="hc-server-add-form__actions">
+              <button className="hc-server-action" type="button" disabled={saving}
+                onClick={() => { setAdding(false); setActionError(null); }}>Отмена</button>
+              <button className="hc-server-action hc-server-action--accent" type="submit" disabled={saving || !form.name.trim() || (!form.ipv4.trim() && !form.ipv6.trim())}>
+                {saving ? 'Сохранение…' : 'Добавить сервер'}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      ) : selected ? (
+        selected.data ? (
+          <Details key={`details-${selected.id}`} data={selected.data} name={selected.name}
+            addresses={addressLabel(selected)} onClose={closeDetails}
+            onRefresh={() => void refresh(selected.id).catch(error => setActionError(String(error)))}
+            canRefresh={selected.phase !== 'offline' && selected.phase !== 'connecting'}
+            reduced={reduced} phase={selected.phase} startAtDiagnostics={diagnostics}/>
+        ) : (
+          <motion.div key={`empty-${selected.id}`} className="hc-server-details"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="hc-server-details__header">
+              <div className="hc-server-details__identity">
+                <span className="hc-server-icon"><HostIcon /></span>
+                <div>
+                  <div className="hc-servers-eyebrow">HomeCloud · Server</div>
+                  <h2>{selected.name}</h2>
+                  <p>{addressLabel(selected)}</p>
+                  {status(selected)}
+                </div>
+              </div>
+              <div className="hc-server-details__actions">
+                <button type="button" className="hc-server-action" disabled={selected.phase === 'offline'}
+                  onClick={() => void refresh(selected.id).catch(error => setActionError(String(error)))}>
+                  <RefreshIcon /> Обновить
+                </button>
+                <button type="button" className="hc-server-close" onClick={closeDetails} aria-label="Назад к списку серверов">×</button>
+              </div>
+            </div>
+            <p className="hc-servers-message" role="status">
+              {selected.error || 'Телеметрия ещё не получена. Сервер останется в списке при отключении.'}
+            </p>
+            {actionError && <p className="hc-servers-message hc-servers-message--warning" role="alert">{actionError}</p>}
           </motion.div>
         )
       ) : (
         <motion.div key="server-overview" className="hc-servers-overview"
-          initial={{ opacity: 0, x: reduced ? 0 : -14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduced ? 0 : -14 }}
-          transition={{ duration: reduced ? 0.1 : 0.2, ease: 'easeOut' }}>
-          <div className="hc-servers-header">
-            <div><div className="hc-servers-eyebrow">HomeCloud · Infrastructure</div><h2>Серверы</h2><p>Настроенные узлы HomeCloudBackend · мониторинг system.status</p></div>
-            <div className="hc-servers-header__actions">
-              <span className="hc-servers-count"><strong>{onlineCount}</strong> в сети из {servers.length}</span>
-              <motion.button type="button" className="hc-server-action" onClick={() => { servers.filter(s => s.phase !== 'offline' && s.phase !== 'connecting').forEach(s => void refresh(s.id)); }} whileTap={reduced ? undefined : { scale: .96 }}><RefreshIcon /> Обновить</motion.button>
+          initial={{ opacity: 0, x: reduced ? 0 : -12 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: reduced ? 0 : -12 }}
+          transition={{ duration: reduced ? .08 : .2 }}>
+          <header className="hc-servers-header">
+            <div>
+              <div className="hc-servers-eyebrow">Infrastructure / Nodes</div>
+              <h2>Серверы HomeCloud</h2>
+              <p>Мониторинг узлов, ресурсы и доступность всей распределённой системы.</p>
+            </div>
+          </header>
+
+          <div className="hc-servers-summary" aria-label="Сводные показатели серверов">
+            <div className="hc-server-summary-card homecloud-glass">
+              <span>В пуле</span>
+              <strong>{nodeCount(servers.length)}</strong>
+              <small><b>{onlineCount} Online</b> · {servers.length - onlineCount} Offline / Connecting</small>
+            </div>
+            <div className="hc-server-summary-card homecloud-glass">
+              <span>Общее CPU</span>
+              <strong>{cores > 0 ? coreCount(cores) : '—'}</strong>
+              <small>По доступным узлам</small>
+            </div>
+            <div className="hc-server-summary-card homecloud-glass">
+              <span>Оперативная память</span>
+              <strong>{memoryTotal > 0 ? bytes(memoryTotal) : '—'}</strong>
+              <small>{memoryTotal > 0 ? `Используется ${bytes(memoryUsed)}` : 'Нет измерений'}</small>
+            </div>
+            <div className="hc-server-summary-card homecloud-glass">
+              <span>Средний ping</span>
+              <strong>{averagePing}</strong>
+              <small>{pings.length ? `По ${pings.length} соединениям` : 'Нет измерений'}</small>
             </div>
           </div>
-          {(pool.error || primary.refreshError) && <div role="alert" className="hc-servers-message hc-servers-message--warning">{pool.error || primary.refreshError}</div>}
+
+          <div className="hc-servers-subheading">
+            <h3>Все серверы</h3>
+            <button type="button" className="hc-servers-add-link" onClick={() => { setActionError(null); setAdding(true); }}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Добавить сервер
+            </button>
+          </div>
+          {(pool.error || primary.refreshError || actionError) && <p className="hc-servers-message hc-servers-message--warning" role="alert">
+            {pool.error || primary.refreshError || actionError}
+          </p>}
+
           <div className="hc-servers-list">
-            {servers.map(server => {
-              const isOnline = server.phase === 'ready';
-              const label = server.phase === 'offline' ? 'Offline' : server.phase === 'error' ? 'Ошибка данных' : server.phase === 'ready' ? 'Online' : 'Connecting';
-              return <motion.button key={server.id} type="button" className="hc-server-card homecloud-glass"
-                ref={element => { if (element && focusTo.current === server.id) { element.focus(); focusTo.current = null; } }}
-                onClick={() => setOpenedId(server.id)} initial={{ opacity: 0, y: reduced ? 0 : 12 }} animate={{ opacity: 1, y: 0 }}
-                whileHover={reduced ? undefined : { y: -3 }} whileTap={reduced ? undefined : { scale: .99 }}
-                aria-label={`Информация о сервере ${server.name}, ${label}`}>
-                <span className="hc-server-card__top"><span className="hc-server-icon"><HostIcon /></span>
-                  <span className={['hc-server-online', server.phase === 'offline' ? 'hc-server-online--offline' : !isOnline ? 'hc-server-online--pending' : ''].filter(Boolean).join(' ')} role="status"><i />{label}</span></span>
-                <span className="hc-server-card__title">{server.name}</span>
-                <span className="hc-server-card__subtitle">{addressLabel(server)} · {server.data?.system?.os_family || server.data?.system?.goos || 'HomeCloudBackend'}</span>
-                <span className="hc-server-card__stats"><span><small>CPU</small><strong>{percentage(server.data?.cpu?.usage_percent)}</strong></span><span><small>RAM</small><strong>{percentage(server.data?.memory?.used_percent)}</strong></span><span><small>Клиенты</small><strong>{asText(server.data?.backend?.connections)}</strong></span></span>
-                {server.phase !== 'ready' && <span className="hc-server-card__last-seen">{server.data?.collected_at ? `Последние данные: ${time(server.data.collected_at)}` : server.error || 'Ожидаем телеметрию'}</span>}
-                <span className="hc-server-card__footer"><span>Подробнее о сервере</span><span aria-hidden="true">↗</span></span>
-              </motion.button>;
+            {servers.map((server, index) => {
+              const isOnline = server.phase === 'ready' || server.phase === 'loading';
+              const os = server.data?.system?.platform || server.data?.system?.os_family || server.data?.system?.goos || 'HomeCloudBackend';
+              const data = server.data;
+              return <motion.article key={server.id}
+                className={`hc-server-card homecloud-glass hc-server-card--accent-${index % 3}`}
+                initial={{ opacity: 0, y: reduced ? 0 : 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={reduced ? undefined : { y: -2 }}
+                transition={{ duration: reduced ? .08 : .2 }}>
+                <div className="hc-server-card__identity">
+                  <span className="hc-server-icon"><HostIcon /></span>
+                  <span className="hc-server-card__identity-text">
+                    <strong className="hc-server-card__title">{server.name}</strong>
+                    <span className="hc-server-card__subtitle">{os}</span>
+                  </span>
+                </div>
+                <div className="hc-server-card__status">{status(server)}</div>
+                <div className="hc-server-card__divider"/>
+                <div className="hc-server-card__metrics">
+                  <div className="hc-server-card__metric">
+                    <div className="hc-server-card__metric-label"><span>CPU · {percentage(data?.cpu?.usage_percent)}</span></div>
+                    <div className="hc-server-card__metric-track" role="meter" aria-label={`CPU ${server.name}`}
+                      aria-valuemin={0} aria-valuemax={100} aria-valuenow={data?.cpu?.usage_percent === undefined ? undefined : loadWidth(data.cpu.usage_percent)}>
+                      <span className="hc-server-card__metric-fill" style={{width: `${loadWidth(data?.cpu?.usage_percent)}%`}}/>
+                    </div>
+                  </div>
+                  <div className="hc-server-card__metric">
+                    <div className="hc-server-card__metric-label"><span>RAM · {data?.memory?.total_bytes ? `${bytes(data.memory.used_bytes)} / ${bytes(data.memory.total_bytes)}` : '—'}</span></div>
+                    <div className="hc-server-card__metric-track" role="meter" aria-label={`RAM ${server.name}`}
+                      aria-valuemin={0} aria-valuemax={100} aria-valuenow={data?.memory?.used_percent === undefined ? undefined : loadWidth(data.memory.used_percent)}>
+                      <span className="hc-server-card__metric-fill hc-server-card__metric-fill--memory" style={{width: `${loadWidth(data?.memory?.used_percent)}%`}}/>
+                    </div>
+                  </div>
+                </div>
+                <div className="hc-server-card__meta">
+                  <div><span>Uptime</span><strong>{uptime(data?.system?.uptime_seconds)}</strong></div>
+                  <div><span>Задержка</span><strong>{isOnline && server.latency_ms !== null ? `${numeric(server.latency_ms)} мс` : '—'}</strong></div>
+                </div>
+                <div className="hc-server-card__actions">
+                  <button ref={el => { if (el && focusTo.current === server.id) { el.focus(); focusTo.current = null; } }}
+                    type="button" className="hc-server-card__button hc-server-card__button--primary"
+                    onClick={() => showDetails(server.id)}>Подробнее</button>
+                  <button type="button" className="hc-server-card__button hc-server-card__button--secondary"
+                    onClick={() => showDetails(server.id, true)}>Диагностика</button>
+                </div>
+                {!isOnline && <div className="hc-server-card__last-seen">
+                  {data?.collected_at ? `Последние данные: ${time(data.collected_at)}` : server.error || 'Ожидание данных'}
+                </div>}
+              </motion.article>;
             })}
           </div>
-          <footer className="hc-servers-footer">Адреса и названия редактируются в Настройки → Пул серверов · автообновление 15 с</footer>
+          <footer className="hc-servers-footer">Состояние серверов обновляется автоматически · настройки адресов в разделе «Настройки → Пул серверов»</footer>
         </motion.div>
       )}
     </AnimatePresence>

@@ -1,6 +1,7 @@
 mod homecloud_ws;
 mod server_pool;
 mod device_registry;
+mod storage;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -12,7 +13,9 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(homecloud_ws::ConnectionManager::default())
+        .manage(storage::StorageTransport::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             homecloud_ws::homecloud_connection_status,
@@ -29,6 +32,9 @@ pub fn run() {
             device_registry::homecloud_device_forget,
             device_registry::homecloud_device_refresh,
             device_registry::homecloud_device_send,
+            storage::homecloud_storage_command,
+            storage::homecloud_storage_local_file,
+            storage::homecloud_storage_transfer,
         ])
         .setup(|app| {
             server_pool::initialize(app.handle()).map_err(std::io::Error::other)?;

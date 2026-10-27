@@ -59,7 +59,7 @@ pub struct PoolSnapshot {
 
 pub struct ServerPool {
     file: PathBuf,
-    inner: Mutex<PoolSnapshot>,
+    pub(crate) inner: Mutex<PoolSnapshot>,
     tasks: Mutex<HashMap<String, JoinHandle<()>>>,
     refreshes: Mutex<HashMap<String, mpsc::Sender<()>>>,
     device_refreshes: Mutex<HashMap<String, mpsc::Sender<()>>>,
@@ -253,6 +253,7 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
     p.refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    crate::storage::disconnected(&app, &id);
     if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
     publish(&app);
     Ok(snapshot)
@@ -336,6 +337,7 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
             }
             // Each address attempt owns a distinct socket. Mark the observed
             // devices offline before trying a fallback address.
+            crate::storage::disconnected(&app, &entry.id);
             crate::device_registry::disconnected(&app, &entry.id);
             let state = app.state::<ServerPool>();
             state.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
@@ -347,6 +349,7 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
         app.state::<ServerPool>().refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
+        crate::storage::disconnected(&app, &entry.id);
         crate::device_registry::disconnected(&app, &entry.id);
         update_node(&app, &entry.id, "offline", None, None, Some(last_err));
         last_rtt = None;
@@ -386,6 +389,10 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut pending_list: Option<(String, tokio::time::Instant)> = None;
     let mut queued_list = true;
     let mut deferred_events: Vec<(bool, crate::homecloud_ws::ConnectedDevice)> = Vec::new();
+    let (storage_tx, mut storage_rx) = mpsc::channel::<crate::storage::StorageRequest>(16);
+    crate::storage::connected(app, &entry.id, storage_tx.clone());
+    let mut pending_storage: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    let mut storage_counter = 0u64;
     let mut list_resync = tokio::time::interval_at(tokio::time::Instant::now() + Duration::from_secs(30), Duration::from_secs(30));
     list_resync.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -409,6 +416,17 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 if refresh.is_none() { return Err("session ended: device refresh channel closed".into()); }
                 queued_list = true;
             }
+            storage_command = storage_rx.recv() => {
+                let Some(command) = storage_command else { return Err("session ended: storage channel closed".into()); };
+                storage_counter = storage_counter.wrapping_add(1);
+                let id = format!("hc-storage-{}-{storage_counter}", entry.id);
+                let packet = json!({"v":1,"type":"command","id":id,"action":command.action,"data":command.data});
+                if let Err(e) = socket.send(Message::Text(packet.to_string().into())).await {
+                    let _ = command.reply.send(Err(e.to_string()));
+                    return Err(format!("session ended: {e}"));
+                }
+                pending_storage.insert(id, command.reply);
+            }
             delivery = delivery_rx.recv() => {
                 let Some(delivery) = delivery else { return Err("session ended: delivery channel closed".into()); };
                 if pending_deliveries.len() >= 64 {
@@ -431,8 +449,9 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             }
             _ = ping_next.tick() => {
                 pending_deliveries.retain(|_, reply| !reply.is_closed());
+                pending_storage.retain(|_, reply| !reply.is_closed());
                 if let Some((_, time)) = &pending_ping {
-                    if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && tokio::time::Instant::now() >= grace {
+                    if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && pending_storage.is_empty() && tokio::time::Instant::now() >= grace {
                         return Err("session ended: ping/pong timeout".into());
                     }
                 } else {
@@ -474,6 +493,15 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     continue;
                 }
                 let id = payload.get("id").and_then(Value::as_str).unwrap_or("");
+                if let Some(reply) = pending_storage.remove(id) {
+                    let result = if payload.get("type").and_then(Value::as_str) == Some("result") {
+                        Ok(payload.get("data").cloned().unwrap_or(Value::Null))
+                    } else {
+                        Err(payload.get("error").and_then(Value::as_str).unwrap_or("Ошибка команды Storage Manager").to_owned())
+                    };
+                    let _ = reply.send(result);
+                    continue;
+                }
                 if let Some(reply) = pending_deliveries.remove(id) {
                     let ok = payload.get("type").and_then(Value::as_str) == Some("result")
                         && payload.get("action").and_then(Value::as_str) == Some("clients.send")

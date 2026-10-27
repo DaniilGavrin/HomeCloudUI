@@ -68,6 +68,7 @@ pub struct ConnectionManager {
     server: Mutex<ServerSnapshot>,
     server_refresh: Mutex<Option<mpsc::Sender<()>>>,
     delivery: Mutex<Option<mpsc::Sender<DeviceDelivery>>>,
+
 }
 
 impl Default for ConnectionManager {
@@ -297,6 +298,7 @@ pub fn start(app: AppHandle) {
                         if let Err(error) = result { eprintln!("[HomeCloud WS] Disconnected: {error}"); }
                         // The next IPv4/IPv6 attempt is a NEW session. Never keep
                         // clients from a dead session marked Online during failover.
+                        crate::storage::disconnected(&app, "primary");
                         *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         publish_devices(&app, "offline", Vec::new(), None);
                         publish_status(&app, "offline", None);
@@ -308,6 +310,7 @@ pub fn start(app: AppHandle) {
                 }
                 if changed_config { break; }
             }
+            crate::storage::disconnected(&app, "primary");
             *app.state::<ConnectionManager>().refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().server_refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -379,6 +382,10 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
 
     let (delivery_tx, mut delivery_rx) = mpsc::channel::<DeviceDelivery>(16);
     *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = Some(delivery_tx);
+    let (storage_tx, mut storage_rx) = mpsc::channel::<crate::storage::StorageRequest>(16);
+    crate::storage::connected(app, "primary", storage_tx.clone());
+    let mut pending_storage: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    let mut storage_counter = 0u64;
     let mut pending_deliveries: HashMap<String, oneshot::Sender<Result<String, String>>> = HashMap::new();
     let mut delivery_counter = 0u64;
 
@@ -409,9 +416,11 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
         tokio::select! {
             _ = ticker.tick() => {
                 pending_deliveries.retain(|_, reply| !reply.is_closed());
+                pending_storage.retain(|_, reply| !reply.is_closed());
                 if let Some((_, sent)) = &pending_ping {
                     if sent.elapsed() >= PONG_TIMEOUT
                         && server_pending.is_none()
+                        && pending_storage.is_empty()
                         && tokio::time::Instant::now() >= ping_grace_until
                     {
                         return Err(format!("pong timeout after {} seconds", PONG_TIMEOUT.as_secs()));
@@ -484,6 +493,17 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                     list_pending = Some((id, tokio::time::Instant::now()));
                 }
             }
+            storage_command = storage_rx.recv() => {
+                let Some(command) = storage_command else { return Err("storage channel closed".into()); };
+                storage_counter = storage_counter.wrapping_add(1);
+                let id = format!("hc-storage-primary-{storage_counter}");
+                let packet = json!({"v":1,"type":"command","id":id,"action":command.action,"data":command.data});
+                if let Err(e) = socket.send(Message::Text(packet.to_string().into())).await {
+                    let _ = command.reply.send(Err(e.to_string()));
+                    return Err(e.to_string());
+                }
+                pending_storage.insert(id, command.reply);
+            }
             delivery = delivery_rx.recv() => {
                 let Some(delivery) = delivery else { return Err("delivery channel closed".into()); };
                 if pending_deliveries.len() >= 64 {
@@ -535,6 +555,15 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                         }
 
                         let response_id = message.get("id").and_then(Value::as_str).unwrap_or("");
+                        if let Some(reply) = pending_storage.remove(response_id) {
+                            let result = if message.get("type").and_then(Value::as_str) == Some("result") {
+                                Ok(message.get("data").cloned().unwrap_or(Value::Null))
+                            } else {
+                                Err(message.get("error").and_then(Value::as_str).unwrap_or("Ошибка команды Storage Manager").to_owned())
+                            };
+                            let _ = reply.send(result);
+                            continue;
+                        }
                         if let Some(reply) = pending_deliveries.remove(response_id) {
                             let success = message.get("type").and_then(Value::as_str) == Some("result")
                                 && message.get("action").and_then(Value::as_str) == Some("clients.send")
