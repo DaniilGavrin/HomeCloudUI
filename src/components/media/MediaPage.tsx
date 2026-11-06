@@ -3,7 +3,6 @@ import type { ChangeEvent, ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { useHomeCloudDeviceRegistry, type RegisteredDevice } from '../../hooks/useHomeCloudDeviceRegistry';
-import { useHomeCloudStorage, type StoredFile } from '../../hooks/useHomeCloudStorage';
 import { HcStorageTvLauncher } from './HcStorageTvLauncher';
 import { kindOf } from '../devices/deviceKind';
 import '../../styles/media.css';
@@ -11,7 +10,6 @@ import '../../styles/media.css';
 type Kind = 'audio' | 'video' | 'image';
 type Tab = 'local' | 'server' | 'outputs';
 type LocalMedia = { id: string; name: string; kind: Kind; url: string; size: number };
-type RemoteMedia = { serverId: string; serverName: string; file: StoredFile; kind: Kind };
 type LoopMode = 'off' | 'all' | 'one';
 type IconName = 'play' | 'pause' | 'stop' | 'next' | 'previous' | 'volume' | 'mute' | 'video' | 'music' | 'image' | 'cloud' | 'monitor' | 'upload' | 'download' | 'refresh' | 'search' | 'expand' | 'collapse' | 'trash' | 'shuffle' | 'repeat' | 'radio' | 'check' | 'folder';
 
@@ -75,7 +73,6 @@ const deviceKey = (d: RegisteredDevice) => JSON.stringify([d.server_id, d.device
 export function MediaPage() {
   const { snapshot: pool } = useHomeCloudPool();
   const { snapshot: registry, send } = useHomeCloudDeviceRegistry();
-  const storage = useHomeCloudStorage();
   const reduced = Boolean(useReducedMotion());
   const [tab, setTab] = useState<Tab>('server');
   const [local, setLocal] = useState<LocalMedia[]>([]);
@@ -89,12 +86,6 @@ export function MediaPage() {
   const [loop, setLoop] = useState<LoopMode>('off');
   const [shuffle, setShuffle] = useState(false);
   const [search, setSearch] = useState('');
-  const [serverFilter, setServerFilter] = useState('all');
-  const [catalog, setCatalog] = useState<RemoteMedia[]>([]);
-  const [loadErrors, setLoadErrors] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [busyFile, setBusyFile] = useState<string | null>(null);
   const [selectedOutput, setSelectedOutput] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -109,7 +100,6 @@ export function MediaPage() {
   const current = local.find(m => m.id === selectedId) ?? null;
   const currentIndex = local.findIndex(m => m.id === current?.id);
   const hasMedia = Boolean(current && current.kind !== 'image');
-  const serverSignature = pool.servers.map(s => `${s.id}:${s.phase}:${s.name}`).join('|');
 
   useEffect(() => () => {
     ownedUrls.current.forEach(url => URL.revokeObjectURL(url));
@@ -232,53 +222,6 @@ export function MediaPage() {
     return () => window.removeEventListener('keydown', onPlayerKeyDown, true);
   }, [playerFullscreen]);
 
-  const onlineServers = pool.servers.filter(s => s.phase === 'ready');
-  const catalogCount = catalog.filter(item => pool.servers.some(s => s.id === item.serverId)).length;
-  useEffect(() => {
-    let alive = true;
-    const servers = pool.servers.filter(s => s.phase === 'ready');
-    const ids = new Set(pool.servers.map(s => s.id));
-    setCatalog(items => items.filter(item => ids.has(item.serverId)));
-    if (!servers.length) { setLoading(false); setLoadErrors([]); return; }
-    setLoading(true); setLoadErrors([]);
-    void Promise.allSettled(servers.map(async server => {
-      const files = await storage.listFiles(server.id);
-      return { server, files: files.filter(file => mediaKind(file.name, file.mime_type) !== null) };
-    })).then(results => {
-      if (!alive) return;
-      const received: RemoteMedia[] = [];
-      const failures: string[] = [];
-      results.forEach((result, idx) => {
-        if (result.status === 'rejected') {
-          failures.push(`${servers[idx].name}: ${String(result.reason)}`);
-          return;
-        }
-        const { server, files } = result.value;
-        for (const file of files) received.push({ serverId: server.id, serverName: server.name, file, kind: mediaKind(file.name, file.mime_type)! });
-      });
-      setCatalog(previous => [
-        ...previous.filter(item => !servers.some(s => s.id === item.serverId)),
-        ...received,
-      ]);
-      setLoadErrors(failures);
-    }).finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-    // serverSignature deliberately tracks only identity/phase, not 1-second ping revisions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverSignature, refreshKey, storage.listFiles]);
-
-  const download = async (item: RemoteMedia) => {
-    const server = pool.servers.find(s => s.id === item.serverId);
-    if (server?.phase !== 'ready') return;
-    setBusyFile(`${item.serverId}:${item.file.file_id}`);
-    setNotice(null);
-    try {
-      const path = await storage.download(item.serverId, item.file);
-      if (path) { setNoticeError(false); setNotice(`Файл сохранён: ${path}. Чтобы воспроизвести его здесь, добавь файл во вкладке «Локальные».`); }
-    } catch (error) { setNoticeError(true); setNotice(String(error)); }
-    finally { setBusyFile(null); }
-  };
-
   const outputs = registry.devices.filter(isOutput).sort((a, b) => Number(b.online) - Number(a.online) || a.device_id.localeCompare(b.device_id));
   const currentOutput = outputs.find(d => deviceKey(d) === selectedOutput) ?? null;
   const sendCommand = async (action: string) => {
@@ -294,10 +237,6 @@ export function MediaPage() {
 
   const query = search.trim().toLowerCase();
   const visibleLocal = useMemo(() => local.filter(entry => entry.name.toLowerCase().includes(query)), [local, query]);
-  const visibleCatalog = useMemo(() => catalog.filter(item =>
-    (serverFilter === 'all' || serverFilter === item.serverId)
-    && (!query || `${item.file.name} ${item.serverName} ${item.file.mime_type}`.toLowerCase().includes(query))
-  ).sort((a, b) => a.serverName.localeCompare(b.serverName) || a.file.name.localeCompare(b.file.name)), [catalog, query, serverFilter]);
 
   const noticeView = notice && <div className={`hc-media-notice ${noticeError ? 'hc-media-notice--error' : ''}`} role="status">
     <span>{notice}</span><button type="button" aria-label="Закрыть уведомление" onClick={() => setNotice(null)}>×</button>
@@ -306,7 +245,7 @@ export function MediaPage() {
   return <section className="hc-media-page" aria-label="Мультимедиа HomeCloud">
     <input ref={fileInput} className="hc-media-file-input" type="file" accept="audio/*,video/*,image/*,.mkv,.flac,.opus,.avi,.wma,.ts" multiple onChange={importFiles} aria-label="Добавить медиафайлы"/>
     <header className="hc-media-header">
-      <div><span className="hc-media-overline">HOMECLOUD · MULTIMEDIA</span><h2>Мультимедиа</h2><p>Локальный плеер, медиатека серверов и устройства воспроизведения</p></div>
+      <div><span className="hc-media-overline">HOMECLOUD · MULTIMEDIA</span><h2>Мультимедиа</h2><p>Локальный плеер, HC Storage Service и устройства воспроизведения</p></div>
       <motion.button type="button" className="hc-media-button hc-media-button--primary" onClick={() => fileInput.current?.click()} whileTap={reduced ? undefined : { scale: .97 }}><MediaIcon name="upload" size={17}/> Добавить файлы</motion.button>
     </header>
     <div className="hc-media-scroll">
@@ -349,7 +288,7 @@ export function MediaPage() {
         <div className="hc-media-tabs" role="tablist" aria-label="Источники мультимедиа">
           {([{id:'local',title:'Локальные',icon:'folder'},{id:'server',title:'На серверах',icon:'cloud'},{id:'outputs',title:'Устройства',icon:'monitor'}] as const).map(t => <button key={t.id} role="tab" aria-selected={tab===t.id} type="button" className={tab===t.id?'hc-media-tab hc-media-tab--active':'hc-media-tab'} onClick={() => {setTab(t.id);setSearch('');}}><MediaIcon name={t.icon} size={17}/>{t.title}</button>)}
         </div>
-        {tab !== 'outputs' && <div className="hc-media-toolbar"><label className="hc-media-search"><MediaIcon name="search" size={18}/><input value={search} onChange={e=>setSearch(e.target.value)} type="search" placeholder="Поиск по файлам..."/></label>{tab==='server' && <><select aria-label="Сервер" value={serverFilter} onChange={e=>setServerFilter(e.target.value)}><option value="all">Все серверы</option>{pool.servers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button type="button" className="hc-media-button" disabled={loading} onClick={()=>setRefreshKey(v=>v+1)}><MediaIcon name="refresh" size={17}/>{loading?'Опрос…':'Обновить'}</button></>}</div>}
+        {tab === 'local' && <div className="hc-media-toolbar"><label className="hc-media-search"><MediaIcon name="search" size={18}/><input value={search} onChange={e=>setSearch(e.target.value)} type="search" placeholder="Поиск по локальным файлам..."/></label></div>}
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={tab} role="tabpanel" className="hc-media-tab-content" initial={{opacity:0,y:reduced?0:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:reduced?0:-8}} transition={{duration:reduced?.08:.23}}>
             {tab==='local' ? <>
@@ -358,11 +297,7 @@ export function MediaPage() {
                 <div className="hc-media-file-grid">{visibleLocal.map(item=><button type="button" key={item.id} onClick={()=>setSelectedId(item.id)} className={`hc-media-file homecloud-glass ${current?.id===item.id?'hc-media-file--active':''}`}><span className="hc-media-file__icon"><MediaIcon name={item.kind==='audio'?'music':item.kind==='video'?'video':'image'} size={27}/></span><span className="hc-media-file__info"><strong>{item.name}</strong><small>{kindName[item.kind]} · {bytes(item.size)}</small></span><MediaIcon name="play" size={15}/></button>)}</div>}
             </> : tab==='server' ? <>
               <HcStorageTvLauncher servers={pool.servers} devices={registry.devices}/>
-              <div className="hc-media-section-heading"><div><h3>Медиатека HomeCloud</h3><p>Старый каталог Storage Manager (загрузка файлов). Для запуска на TV используй новый браузер HC Storage Service выше.</p></div><span>{catalogCount} файлов · {onlineServers.length} в сети</span></div>
-              {!!loadErrors.length && <div className="hc-media-inline-error" role="status">{loadErrors.join(' · ')}</div>}
-              {!visibleCatalog.length ? <div className="hc-media-empty"><MediaIcon name="cloud" size={30}/><strong>{loading?'Получаем каталог…':'Медиафайлы не найдены'}</strong><span>Файлы должны быть зарегистрированы в Storage Manager. Неподключённые серверы не опрашиваются.</span></div>:
-                <div className="hc-media-file-grid">{visibleCatalog.map(item=>{const key=`${item.serverId}:${item.file.file_id}`;const ready=pool.servers.find(s=>s.id===item.serverId)?.phase==='ready'; return <div key={key} className="hc-media-file hc-media-file--remote homecloud-glass"><span className="hc-media-file__icon"><MediaIcon name={item.kind==='audio'?'music':item.kind==='video'?'video':'image'} size={27}/></span><span className="hc-media-file__info"><strong title={item.file.name}>{item.file.name}</strong><small>{item.serverName} · {bytes(item.file.size_bytes)}</small><small className={ready?'hc-media-remote-online':'hc-media-remote-offline'}>{ready?'Online':'Offline · данные последнего опроса'}</small></span><button type="button" disabled={!ready||busyFile!==null} className="hc-media-download" title="Скачать через HomeCloud Storage Manager" aria-label={`Скачать ${item.file.name}`} onClick={()=>void download(item)}><MediaIcon name="download" size={19}/></button></div>})}</div>}
-              <p className="hc-media-fineprint">API возвращает до 500 зарегистрированных файлов на сервер. Потокового URL для воспроизведения на сервере пока нет: файл можно скачать и добавить в локальный плеер.</p>
+
             </> : <>
               <div className="hc-media-section-heading"><div><h3>Клиенты воспроизведения</h3><p>Медиаклиенты Backend. Для настоящего управления телевизором используй HC SS → TV во вкладке «На серверах».</p></div><span>{outputs.filter(d=>d.online).length} в сети</span></div>
               {!outputs.length ? <div className="hc-media-empty"><MediaIcon name="monitor" size={30}/><strong>Нет зарегистрированных медиаклиентов</strong><span>Устройство должно подключиться к одному из серверов и объявить подходящий client_type.</span></div>:
@@ -375,7 +310,7 @@ export function MediaPage() {
           </motion.div>
         </AnimatePresence>
       </div>
-      {storage.progress && <div className="hc-media-transfer homecloud-glass"><span>Скачивание с {pool.servers.find(s=>s.id===storage.progress?.server_id)?.name??storage.progress.server_id}</span><strong>{bytes(storage.progress.completed_bytes)} / {bytes(storage.progress.total_bytes)}</strong><div><i style={{width:`${storage.progress.total_bytes>0?Math.min(100,storage.progress.completed_bytes/storage.progress.total_bytes*100):0}%`}}/></div></div>}
+
       {noticeView}
     </div>
   </section>;
