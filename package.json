@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test:devices": "node --experimental-strip-types --test tests/deviceKind.test.mjs",
-    "test:storage": "node --experimental-strip-types --test tests/hcssModel.test.mjs"
+    "test:storage": "node --experimental-strip-types --test tests/hcssModel.test.mjs tests/storageMigration.test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
