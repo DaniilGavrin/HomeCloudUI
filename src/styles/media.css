@@ -236,3 +236,49 @@
   .hc-media-stage--fullscreen .hc-media-display-brand {top:18px;left:12px;}
 }
 @media(prefers-reduced-motion:reduce){ .hc-media-center-play {transition:none;} }
+
+/* KAN-79 — HC SS browser and TV playback controls. Low-cost desktop CSS. */
+.hc-hcss-launcher {
+  display:flex;flex-direction:column;gap:16px;
+  border:1px solid rgba(114,227,255,.26);
+  border-radius:20px;padding:clamp(15px,2.1vw,23px);margin-bottom:25px;
+  background:linear-gradient(140deg,rgba(66,180,218,.075),rgba(140,108,235,.055));
+}
+.hc-hcss-launcher__header { display:flex;align-items:flex-start;gap:12px;justify-content:space-between;flex-wrap:wrap; }
+.hc-hcss-launcher__header h3 {margin:5px 0 2px;font-size:19px;font-weight:620;}
+.hc-hcss-launcher__header p { margin:7px 0 0;font-size:12px;color:rgba(227,244,255,.65);line-height:1.6;max-width:740px; }
+.hc-hcss-launcher__selectors {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:11px;}
+.hc-hcss-launcher__selectors label {display:flex;flex-direction:column;gap:7px;min-width:0;color:rgba(221,244,255,.73);font-size:12px;}
+.hc-hcss-launcher__selectors select {
+ min-height:44px;max-width:100%;padding:9px 11px;border-radius:12px;
+ border:1px solid rgba(223,245,255,.19);background:#172337;color:#edfbff;font:inherit;font-size:12px;
+}
+.hc-hcss-launcher__selectors select:disabled {opacity:.47;}
+.hc-hcss-launcher__path {display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+.hc-hcss-launcher__path span {color:rgba(229,246,255,.76);font-size:12px;overflow-wrap:anywhere;}
+.hc-hcss-launcher__browser {border:1px solid rgba(194,228,255,.15);border-radius:16px;padding:15px;}
+.hc-hcss-launcher__files {
+ display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));
+ gap:8px;min-height:90px;max-height:300px;overflow:auto;scrollbar-width:thin;
+}
+.hc-hcss-launcher__files > p {font-size:12px;color:rgba(220,239,255,.65);}
+.hc-hcss-launcher__file {
+ min-width:0;display:flex;align-items:center;gap:9px;min-height:48px;text-align:left;
+ padding:10px;border:1px solid rgba(220,239,255,.1);border-radius:12px;
+ color:#eaf9ff;background:rgba(218,237,255,.04);cursor:pointer;
+}
+.hc-hcss-launcher__file strong {min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
+.hc-hcss-launcher__file small {color:rgba(223,242,255,.57);font-size:10px;white-space:nowrap;}
+.hc-hcss-launcher__file:hover:not(:disabled) {background:rgba(165,228,255,.09);}
+.hc-hcss-launcher__file--active {border-color:rgba(125,233,255,.56);background:rgba(125,233,255,.12);}
+.hc-hcss-launcher__actions {display:flex;flex-wrap:wrap;gap:10px;}
+.hc-hcss-launcher__actions .hc-media-button {min-height:44px;}
+.hc-hcss-launcher__stop {color:#ffd6de;border-color:rgba(255,125,156,.4);}
+.hc-hcss-launcher__status {font-size:12px;color:#c5e9fb;line-height:1.6;margin:0;overflow-wrap:anywhere;}
+.hc-hcss-launcher__notice {margin:0;border-radius:11px;border:1px solid rgba(123,215,235,.28);padding:12px;color:#bce9f9;font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
+.hc-hcss-launcher__hint {margin:0;font-size:11px;line-height:1.6;color:rgba(224,244,255,.58);}
+@media(max-width:690px) {
+ .hc-hcss-launcher__header > .hc-media-button {width:100%;}
+ .hc-hcss-launcher__actions .hc-media-button {flex:1 1 150px;}
+ .hc-hcss-launcher__files {max-height:210px;}
+}

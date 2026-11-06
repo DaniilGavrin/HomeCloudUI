@@ -63,7 +63,8 @@ pub async fn request(app: &AppHandle, server_id: &str, action: &str, data: Value
 // Bulk HCM1 media bytes never pass through this queue.
 pub async fn request_media(app: &AppHandle, server_id: &str, action: &str, data: Value) -> Result<Value, String> {
     if !matches!(action, "media.rooms.snapshot" | "media.room.control" |
-        "media.rooms.seek" | "media.rooms.stop") {
+        "media.rooms.seek" | "media.rooms.stop" | "media.rooms.play" |
+        "storage.agent.status" | "storage.fs.list" | "cluster.status") {
         return Err("Неизвестная команда Media Room".into());
     }
     let channel = app.state::<StorageTransport>().channels.lock().unwrap_or_else(|e| e.into_inner())
