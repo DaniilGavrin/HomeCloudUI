@@ -44,15 +44,20 @@ pub async fn homecloud_hcss_sources(app: AppHandle, server_id: String) -> Result
 #[tauri::command]
 pub async fn homecloud_hcss_browse(
     app: AppHandle, server_id: String, storage_node_id: String,
-    root_kind: String, root_id: String, path: String,
+    root_kind: String, root_id: String, path: String, cursor: Option<String>,
 ) -> Result<Value, String> {
     if !valid_identifier(&storage_node_id) || !valid_root(&root_kind, &root_id)
         || !valid_relative_path(&path) {
         return Err("Недопустимый узел, корень или относительный путь HC SS".into());
     }
+    let cursor = cursor.unwrap_or_default();
+    if !cursor.is_empty() && (cursor.len()>5 || !cursor.bytes().all(|b| b.is_ascii_digit())
+        || cursor.parse::<usize>().map_or(true, |n| n>20000)) {
+        return Err("Недопустимый курсор каталога HC SS".into());
+    }
     crate::storage::request_media(&app, &server_id, "storage.fs.list",
         json!({"storage_node_id":storage_node_id, "root":{"kind":root_kind,"id":root_id},
-            "path":path, "limit":500})).await
+            "path":path, "limit":500, "cursor":cursor})).await
 }
 
 #[tauri::command]
