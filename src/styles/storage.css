@@ -50,16 +50,6 @@
 @media(prefers-reduced-motion:reduce){.hc-storage__capacity-track i,.hc-storage__transfer>div i { transition:none; }}
 
 /* KAN-80 — primary HC Storage Service filesystem explorer (read-only V1). */
-.hc-storage-shell { height:100%;min-height:0;display:flex;flex-direction:column;gap:0; }
-.hc-storage-shell__switch { display:flex;gap:8px;align-items:center;padding:0 12px 10px;flex-shrink:0;overflow-x:auto; }
-.hc-storage-shell__tab {
- appearance:none;background:rgba(144,201,234,.055);border:1px solid rgba(173,228,251,.18);
- border-radius:12px 12px 9px 9px;min-height:37px;padding:9px 14px;
- color:rgba(226,243,252,.64);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;
-}
-.hc-storage-shell__tab:hover {background:rgba(168,218,244,.12);color:#edfaff;}
-.hc-storage-shell__tab--active {background:rgba(90,216,249,.14);color:#c4f5ff;border-color:rgba(119,223,249,.5);}
-.hc-storage-shell__content {flex:1;min-height:0;min-width:0;}
 .hc-storage--hcss .hc-storage__scroll {padding-bottom:30px;}
 .hc-hcss__read-only {display:inline-flex;align-items:center;border:1px solid rgba(154,221,244,.2);border-radius:999px;padding:7px 11px;color:#b4e5f9;font-size:11px;white-space:nowrap;}
 .hc-hcss__nodes {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;}
