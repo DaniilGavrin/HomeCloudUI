@@ -130,7 +130,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
       {snapshot.phase === 'ready' && !room && (
         <div className="hc-tv-device__empty" role="status">
           <strong>Активной медиакомнаты нет</strong>
-          <p>Выбери телевизор в разделе «Мультимедиа» и запусти файл. Управление появится после создания комнаты на Backend.</p>
+          <p>Здесь отображаются комнаты, уже созданные на Backend. Запуск серверного файла через <code>media.rooms.play</code> из медиатеки подключим отдельно; текущий раздел «Мультимедиа» пока не создаёт такую комнату.</p>
         </div>
       )}
 
