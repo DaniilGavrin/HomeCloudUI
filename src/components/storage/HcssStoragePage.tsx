@@ -57,7 +57,7 @@ export function HcssStoragePage() {
   }, [items, folder, filter]);
   const filesCount = items.filter(v => v.kind === 'file').length;
   const fileConnected = Boolean(fileEndpoint.trim() && fileToken.trim());
-  const selectionKey=JSON.stringify([serverId,nodeId,rootId,folder]);
+  const selectionKey=JSON.stringify([serverId,nodeId,rootId,folder,browseReload]);
   const liveSelection=useRef(selectionKey);
   liveSelection.current=selectionKey;
   useEffect(() => {
