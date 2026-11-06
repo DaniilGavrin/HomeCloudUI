@@ -19,7 +19,7 @@ The default `Хранилища` tab is now **HC Storage Service**. It displays:
 4. Published HC SS root cards, each with online/list/read/write permissions. Selecting roots never changes their permissions.
 5. Actual directory navigation, parent/breadcrumb links, per-directory name filter, file size/mtime and native `hc1.*` file IDs. Search is restricted to currently returned entries; it is **not** a recursive/global index.
 
-The previous Storage Manager screen, including its registration, transfers and /ws/storage protocol, is preserved as **Storage Manager · совместимость**. It is not mounted or queried until the user explicitly selects it. Existing Storage Manager files cannot be mislabeled as HC SS files.
+Legacy Storage Manager compatibility was deliberately **removed** after on-device verification. The sole storage screen is HC SS, and the media tab no longer queries the old registered-file catalog. The old storage upload/download/registration IPC commands and obsolete dialog capability have been removed; there is no fallback to /ws/storage. The local media player and real HC SS → TV launcher remain unchanged.
 
 ## Explicit V1 limitations and safety
 
@@ -27,7 +27,7 @@ The previous Storage Manager screen, including its registration, transfers and /
 - No directory pagination. HC SS understands `cursor`, but `internal/wsserver/storage_agent.go` does not forward it. The screen displays at most the first 500 items and calls this limitation out when `next_cursor` is present. A next protocol PR should propagate and validate opaque root-scoped cursors with expiration.
 - The Backend forwards control metadata only. Large bytes need a separate, authenticated, least-privileged data channel, with timeouts, quotas, resume/abort and symlink-safe root confinement.
 - Published roots may differ from mounted volumes. A detected disk must never imply permission to read its files.
-- No restart of TV, Backend, Gateway or HC SS was needed for this UI-only PR. Check real deployed binaries before claiming end-to-end results.
+- No restart of TV, Backend, Gateway or HC SS is required for this UI-only PR. User-confirmed HC SS browse verification preceded removal of the legacy tab; the final cleaned release still requires installation verification.
 
 ## Acceptance
 
@@ -36,6 +36,6 @@ The previous Storage Manager screen, including its registration, transfers and /
 - [ ] Confirm with real Backend that a connected agent is visible, `storage-hdd` root is selectable, `hc-test/test-video.mkv` is navigable and has an HCS1 file ID.
 - [ ] Verify switching server/node/root does not leak stale file lists across selections.
 - [ ] Verify offline states, non-browsable roots and empty directories do not pretend to be accessible.
-- [ ] Verify the legacy tab retains its old independent file transfer path.
+- [ ] Verify there are no legacy Storage Manager tabs, bulk transfers or registered-file media catalogs in the final build.
 
-Follow-up task: design HC SS write/download protocol and implement secure stream transport without letting Backend hold large media/file payloads by accident.
+Follow-up: [KAN-81](https://bytewizardru.atlassian.net/browse/KAN-81) — authenticated HC SS upload/download/write protocol with direct data transport, constrained roots, progress and rollback. Removing Legacy UI is **not** a claim that file transfer support is already implemented.
