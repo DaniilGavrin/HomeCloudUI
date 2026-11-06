@@ -367,7 +367,7 @@ export function HcssStoragePage() {
                   onClick={()=>void loadMore()}>{moreLoading?'Загружаем…':'Показать ещё 500 элементов'}</button>
                 <span>Список загружается страницами, без полного чтения каталога в память</span>
               </div>}
-              {moreError && <div className="hc-hcss__error" role="alert">{moreError}</div>
+              {moreError && <div className="hc-hcss__error" role="alert">{moreError}</div>}
               {file && <aside className="hc-hcss__file-detail homecloud-glass" aria-label="Сведения о выбранном файле">
                 <div><strong>{file.name}</strong>
                   <button className="hc-storage__button" type="button" onClick={() => setFile(null)} aria-label="Закрыть сведения о файле">×</button>
