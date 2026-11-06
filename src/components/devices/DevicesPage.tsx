@@ -2,20 +2,12 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { useHomeCloudDeviceRegistry, type RegisteredDevice } from '../../hooks/useHomeCloudDeviceRegistry';
+import { kindOf, type DeviceKind } from './deviceKind';
+import { TvDevicePanel } from './TvDevicePanel';
 import '../../styles/devices.css';
 
-type DeviceKind = 'desktop' | 'mobile' | 'tv' | 'server' | 'other';
 type TypeFilter = 'all' | DeviceKind;
 type StatusFilter = 'all' | 'online' | 'offline';
-
-function kindOf(clientType: string): DeviceKind {
-  const type = clientType.toLowerCase();
-  if (/(tv|television|android-tv|tizen|webos)/.test(type)) return 'tv';
-  if (/(phone|mobile|android|ios|tablet|touch)/.test(type)) return 'mobile';
-  if (/(server|agent|backend|node|hub)/.test(type)) return 'server';
-  if (/(desktop|pc|computer|laptop|windows|linux|mac)/.test(type)) return 'desktop';
-  return 'other';
-}
 
 const TYPE_LABEL: Record<DeviceKind, string> = {
   desktop: 'Компьютер', mobile: 'Телефон / планшет', tv: 'Телевизор',
@@ -44,7 +36,7 @@ const labelFor = (id: string) => id.startsWith('homecloud-ui-') || id.startsWith
 const lastSeen = (seconds: number | null) => seconds === null ? 'Нет данных' : new Date(seconds * 1000).toLocaleString('ru-RU');
 const keyFor = (device: RegisteredDevice) => JSON.stringify([device.server_id, device.device_id]);
 
-export function DevicesPage() {
+export function DevicesPage({ onOpenMedia }: { onOpenMedia: () => void }) {
   const { snapshot, error, forget, refresh, send } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const [serverId, setServerId] = useState('all');
@@ -72,6 +64,7 @@ export function DevicesPage() {
     ).sort((a, b) => Number(b.online) - Number(a.online) || a.server_id.localeCompare(b.server_id) || a.device_id.localeCompare(b.device_id));
   }, [snapshot.devices, serverId, search, type, status, serverNames]);
   const selected = snapshot.devices.find(d => keyFor(d) === selectedKey) ?? null;
+  const selectedIsTv = selected !== null && kindOf(selected.client_type) === 'tv';
 
   const onRefresh = async () => {
     setNotice(null);
@@ -88,6 +81,20 @@ export function DevicesPage() {
       }
     } catch (cause) { setNoticeError(true); setNotice(String(cause)); }
     finally { setBusy(false); }
+  };
+
+  const onRefreshTv = async (device: RegisteredDevice) => {
+    setBusy(true); setNotice(null);
+    try {
+      await refresh(device.server_id);
+      setNoticeError(false);
+      setNotice(`Запрос списка устройств отправлен на «${serverLabel(device.server_id)}». Статус обновится по ответу Backend.`);
+    } catch (cause) {
+      setNoticeError(true);
+      setNotice(`Не удалось обновить устройства: ${String(cause)}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onForget = async (device: RegisteredDevice) => {
@@ -133,7 +140,16 @@ export function DevicesPage() {
                 <div><span>Тип клиента</span><strong>{selected.client_type}</strong></div>
                 <div><span>Последний раз в сети</span><strong>{lastSeen(selected.last_seen_at)}</strong></div>
               </div>
-              {selected.online ? (
+              {selectedIsTv && (
+                <TvDevicePanel
+                  device={selected}
+                  backendName={serverLabel(selected.server_id)}
+                  busy={busy}
+                  onRefresh={() => void onRefreshTv(selected)}
+                  onOpenMedia={onOpenMedia}
+                />
+              )}
+              {selected.online && !selectedIsTv ? (
                 <div className="hc-devices-command homecloud-glass">
                   <h3>Отправить команду устройству</h3>
                   <p>JSON отправляется через <code>clients.send</code> именно на сервер «{serverLabel(selected.server_id)}». Действие выполнится только если клиент умеет обрабатывать такую команду.</p>
@@ -141,7 +157,7 @@ export function DevicesPage() {
                   <textarea id="hc-device-payload" spellCheck={false} value={payloadText} onChange={e => setPayloadText(e.target.value)} rows={5}/>
                   <button type="button" className="hc-devices-refresh" disabled={busy} onClick={() => void onSend()}>Отправить JSON</button>
                 </div>
-              ) : (
+              ) : !selected.online ? (
                 <div className="hc-devices-command homecloud-glass">
                   <h3>Устройство отключено</h3>
                   <p>Последняя известная информация сохранена локально. Команды недоступны до переподключения.</p>
@@ -153,7 +169,7 @@ export function DevicesPage() {
                     </div>
                   ) : <button type="button" className="hc-devices-danger" onClick={() => setConfirmKey(selectedKey)}>Удалить офлайн-устройство</button>}
                 </div>
-              )}
+              ) : null}
               {notice && <div className={`hc-devices-notice ${noticeError?'hc-devices-notice--error':''}`} role="status">{notice}</div>}
             </div>
           </motion.div>
@@ -184,10 +200,11 @@ export function DevicesPage() {
             <div className="hc-devices-scroll">
               {visible.length === 0 ? <div className="hc-devices-empty"><DeviceIcon kind="other"/><strong>{snapshot.devices.length===0?'Устройства ещё не обнаружены':'Ничего не найдено'}</strong><span>{snapshot.devices.length===0?'Подключи клиента к любому серверу из пула — он появится автоматически.':'Попробуй другой сервер или фильтр.'}</span></div> :
                 <div className="hc-devices-grid"><AnimatePresence initial={false} mode="popLayout">
-                  {visible.map(device=><motion.button type="button" key={keyFor(device)} layout={!reduced} className={`hc-device-card homecloud-glass ${device.online?'':'hc-device-card--offline'}`} title={`${device.device_id} · ${serverLabel(device.server_id)}`} initial={{opacity:0,y:reduced?0:12}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:reduced?1:.96}} transition={{duration:reduced ? 0.08 : 0.22}} whileHover={reduced?undefined:{y:-3}} onClick={()=>{setSelectedKey(keyFor(device));setConfirmKey(null);setNotice(null);}}>
+                  {visible.map(device=><motion.button type="button" key={keyFor(device)} layout={!reduced} className={`hc-device-card homecloud-glass ${device.online?'':'hc-device-card--offline'} ${kindOf(device.client_type)==='tv'?'hc-device-card--tv':''}`} title={`${device.device_id} · ${serverLabel(device.server_id)}`} initial={{opacity:0,y:reduced?0:12}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:reduced?1:.96}} transition={{duration:reduced ? 0.08 : 0.22}} whileHover={reduced?undefined:{y:-3}} onClick={()=>{setSelectedKey(keyFor(device));setConfirmKey(null);setNotice(null);}}>
                     <span className="hc-device-card__top"><span className={`hc-device-icon hc-device-icon--${kindOf(device.client_type)}`}><DeviceIcon kind={kindOf(device.client_type)}/></span><span className={device.online?'hc-device-online':'hc-device-online hc-device-online--offline'}><i/>{device.online?'Online':'Offline'}</span></span>
                     <span className="hc-device-name">{labelFor(device.device_id)}</span>
                     <span className="hc-device-kind">{TYPE_LABEL[kindOf(device.client_type)]} <span>· {device.client_type}</span></span>
+                    {kindOf(device.client_type) === 'tv' && <span className="hc-device-card__tv-tag">TV Player · открыть карточку</span>}
                     <span className="hc-device-card__server">⌂ {serverLabel(device.server_id)}</span>
                     <span className="hc-device-card__footer"><span>{device.online?'Подключён':'Последний раз в сети'}</span><span>{lastSeen(device.last_seen_at)}</span></span>
                   </motion.button>)}

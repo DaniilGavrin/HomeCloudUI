@@ -97,3 +97,116 @@
 .hc-devices-confirm p {width:100%;}
 .hc-devices-detail__scroll > .hc-devices-notice {margin-top:17px;}
 @media(max-width:700px){.hc-devices-server{flex:1 1 100%;}.hc-devices-command{padding:15px;}.hc-devices-controls__row{gap:9px;}}
+
+/* KAN-76 — TV-specific device card. State is sourced from Rust registry only. */
+.hc-device-card--tv { border-color: rgba(170, 142, 255, .22); }
+.hc-device-card--tv:hover { border-color: rgba(200, 174, 255, .4); }
+.hc-device-card__tv-tag {
+  align-self: flex-start;
+  color: #e0d0ff;
+  background: rgba(166, 127, 255, .11);
+  border: 1px solid rgba(180, 150, 255, .2);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  line-height: 1.3;
+  margin-top: 12px;
+}
+.hc-tv-device {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: clamp(16px, 2.2vw, 26px);
+  border: 1px solid rgba(164, 148, 255, .2);
+  background: linear-gradient(135deg, rgba(130, 99, 215, .1), rgba(66, 171, 230, .035));
+  border-radius: 22px;
+}
+.hc-tv-device__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.hc-tv-device__icon {
+  flex: 0 0 66px;
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  color: #d9c8ff;
+  border: 1px solid rgba(178, 149, 255, .28);
+  background: rgba(162, 124, 255, .12);
+}
+.hc-tv-device__heading > div { flex: 1 1 200px; min-width: 0; }
+.hc-tv-device__eyebrow {
+  display: block;
+  color: rgba(210, 190, 255, .8);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+}
+.hc-tv-device__heading h3 {
+  margin: 6px 0;
+  color: #fff;
+  font-size: clamp(17px, 2vw, 22px);
+  font-weight: 650;
+}
+.hc-tv-device__heading p { margin: 0; font-size: 13px; color: rgba(234, 244, 255, .66); }
+.hc-tv-device__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+.hc-tv-device__facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 15px;
+  border: 1px solid rgba(222, 229, 255, .11);
+  background: rgba(255, 255, 255, .028);
+}
+.hc-tv-device__facts span { font-size: 12px; color: rgba(224, 237, 255, .62); }
+.hc-tv-device__facts strong { font-size: 14px; font-weight: 550; color: #e8f5ff; line-height: 1.45; }
+.hc-tv-device__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hc-tv-device__action {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 11px 17px;
+  border: 1px solid rgba(184, 208, 255, .26);
+  border-radius: 14px;
+  color: #f4f9ff;
+  background: rgba(220, 235, 255, .07);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease;
+}
+.hc-tv-device__action--primary {
+  color: #eaf9ff;
+  background: rgba(68, 178, 220, .18);
+  border-color: rgba(101, 219, 255, .35);
+}
+.hc-tv-device__action:hover:not(:disabled) { background: rgba(167, 217, 255, .18); }
+.hc-tv-device__action:disabled { opacity: .55; cursor: not-allowed; }
+.hc-tv-device__action:focus-visible { outline: 2px solid #a2edff; outline-offset: 3px; }
+.hc-tv-device__hint {
+  max-width: 780px;
+  margin: 0;
+  color: rgba(220, 237, 255, .65);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.hc-tv-device__hint code { color: #bceaff; }
+@media (max-width: 700px) {
+  .hc-tv-device__heading { gap: 12px; }
+  .hc-tv-device__actions { flex-direction: column; }
+  .hc-tv-device__action { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc-tv-device__action { transition: none; }
+}
