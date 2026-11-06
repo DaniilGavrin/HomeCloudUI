@@ -565,7 +565,7 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                             let result = if message.get("type").and_then(Value::as_str) == Some("result") {
                                 Ok(message.get("data").cloned().unwrap_or(Value::Null))
                             } else {
-                                Err(message.get("error").and_then(Value::as_str).unwrap_or("Ошибка команды Storage Manager").to_owned())
+                                Err(message.get("error").and_then(Value::as_str).unwrap_or("Ошибка команды Backend").to_owned())
                             };
                             let _ = reply.send(result);
                             continue;

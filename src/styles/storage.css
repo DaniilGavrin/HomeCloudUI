@@ -48,3 +48,46 @@
 @media(max-width:1050px) { .hc-storage__stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:710px) { .hc-storage__head { padding:14px; }.hc-storage__head--main { flex-wrap:wrap; }.hc-storage__head h2 { font-size:21px; }.hc-storage__scroll { padding:16px; }.hc-storage__stats { grid-template-columns:1fr; }.hc-storage__details { grid-template-columns:1fr; }.hc-storage__volumes { grid-template-columns:1fr; }.hc-storage__filters label { width:100%; }.hc-storage__file-size { display:none; } }
 @media(prefers-reduced-motion:reduce){.hc-storage__capacity-track i,.hc-storage__transfer>div i { transition:none; }}
+
+/* KAN-80 — primary HC Storage Service filesystem explorer (read-only V1). */
+.hc-storage--hcss .hc-storage__scroll {padding-bottom:30px;}
+.hc-hcss__read-only {display:inline-flex;align-items:center;border:1px solid rgba(154,221,244,.2);border-radius:999px;padding:7px 11px;color:#b4e5f9;font-size:11px;white-space:nowrap;}
+.hc-hcss__nodes {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;}
+.hc-hcss__node {min-width:0;border-radius:15px;padding:14px;text-align:left;display:grid;gap:7px;color:#eaf7ff;cursor:pointer;font:inherit;}
+.hc-hcss__node strong {font-size:12px;overflow-wrap:anywhere;font-weight:550;}
+.hc-hcss__node small {color:rgba(230,244,255,.55);font-size:11px;}
+.hc-hcss__node--active {border-color:rgba(94,226,246,.67);background:rgba(93,214,248,.08);}
+.hc-hcss__node .hc-storage__pill {justify-self:start;}
+.hc-hcss__volume {cursor:default;}
+.hc-hcss__volume:hover {background:rgba(255,255,255,.045);border-color:rgba(230,246,255,.1);}
+.hc-hcss__disc {font-size:27px;color:#88dcf9;line-height:1;}
+.hc-hcss__roots {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,225px),1fr));gap:9px;}
+.hc-hcss__root {
+ display:grid;align-content:start;gap:7px;border-radius:15px;padding:14px;
+ text-align:left;background:rgba(255,255,255,.04);color:#e6f7ff;font:inherit;cursor:pointer;min-width:0;
+}
+.hc-hcss__root strong {font-size:13px;overflow-wrap:anywhere;}
+.hc-hcss__root small,.hc-hcss__root span {font-size:11px;color:rgba(229,244,255,.59);overflow-wrap:anywhere;}
+.hc-hcss__root--active {border-color:rgba(115,224,247,.65);background:rgba(112,216,244,.09);}
+.hc-hcss__root:disabled {opacity:.48;cursor:not-allowed;}
+.hc-hcss__breadcrumbs {display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0 0 14px;}
+.hc-hcss__breadcrumbs button {appearance:none;border:0;background:none;color:#a6e7f9;padding:5px 3px;cursor:pointer;font:inherit;font-size:12px;overflow-wrap:anywhere;}
+.hc-hcss__breadcrumbs button[aria-current=page] {color:#f1f9ff;cursor:default;}
+.hc-hcss__breadcrumbs button:disabled:not([aria-current=page]) {opacity:.5;cursor:default;}
+.hc-hcss__error,.hc-hcss__warning {border-radius:13px;padding:13px 15px;font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
+.hc-hcss__error {border:1px solid rgba(255,133,146,.5);background:rgba(144,41,56,.13);color:#ffd6db;margin:13px 0;}
+.hc-hcss__warning {border:1px solid rgba(237,193,116,.3);color:#ffe0a4;background:rgba(135,101,35,.1);margin:13px 0;}
+.hc-hcss__file--selected {border-color:rgba(121,228,248,.56);background:rgba(121,228,248,.1);}
+.hc-hcss__file-detail {margin-top:16px;border-radius:17px;padding:18px;overflow-wrap:anywhere;}
+.hc-hcss__file-detail > div {display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.hc-hcss__file-detail > div strong {font-size:15px;overflow-wrap:anywhere;}
+.hc-hcss__file-detail dl {display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,3fr);gap:12px 15px;margin:19px 0 0;}
+.hc-hcss__file-detail dt {font-size:12px;color:rgba(232,244,255,.54);}
+.hc-hcss__file-detail dd {font-size:12px;margin:0;color:#d9f6ff;overflow-wrap:anywhere;}
+.hc-hcss__file-id {font-family:ui-monospace,Consolas,monospace;font-size:10px!important;word-break:break-all;}
+@media(max-width:710px){
+ .hc-storage-shell__switch {padding:0 8px 8px;}
+ .hc-hcss__file-detail dl {grid-template-columns:1fr;gap:7px;}
+ .hc-hcss__file-detail dt:not(:first-of-type) {margin-top:7px;}
+ .hc-hcss__read-only {font-size:10px;}
+}

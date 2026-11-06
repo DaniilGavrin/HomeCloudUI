@@ -502,7 +502,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     let result = if payload.get("type").and_then(Value::as_str) == Some("result") {
                         Ok(payload.get("data").cloned().unwrap_or(Value::Null))
                     } else {
-                        Err(payload.get("error").and_then(Value::as_str).unwrap_or("Ошибка команды Storage Manager").to_owned())
+                        Err(payload.get("error").and_then(Value::as_str).unwrap_or("Ошибка команды Backend").to_owned())
                     };
                     let _ = reply.send(result);
                     continue;

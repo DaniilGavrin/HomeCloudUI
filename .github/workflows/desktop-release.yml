@@ -33,6 +33,8 @@ jobs:
         run: npm run build
       - name: Verify device type classification
         run: npm run test:devices
+      - name: Verify HC Storage Service browser model
+        run: npm run test:storage
 
   build:
     name: Build ${{ matrix.platform }}
