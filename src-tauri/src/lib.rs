@@ -35,15 +35,12 @@ pub fn run() {
             device_registry::homecloud_device_forget,
             device_registry::homecloud_device_refresh,
             device_registry::homecloud_device_send,
-            storage::homecloud_storage_command,
             media_rooms::homecloud_media_status,
             media_rooms::homecloud_media_refresh,
             media_rooms::homecloud_media_command,
             media_source::homecloud_hcss_sources,
             media_source::homecloud_hcss_browse,
             media_source::homecloud_hcss_play,
-            storage::homecloud_storage_local_file,
-            storage::homecloud_storage_transfer,
         ])
         .setup(|app| {
             server_pool::initialize(app.handle()).map_err(std::io::Error::other)?;
