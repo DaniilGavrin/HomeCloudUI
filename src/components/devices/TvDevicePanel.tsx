@@ -36,7 +36,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
   }, [room?.room_id, room?.playback_id, room?.generation, device.server_id]);
 
   async function send(action: MediaControlRequest['action'], extra: Partial<MediaControlRequest> = {}) {
-    if (!room || !device.online || commandBusy) return;
+    if (!room || commandBusy || (action !== 'stop' && !device.online)) return;
     setCommandBusy(true);
     setNotice(null);
     try {
@@ -51,7 +51,9 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
       });
       setCommandError(false);
       const outcome = String(result.command_status ?? result.status ?? 'accepted');
-      setNotice(`Команда «${action}» принята Backend (${outcome}). Ожидаем подтверждённое состояние TV.`);
+      setNotice(action === 'stop'
+        ? 'Backend закрыл медиакомнату и отправил закрытие Gateway и TV. При потере связи с TV физическое завершение подтвердится только после восстановления соединения.'
+        : `Команда «${action}» принята Backend (${outcome}). Ожидаем подтверждённое состояние TV.`);
     } catch (cause) {
       setCommandError(true);
       setNotice(`Не удалось выполнить «${action}»: ${String(cause)}`);
@@ -148,7 +150,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
             <button type="button" disabled={!canSeek || commandBusy} onClick={() => seek(-10000)} title="Назад 10 секунд">−10 с</button>
             <button type="button" className="hc-tv-remote__play" disabled={!ready || commandBusy} onClick={() => void send(playAction)}>{playLabel}</button>
             <button type="button" disabled={!canSeek || commandBusy} onClick={() => seek(10000)} title="Вперёд 10 секунд">+10 с</button>
-            <button type="button" className="hc-tv-remote__stop" disabled={!device.online || commandBusy} onClick={() => { if (window.confirm('Остановить воспроизведение на телевизоре?')) void send('stop'); }}>Стоп</button>
+            <button type="button" className="hc-tv-remote__stop" disabled={snapshot.phase !== 'ready' || commandBusy} onClick={() => { if (window.confirm('Полностью остановить медиакомнату, поток Gateway и воспроизведение на телевизоре?')) void send('stop'); }}>Полный стоп</button>
           </div>
           <div className="hc-tv-remote__volume">
             <label htmlFor="hc-tv-volume">Громкость <strong>{volumeDraft}%</strong></label>
