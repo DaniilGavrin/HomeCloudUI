@@ -206,6 +206,14 @@ fn apply_bundle(entry: &mut ServerState, bundle: RoomBundle) -> Result<(), Strin
         || r.sequence > bundle.sequence || r.room_id.is_empty() || r.playback_id.is_empty()) {
         return Err("Несогласованный список медиакомнат".into());
     }
+    // A refresh response may lag behind live events that were already applied.
+    // Never roll a ready view back to a lower sequence from the same Backend.
+    if entry.view.phase == "ready"
+        && entry.view.instance_id.as_deref() == Some(bundle.instance_id.as_str())
+        && bundle.sequence < entry.view.sequence
+    {
+        return Ok(());
+    }
     let mut view = entry.view.clone();
     view.instance_id = Some(bundle.instance_id);
     view.sequence = bundle.sequence;
@@ -357,6 +365,15 @@ mod tests {
         assert!(state.view.rooms.is_empty());
         assert!(apply_one(&mut state.view,"media.room.changed",room("different",6)).is_err());
         assert!(apply_one(&mut state.view,"media.room.changed",room("i",7)).is_err());
+    }
+    #[test]
+    fn stale_refresh_cannot_roll_back_newer_event() {
+        let mut state = ServerState::new("primary");
+        apply_bundle(&mut state,RoomBundle{schema_version:1,instance_id:"i".into(),sequence:6,rooms:vec![room("i",6)]}).unwrap();
+        apply_one(&mut state.view,"media.room.changed",room("i",7)).unwrap();
+        apply_bundle(&mut state,RoomBundle{schema_version:1,instance_id:"i".into(),sequence:6,rooms:vec![room("i",6)]}).unwrap();
+        assert_eq!(state.view.sequence,7);
+        assert_eq!(state.view.rooms[0].sequence,7);
     }
     #[test]
     fn disconnect_invalidates_old_async_snapshot() {
