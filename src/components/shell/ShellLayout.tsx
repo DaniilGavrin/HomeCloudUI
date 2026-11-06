@@ -153,7 +153,7 @@ export function ShellLayout() {
               {activeId === 'home' ? (
                 <HomePage connection={connection} now={time} onNavigate={setActiveId} />
               ) : activeId === 'devices' ? (
-                <DevicesPage />
+                <DevicesPage onOpenMedia={() => setActiveId('media')} />
               ) : activeId === 'servers' ? (
                 <ServersPage />
               ) : activeId === 'storage' ? (
