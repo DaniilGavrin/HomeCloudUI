@@ -308,6 +308,7 @@ fn start_secondary(app: AppHandle, id: String) {
     p.refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    crate::media_rooms::disconnected(&app, &id);
     let entry = {
         let state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
         state.servers.iter().find(|n| n.entry.id == id).map(|n| n.entry.clone())
@@ -338,6 +339,7 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
             // Each address attempt owns a distinct socket. Mark the observed
             // devices offline before trying a fallback address.
             crate::storage::disconnected(&app, &entry.id);
+            crate::media_rooms::disconnected(&app, &entry.id);
             crate::device_registry::disconnected(&app, &entry.id);
             let state = app.state::<ServerPool>();
             state.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
@@ -375,7 +377,8 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     }
     // Subscribe before clients.list, so updates during the initial snapshot
     // are not lost. This is the SAME secondary WebSocket used for telemetry.
-    for (suffix, topic) in [("connected", "clients.connected"), ("disconnected", "clients.disconnected")] {
+    for (suffix, topic) in [("connected", "clients.connected"), ("disconnected", "clients.disconnected"),
+        ("media-changed", "media.room.changed"), ("media-closed", "media.room.closed")] {
         let msg = json!({"v":1,"id":format!("hc-pool-sub-{}-{suffix}", entry.id),"type":"subscribe","topic":topic});
         socket.send(Message::Text(msg.to_string().into())).await.map_err(|e| format!("subscribe failed: {e}"))?;
     }
@@ -391,6 +394,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut deferred_events: Vec<(bool, crate::homecloud_ws::ConnectedDevice)> = Vec::new();
     let (storage_tx, mut storage_rx) = mpsc::channel::<crate::storage::StorageRequest>(16);
     crate::storage::connected(app, &entry.id, storage_tx.clone());
+    crate::media_rooms::connected(app, &entry.id);
     let mut pending_storage: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
     let mut storage_counter = 0u64;
     let mut list_resync = tokio::time::interval_at(tokio::time::Instant::now() + Duration::from_secs(30), Duration::from_secs(30));
@@ -483,6 +487,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     Some(Ok(_)) => continue,
                 };
                 let Ok(payload) = serde_json::from_str::<Value>(raw.as_str()) else { continue; };
+                crate::media_rooms::on_event(app, &entry.id, &payload);
                 if let Some((connected, device)) = crate::homecloud_ws::parse_device_event(&payload) {
                     if pending_list.is_some() {
                         if deferred_events.len() < 2048 { deferred_events.push((connected, device)); }
