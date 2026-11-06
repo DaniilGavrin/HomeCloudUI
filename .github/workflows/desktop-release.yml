@@ -31,6 +31,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Verify frontend
         run: npm run build
+      - name: Verify device type classification
+        run: npm run test:devices
 
   build:
     name: Build ${{ matrix.platform }}
