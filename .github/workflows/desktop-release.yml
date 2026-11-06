@@ -1,0 +1,157 @@
+name: HomeCloud UI - Windows + Linux Release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# PRs build but never publish. Both merges and direct commits to main trigger
+# a new release. Do not cancel an in-flight main release on the next commit.
+concurrency:
+  group: homecloud-ui-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare - TypeScript and Vite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify frontend
+        run: npm run build
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-2022
+            bundles: nsis
+          - platform: linux-x64
+            os: ubuntu-24.04
+            bundles: deb,appimage
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Linux Tauri system dependencies
+        if: matrix.platform == 'linux-x64'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev build-essential \
+            curl wget file patchelf
+      - name: Install locked npm dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build Tauri desktop packages
+        run: npm run tauri -- build --bundles ${{ matrix.bundles }}
+
+      - name: Collect Windows installer
+        if: matrix.platform == 'windows-x64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          $files = @(Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' -File -ErrorAction Stop)
+          if ($files.Count -eq 0) { throw 'Windows NSIS installer missing' }
+          foreach ($file in $files) {
+            Copy-Item -LiteralPath $file.FullName -Destination (Join-Path release-assets $file.Name)
+          }
+
+      - name: Collect Linux packages
+        if: matrix.platform == 'linux-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(src-tauri/target/release/bundle/deb/*.deb)
+          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if (( ${#debs[@]} == 0 || ${#appimages[@]} == 0 )); then
+            echo "Missing .deb or .AppImage output" >&2
+            exit 1
+          fi
+          mkdir -p release-assets
+          cp -- "${debs[@]}" "${appimages[@]}" release-assets/
+
+      - name: Upload verified ${{ matrix.platform }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecloud-ui-${{ matrix.platform }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish both platforms to GitHub Releases
+    needs: [prepare, build]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download both platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: homecloud-ui-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify artifacts and generate SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          shopt -s nullglob
+          windows=(*.exe)
+          linux_deb=(*.deb)
+          linux_appimage=(*.AppImage)
+          if (( ${#windows[@]} == 0 || ${#linux_deb[@]} == 0 || ${#linux_appimage[@]} == 0 )); then
+            echo "Refusing partial release: Windows and both Linux bundles required" >&2
+            exit 1
+          fi
+          sha256sum -- "${windows[@]}" "${linux_deb[@]}" "${linux_appimage[@]}" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create or update commit-scoped prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA:0:12}"
+          tag="ui-$short"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --clobber
+          else
+            gh release create "$tag" release-assets/* \
+              --target "$GITHUB_SHA" \
+              --title "HomeCloud UI $short (Windows + Linux)" \
+              --notes "Automated build from main commit $GITHUB_SHA. Windows x64: NSIS installer (.exe). Linux x64: .deb and .AppImage. Includes SHA256SUMS.txt. Development prerelease; Windows binary is not Authenticode-signed." \
+              --prerelease
+          fi
+          gh release view "$tag" --json url --jq '.url'
