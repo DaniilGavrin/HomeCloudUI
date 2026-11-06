@@ -57,6 +57,25 @@ pub async fn request(app: &AppHandle, server_id: &str, action: &str, data: Value
         .map_err(|_| "Соединение прервалось до ответа".to_owned())?
 }
 
+// The existing per-Backend command queue multiplexes Storage Manager and
+// media-room control-plane commands over ONE identified WebSocket. Only the
+// allowlisted actions below are reachable from the media_rooms module.
+// Bulk HCM1 media bytes never pass through this queue.
+pub async fn request_media(app: &AppHandle, server_id: &str, action: &str, data: Value) -> Result<Value, String> {
+    if !matches!(action, "media.rooms.snapshot" | "media.room.control" |
+        "media.rooms.seek" | "media.rooms.stop") {
+        return Err("Неизвестная команда Media Room".into());
+    }
+    let channel = app.state::<StorageTransport>().channels.lock().unwrap_or_else(|e| e.into_inner())
+        .get(server_id).cloned().ok_or("Сервер Offline: нет активной WebSocket-сессии")?;
+    let (reply, rx) = oneshot::channel();
+    channel.send(StorageRequest { action: action.to_owned(), data, reply }).await
+        .map_err(|_| "Сессия сервера закрылась".to_owned())?;
+    tokio::time::timeout(COMMAND_TIMEOUT, rx).await
+        .map_err(|_| "Сервер не ответил на команду Media Room".to_owned())?
+        .map_err(|_| "Соединение прервалось до ответа".to_owned())?
+}
+
 #[tauri::command]
 pub async fn homecloud_storage_command(app: AppHandle, server_id: String, action: String, data: Value) -> Result<Value, String> {
     request(&app, &server_id, &action, data).await

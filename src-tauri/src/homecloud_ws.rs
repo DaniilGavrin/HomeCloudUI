@@ -299,6 +299,7 @@ pub fn start(app: AppHandle) {
                         // The next IPv4/IPv6 attempt is a NEW session. Never keep
                         // clients from a dead session marked Online during failover.
                         crate::storage::disconnected(&app, "primary");
+                        crate::media_rooms::disconnected(&app, "primary");
                         *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         publish_devices(&app, "offline", Vec::new(), None);
                         publish_status(&app, "offline", None);
@@ -311,6 +312,7 @@ pub fn start(app: AppHandle) {
                 if changed_config { break; }
             }
             crate::storage::disconnected(&app, "primary");
+            crate::media_rooms::disconnected(&app, "primary");
             *app.state::<ConnectionManager>().refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().server_refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -368,6 +370,8 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
     for (id, topic) in [
         ("homecloud-sub-connected", "clients.connected"),
         ("homecloud-sub-disconnected", "clients.disconnected"),
+        ("homecloud-sub-media-changed", "media.room.changed"),
+        ("homecloud-sub-media-closed", "media.room.closed"),
     ] {
         let request = json!({ "v": 1, "id": id, "type": "subscribe", "topic": topic });
         socket.send(Message::Text(request.to_string().into())).await
@@ -384,6 +388,7 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
     *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = Some(delivery_tx);
     let (storage_tx, mut storage_rx) = mpsc::channel::<crate::storage::StorageRequest>(16);
     crate::storage::connected(app, "primary", storage_tx.clone());
+    crate::media_rooms::connected(app, "primary");
     let mut pending_storage: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
     let mut storage_counter = 0u64;
     let mut pending_deliveries: HashMap<String, oneshot::Sender<Result<String, String>>> = HashMap::new();
@@ -534,6 +539,7 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                             }
                         }
 
+                        crate::media_rooms::on_event(app, "primary", &message);
                         if let Some((connected, device)) = parse_device_event(&message) {
                             if list_pending.is_some() {
                                 // Never allow a slightly older list snapshot to overwrite newer events.

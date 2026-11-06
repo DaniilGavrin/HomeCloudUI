@@ -71,6 +71,9 @@ jobs:
             curl wget file patchelf
       - name: Install locked npm dependencies
         run: npm ci --no-audit --no-fund
+      - name: Verify Rust media room state and transport tests
+        if: matrix.platform == 'linux-x64'
+        run: cargo test --lib --manifest-path src-tauri/Cargo.toml
       - name: Build Tauri desktop packages
         run: npm run tauri -- build --bundles ${{ matrix.bundles }}
 
