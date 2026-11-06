@@ -55,9 +55,11 @@ pub async fn homecloud_hcss_browse(
         || cursor.parse::<usize>().map_or(true, |n| n>20000)) {
         return Err("Недопустимый курсор каталога HC SS".into());
     }
-    crate::storage::request_media(&app, &server_id, "storage.fs.list",
-        json!({"storage_node_id":storage_node_id, "root":{"kind":root_kind,"id":root_id},
-            "path":path, "limit":500, "cursor":cursor})).await
+    let mut request = json!({"storage_node_id":storage_node_id,
+        "root":{"kind":root_kind,"id":root_id},"path":path,"limit":500});
+    // Older Backends reject unknown JSON fields. Omit the cursor on page one.
+    if !cursor.is_empty() { request["cursor"] = json!(cursor); }
+    crate::storage::request_media(&app, &server_id, "storage.fs.list", request).await
 }
 
 #[tauri::command]
