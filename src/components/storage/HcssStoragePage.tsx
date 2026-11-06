@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -30,6 +30,9 @@ export function HcssStoragePage() {
   const [catalogError, setCatalogError] = useState('');
   const [browseError, setBrowseError] = useState('');
   const [partial, setPartial] = useState(false);
+  const [nextCursor, setNextCursor] = useState('');
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [moreError, setMoreError] = useState('');
   // Direct Tailnet management credential is deliberately memory-only.
   const [fileEndpoint, setFileEndpoint] = useState('');
   const [fileToken, setFileToken] = useState('');
@@ -54,6 +57,9 @@ export function HcssStoragePage() {
   }, [items, folder, filter]);
   const filesCount = items.filter(v => v.kind === 'file').length;
   const fileConnected = Boolean(fileEndpoint.trim() && fileToken.trim());
+  const selectionKey=JSON.stringify([serverId,nodeId,rootId,folder]);
+  const liveSelection=useRef(selectionKey);
+  liveSelection.current=selectionKey;
   useEffect(() => {
     let active=true;let stop:(()=>void)|undefined;
     void listen<{role:string;completed_bytes:number;total_bytes:number}>('homecloud:hcss-transfer-progress',ev=>{
@@ -96,7 +102,7 @@ export function HcssStoragePage() {
   // Requests are cancelled logically when changing Backend, node, root or folder.
   useEffect(() => {
     let active = true;
-    setItems([]); setFile(null); setPartial(false); setBrowseError('');
+    setItems([]); setFile(null); setPartial(false); setBrowseError('');setNextCursor('');setMoreError('');setMoreLoading(false);
     if (!online || !agent?.online || !root) {
       setBrowsePhase('idle');
       return () => { active = false; };
@@ -110,7 +116,7 @@ export function HcssStoragePage() {
       if (result.root?.kind !== root.kind || result.root?.id !== root.id || result.path !== folder ||
         !Array.isArray(result.items)) throw new Error('Некорректный каталог, полученный от HC SS');
       setItems(result.items);
-      setPartial(Boolean(result.next_cursor));
+      setPartial(Boolean(result.next_cursor));setNextCursor(result.next_cursor??'');
       setBrowsePhase('ready');
     }).catch(err => { if (active) { setBrowseError(String(err)); setBrowsePhase('error'); } });
     return () => { active = false; };
@@ -170,6 +176,27 @@ export function HcssStoragePage() {
       if(operation!=='download')setBrowseReload(x=>x+1);
     } catch(error) {setFileError(String(error));}
     finally {setFileBusy(false);setFileProgress(null);}
+  }
+  async function loadMore() {
+    if (!root || !agent?.online || !nextCursor || moreLoading || browsePhase!=='ready') return;
+    const key=selectionKey;
+    setMoreLoading(true);setMoreError('');
+    try {
+      const result=await invoke<HcssListResponse>('homecloud_hcss_browse',{
+        serverId,storageNodeId:nodeId,rootKind:root.kind,rootId:root.id,path:folder,cursor:nextCursor,
+      });
+      if (liveSelection.current!==key)return;
+      if (result.root?.kind!==root.kind||result.root?.id!==root.id||result.path!==folder||!Array.isArray(result.items)) {
+        throw new Error('HC SS вернул каталог, отличный от запрошенного');
+      }
+      setItems(current=>{
+        const seen=new Set(current.map(v=>v.path));
+        return [...current,...result.items.filter(v=>pathIsDirectChild(folder,v)&&!seen.has(v.path))];
+      });
+      setNextCursor(result.next_cursor??'');
+      setPartial(Boolean(result.next_cursor));
+    }catch(error){if(liveSelection.current===key)setMoreError(String(error));}
+    finally{if(liveSelection.current===key)setMoreLoading(false);}
   }
   function fileCanWrite(){return Boolean(root?.allow_write&&fileConnected&&!fileBusy);}
   function fileCanDelete(){return Boolean(root?.allow_delete&&fileConnected&&!fileBusy);}
@@ -335,9 +362,12 @@ export function HcssStoragePage() {
                   <span aria-hidden="true">›</span>
                 </button>)}
               </div>}
-              {partial && <p className="hc-hcss__warning" role="status">
-                Показаны первые 500 элементов. HC SS поддерживает cursor, но Backend пока не передаёт параметр пагинации.
-              </p>}
+              {partial && <div className="hc-hcss__actions">
+                <button className="hc-storage__button" type="button" disabled={moreLoading||fileBusy}
+                  onClick={()=>void loadMore()}>{moreLoading?'Загружаем…':'Показать ещё 500 элементов'}</button>
+                <span>Список загружается страницами, без полного чтения каталога в память</span>
+              </div>}
+              {moreError && <div className="hc-hcss__error" role="alert">{moreError}</div>
               {file && <aside className="hc-hcss__file-detail homecloud-glass" aria-label="Сведения о выбранном файле">
                 <div><strong>{file.name}</strong>
                   <button className="hc-storage__button" type="button" onClick={() => setFile(null)} aria-label="Закрыть сведения о файле">×</button>
