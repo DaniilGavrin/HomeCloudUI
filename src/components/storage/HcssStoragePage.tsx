@@ -24,6 +24,7 @@ export function HcssStoragePage() {
   const [file, setFile] = useState<HcssDirectoryItem | null>(null);
   const [filter, setFilter] = useState('');
   const [reload, setReload] = useState(0);
+  const [browseReload, setBrowseReload] = useState(0);
   const [catalogPhase, setCatalogPhase] = useState<'offline' | 'loading' | 'ready' | 'error'>('offline');
   const [browsePhase, setBrowsePhase] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [catalogError, setCatalogError] = useState('');
@@ -113,7 +114,7 @@ export function HcssStoragePage() {
       setBrowsePhase('ready');
     }).catch(err => { if (active) { setBrowseError(String(err)); setBrowsePhase('error'); } });
     return () => { active = false; };
-  }, [serverId, online, nodeId, rootId, folder, agent?.online, root?.kind, root?.id]);
+  }, [serverId, online, nodeId, rootId, folder, browseReload, agent?.online, root?.kind, root?.id]);
 
   function chooseNode(nextId: string) {
     const next = agents.find(a => a.storage_node_id === nextId);
@@ -163,7 +164,10 @@ export function HcssStoragePage() {
         operation==='mkdir' ? 'Каталог создан.' :
         operation==='rename' ? 'Файл переименован.' : 'Элемент удалён.');
       setPendingDelete(null);setFile(null);setDirectoryName('');setRenameName('');
-      if(operation!=='download')reloadAll();
+      if(operation==='delete' && remotePath===folder) {
+        setFolder(old=>old.split('/').slice(0,-1).join('/'));
+      }
+      if(operation!=='download')setBrowseReload(x=>x+1);
     } catch(error) {setFileError(String(error));}
     finally {setFileBusy(false);setFileProgress(null);}
   }
@@ -294,6 +298,10 @@ export function HcssStoragePage() {
                 disabled={browsePhase === 'loading' || crumb.path === folder}
                 onClick={() => enterFolder(crumb.path)}>{i ? '/ ' : ''}{crumb.label}</button>)}
             </nav>
+            {root.allow_delete && folder && <div className="hc-hcss__actions">
+              <button className="hc-storage__button hc-hcss__delete-button" type="button"
+                disabled={!fileCanDelete()} onClick={()=>setPendingDelete(folder)}>Удалить текущий пустой каталог</button>
+            </div>}
             {root.allow_write && <div className="hc-hcss__actions">
               <label>Новый каталог<input value={directoryName} onChange={e=>setDirectoryName(e.target.value)}
                  maxLength={180} placeholder="Название каталога" spellCheck={false}/></label>
@@ -309,7 +317,7 @@ export function HcssStoragePage() {
                 onChange={e => setFilter(e.target.value)} placeholder="Поиск в текущем каталоге"
                 aria-label="Поиск файлов в текущем каталоге"/></label>
               <button type="button" className="hc-storage__button" disabled={browsePhase === 'loading'}
-                onClick={reloadAll}>↻</button>
+                onClick={()=>setBrowseReload(x=>x+1)}>↻</button>
             </div>
             {browsePhase === 'loading' && <div className="hc-storage__empty homecloud-glass">Открываем каталог…</div>}
             {browsePhase === 'error' && <div role="alert" className="hc-hcss__error">{browseError}</div>}
