@@ -3,6 +3,7 @@ mod server_pool;
 mod device_registry;
 mod storage;
 mod media_rooms;
+mod media_source;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -38,6 +39,9 @@ pub fn run() {
             media_rooms::homecloud_media_status,
             media_rooms::homecloud_media_refresh,
             media_rooms::homecloud_media_command,
+            media_source::homecloud_hcss_sources,
+            media_source::homecloud_hcss_browse,
+            media_source::homecloud_hcss_play,
             storage::homecloud_storage_local_file,
             storage::homecloud_storage_transfer,
         ])
