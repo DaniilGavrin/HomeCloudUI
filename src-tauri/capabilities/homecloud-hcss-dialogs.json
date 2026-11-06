@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "hcss-transfer-dialogs",
+  "description": "Choose local files and download destinations for authenticated HC Storage Service transfers",
+  "windows": ["main"],
+  "permissions": ["dialog:allow-open", "dialog:allow-save"]
+}
