@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
+import { HcssMovePicker } from './HcssMovePicker';
 import {
   type HcssAgent, type HcssDirectoryItem, type HcssListResponse,
   filesystemVolumes, folderCrumbs, formatBytes, formatModified,
@@ -38,6 +39,7 @@ export function HcssStoragePage() {
   const [fileProgress, setFileProgress] = useState<{role:string;completed_bytes:number;total_bytes:number}|null>(null);
   const [directoryName, setDirectoryName] = useState('');
   const [renameName, setRenameName] = useState('');
+  const [movingFile, setMovingFile] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const backend = pool.servers.find(s => s.id === serverId);
@@ -81,6 +83,7 @@ export function HcssStoragePage() {
   useEffect(() => {
     let active = true;
     setAgents([]); setNodeId(''); setRootId(''); setFolder('');
+    setMovingFile(null);
     setFileNotice('');setFileError('');setFileProgress(null);setPendingDelete(null);
     setItems([]); setFile(null); setFilter(''); setPartial(false);
     setCatalogError(''); setBrowseError('');
@@ -126,7 +129,7 @@ export function HcssStoragePage() {
 
   function chooseNode(nextId: string) {
     if (operationLock.current) return;
-    setPendingDelete(null);
+    setPendingDelete(null); setMovingFile(null);
     const next = agents.find(a => a.storage_node_id === nextId);
     const allowed = next?.roots?.find(isBrowsableRoot);
     setNodeId(nextId); setRootId(allowed ? rootKey(allowed) : '');
@@ -135,17 +138,17 @@ export function HcssStoragePage() {
   }
   function chooseRoot(nextId: string) {
     if (operationLock.current) return;
-    setPendingDelete(null);
+    setPendingDelete(null); setMovingFile(null);
     setRootId(nextId); setFolder(''); setFilter(''); setFile(null);setFileNotice('');setFileError('');
   }
   function enterFolder(path: string) {
     if (operationLock.current) return;
-    setPendingDelete(null);
+    setPendingDelete(null); setMovingFile(null);
     setFolder(path); setFilter(''); setFile(null);setFileNotice('');setFileError('');
   }
   function reloadAll() { setReload(x => x + 1); }
 
-  async function fileAction(operation: 'upload'|'download'|'mkdir'|'rename'|'delete',
+  async function fileAction(operation: 'upload'|'download'|'mkdir'|'rename'|'move'|'delete',
     itemPath?: string, newPath?: string) {
     if (!agent?.online || !root || !fileConnected || operationLock.current) return;
     // Lock before awaiting the native dialog. A root switch during a dialog
@@ -183,12 +186,13 @@ export function HcssStoragePage() {
       const message = operation==='download' ? 'Файл скачан и проверен по SHA-256.' :
         operation==='upload' ? 'Файл загружен и проверен по SHA-256.' :
         operation==='mkdir' ? 'Каталог создан.' :
-        operation==='rename' ? 'Файл переименован.' : 'Элемент удалён.';
+        operation==='rename' ? 'Файл переименован.' :
+        operation==='move' ? 'Файл перемещён в выбранную папку.' : 'Элемент удалён.';
       const retries = result.integrity_retries ?? 0;
       setFileNotice(retries > 0
         ? `${message} Целостность подтверждена после ${retries} повторных попыток.`
         : message);
-      setPendingDelete(null);setFile(null);setDirectoryName('');setRenameName('');
+      setPendingDelete(null);setMovingFile(null);setFile(null);setDirectoryName('');setRenameName('');
       if (operation==='delete' && remotePath===folder) {
         setFolder(old=>old.split('/').slice(0,-1).join('/'));
       }
@@ -373,7 +377,10 @@ export function HcssStoragePage() {
               </div> : <div className="hc-storage__files">
                 {visible.map(item => <button key={item.path} type="button"
                   className={`hc-storage__file-row homecloud-glass${file?.path === item.path ? ' hc-hcss__file--selected' : ''}`}
-                  disabled={fileBusy} onClick={() => item.kind === 'folder' ? enterFolder(item.path) : setFile(item)}>
+                  disabled={fileBusy} onClick={() => {
+                    if (item.kind === 'folder') enterFolder(item.path);
+                    else { setMovingFile(null); setFile(item); }
+                  }}>
                   <span className="hc-storage__file-icon">{item.kind === 'folder' ? '▤' : '▧'}</span>
                   <span className="hc-storage__file-text"><strong title={item.name}>{item.name}</strong>
                     <small>{item.kind === 'folder' ? 'Каталог' : 'Файл'} · {formatModified(item.modified_unix_nano)}</small></span>
@@ -389,7 +396,9 @@ export function HcssStoragePage() {
               {moreError && <div className="hc-hcss__error" role="alert">{moreError}</div>}
               {file && <aside className="hc-hcss__file-detail homecloud-glass" aria-label="Сведения о выбранном файле">
                 <div><strong>{file.name}</strong>
-                  <button className="hc-storage__button" type="button" onClick={() => setFile(null)} aria-label="Закрыть сведения о файле">×</button>
+                  <button className="hc-storage__button" type="button"
+                    onClick={() => { setMovingFile(null); setFile(null); }}
+                    aria-label="Закрыть сведения о файле">×</button>
                 </div>
                 <dl>
                   <dt>Относительный путь</dt><dd>{file.path}</dd>
@@ -409,9 +418,22 @@ export function HcssStoragePage() {
                       onClick={()=>void fileAction('rename',file.path,(folder ? `${folder}/` : '')+renameName.trim())}>
                       Переименовать</button>
                   </>}
+                  {root.allow_write && <button className="hc-storage__button" type="button"
+                    disabled={!fileCanWrite()}
+                    onClick={() => { setFileError(''); setMovingFile(file.path); }}>
+                    Переместить в папку…</button>}
                   {root.allow_delete&&<button className="hc-storage__button" type="button" disabled={!fileCanDelete()}
                     onClick={()=>setPendingDelete(file.path)}>Удалить файл</button>}
                 </div>
+                {movingFile === file.path && root.allow_write && <HcssMovePicker
+                  key={JSON.stringify([serverId, nodeId, root.kind, root.id, file.path])}
+                  serverId={serverId} storageNodeId={nodeId}
+                  rootKind={root.kind} rootId={root.id}
+                  sourcePath={file.path} sourceName={file.name}
+                  initialFolder={folder} disabled={fileBusy}
+                  onCancel={() => setMovingFile(null)}
+                  onMove={destination => void fileAction('move', file.path, destination)}
+                />}
               </aside>}
               {root.allow_delete && pendingDelete && <div className="hc-hcss__delete-confirm" role="alertdialog"
                 aria-label="Подтверждение удаления">

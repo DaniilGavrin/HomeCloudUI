@@ -218,9 +218,13 @@ pub async fn homecloud_hcss_file_operation(
         "mkdir"=>"file.mkdir",
         "delete"=>"file.delete",
         "rename"=>"file.rename",
+        "move"=>"file.move",
         _=>return Err("Неизвестная файловая операция".into())
     };
-    if action=="file.rename"&&!new_path.as_deref().is_some_and(valid_path){return Err("Недопустимый новый путь".into());}
+    if (action=="file.rename" || action=="file.move") &&
+       !new_path.as_deref().is_some_and(valid_path) {
+        return Err("Недопустимый путь назначения".into());
+    }
     let root=json!({"kind":root_kind,"id":root_id});
     if action=="file.put" || action=="file.get" {
         let local=local_path(local_file)?;
