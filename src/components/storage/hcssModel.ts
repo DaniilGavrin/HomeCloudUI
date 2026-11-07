@@ -32,6 +32,7 @@ export type HcssAgent = {
   capabilities: string[];
   volumes?: HcssVolume[];
   roots?: HcssRoot[];
+  file_ws?: { endpoint: string; mode: 'trusted_network' };
 };
 export type HcssDirectoryItem = {
   file_id?: string;
