@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useHomeCloudServer, type ServerStatusData } from '../../hooks/useHomeCloudServer';
+import type { ServerStatusData } from '../../hooks/useHomeCloudServer';
 import { useHomeCloudPool, type PoolServer } from '../../hooks/useHomeCloudPool';
 import '../../styles/servers.css';
 
