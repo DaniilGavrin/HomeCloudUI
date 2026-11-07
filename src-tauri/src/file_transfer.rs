@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::{net::Ipv4Addr, path::PathBuf, sync::atomic::{AtomicU64, Ordering}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tauri::{AppHandle, Emitter};
 use tokio::{fs::{self, File}, io::{AsyncReadExt, AsyncWriteExt}};
-use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, http::HeaderValue, Message}};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 const FRAME: usize = 128 * 1024;
 const FRAME_TIMEOUT: Duration = Duration::from_secs(45);
@@ -20,7 +20,7 @@ fn valid_endpoint(endpoint: &str) -> bool {
     let Ok(ip) = host.parse::<Ipv4Addr>() else {return false};
     let Ok(p) = port.parse::<u16>() else {return false};
     let bytes = ip.octets();
-    p > 0 && ((bytes[0]==100 && (64..=127).contains(&bytes[1])) || ip.is_loopback())
+    p > 0 && (ip.is_private() || (bytes[0]==100 && (64..=127).contains(&bytes[1])) || ip.is_loopback())
 }
 fn valid_path(path: &str) -> bool {
     !path.is_empty() && path.len()<=1800 && !path.starts_with('/')
@@ -37,17 +37,17 @@ fn transfer_id() -> String {
 }
 type Socket = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
-async fn dial(endpoint: &str, secret: &str) -> Result<Socket,String> {
-    if !valid_endpoint(endpoint) {return Err("Требуется прямой адрес ws://TAILSCALE-IP:PORT/ws/files".into());}
-    if secret.len()!=64 || !secret.bytes().all(|x| x.is_ascii_hexdigit()) {return Err("Недопустимый ключ HC SS (ожидается 64 HEX символа)".into());}
-    let mut request=endpoint.into_client_request().map_err(|e|e.to_string())?;
-    request.headers_mut().insert("Authorization",
-        HeaderValue::from_str(&format!("Bearer {}",secret)).map_err(|_|"Недопустимый ключ доступа")?);
-    let (socket,_)=tokio::time::timeout(Duration::from_secs(12),connect_async(request)).await
+async fn dial(endpoint: &str) -> Result<Socket,String> {
+    // Only private endpoints advertised by the selected HC SS agent are accepted.
+    // Authorization for trusted_network mode happens on HC SS with an exact
+    // source-IP allowlist and root-local read/write/delete permissions.
+    if !valid_endpoint(endpoint) {return Err("HC SS должен предоставить приватный LAN/Tailscale IP".into());}
+    let (socket,_)=tokio::time::timeout(Duration::from_secs(12),connect_async(endpoint)).await
         .map_err(|_|"Тайм-аут подключения к HC SS".to_owned())?
         .map_err(|e|format!("HC SS WS: {}",e))?;
     Ok(socket)
 }
+
 async fn send(socket: &mut Socket, value: Value) -> Result<(),String> {
     tokio::time::timeout(FRAME_TIMEOUT,socket.send(Message::Text(value.to_string().into()))).await
         .map_err(|_|"Тайм-аут отправки команды")?.map_err(|e|e.to_string())
@@ -151,7 +151,7 @@ async fn download(app:&AppHandle,socket:&mut Socket,id:&str,remote:&str,local:Pa
 #[tauri::command]
 pub async fn homecloud_hcss_file_operation(
     app: AppHandle,
-    endpoint: String, token: String,
+    endpoint: String,
     operation: String, root_kind: String, root_id: String,
     path: String, new_path: Option<String>, local_file: Option<String>,
 ) -> Result<Value,String> {
@@ -165,7 +165,7 @@ pub async fn homecloud_hcss_file_operation(
         _=>return Err("Неизвестная файловая операция".into())
     };
     if action=="file.rename"&&!new_path.as_deref().is_some_and(valid_path){return Err("Недопустимый новый путь".into());}
-    let mut socket=dial(&endpoint,&token).await?;
+    let mut socket=dial(&endpoint).await?;
     let id=transfer_id();
     let root=json!({"kind":root_kind,"id":root_id});
     let result=match action {
@@ -185,7 +185,9 @@ mod tests {
     #[test]
     fn protects_tailnet_credential_from_arbitrary_endpoints(){
         assert!(valid_endpoint("ws://100.114.58.74:8093/ws/files"));
-        assert!(!valid_endpoint("ws://192.168.0.147:8093/ws/files"));
+        assert!(valid_endpoint("ws://192.168.0.147:8093/ws/files"));
+        assert!(valid_endpoint("ws://10.42.0.3:8093/ws/files"));
+        assert!(!valid_endpoint("ws://8.8.8.8:8093/ws/files"));
         assert!(!valid_endpoint("ws://example.com:8093/ws/files"));
         assert!(!valid_endpoint("ws://100.114.58.74:8093/ws/files?token=evil"));
         assert!(!valid_endpoint("ws://100.114.58.74:8093/other"));
