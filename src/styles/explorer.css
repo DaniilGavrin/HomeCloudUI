@@ -758,3 +758,62 @@
    HomeCloud workspace uses Framer Motion transforms. */
 .hc-explorer{position:relative}
 .hc-explorer-context,.hc-explorer-modal-backdrop{position:absolute}
+
+
+/* KAN-82: restore WebOS Files 027B pointer-based drag/drop.
+ * WebView2 can intercept HTML5 dataTransfer; use a lightweight fixed gesture.
+ * The ghost lives inside the transformed HomeCloud workspace (local coords).
+ */
+.hc-explorer-row, .hc-explorer-tile,
+.hc-explorer-row *, .hc-explorer-tile * {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.hc-explorer-pointer-dragging, .hc-explorer-pointer-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+.hc-explorer-pointer-dragging .hc-explorer-row,
+.hc-explorer-pointer-dragging .hc-explorer-tile {
+  transition: none !important;
+}
+.hc-explorer-center.is-drop-target,
+.hc-explorer-sidebar button.is-drop-target,
+.hc-explorer-path button.is-drop-target {
+  outline: 2px solid rgb(255 202 119 / .74);
+  outline-offset: -2px;
+  background: rgb(255 202 119 / .10);
+}
+.hc-explorer-drag-ghost {
+  position: absolute;
+  z-index: 1101;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 155px;
+  max-width: 300px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / .2);
+  background: rgb(18 23 38 / .97);
+  color: rgb(var(--webos-color-text));
+  box-shadow: 0 16px 45px rgb(0 0 0 / .5);
+}
+.hc-explorer-drag-ghost.is-allowed {border-color: rgb(255 202 119 / .65)}
+.hc-explorer-drag-ghost.is-denied {opacity: .7}
+.hc-explorer-drag-ghost__icon {
+  flex: 0 0 24px;height: 24px;
+  display: grid;place-items: center;border-radius: 7px;
+  background: rgb(255 202 119 / .13);color: #ffca77;font-size: 18px;
+}
+.hc-explorer-drag-ghost.is-denied .hc-explorer-drag-ghost__icon {
+  color: #fca5a5;background: rgb(240 60 60 / .13)
+}
+.hc-explorer-drag-ghost__body {display: grid;gap: 3px;min-width: 0}
+.hc-explorer-drag-ghost__body strong {
+  font-size: 11px;overflow: hidden;white-space: nowrap;text-overflow: ellipsis
+}
+.hc-explorer-drag-ghost__body small {
+  font-size: 10px;color: rgb(var(--webos-color-text-secondary))
+}
