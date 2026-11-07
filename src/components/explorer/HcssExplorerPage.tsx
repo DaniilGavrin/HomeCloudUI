@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -23,6 +23,16 @@ type Modal =
   | { type: 'tv'; paths: string[] }
   | { type: 'history'; paths: string[] };
 type Menu = { x: number; y: number; path: string };
+type DragMode = 'copy'|'move';
+type PendingDrag = {
+  pointerId:number;startX:number;startY:number;scope:string;
+  paths:string[];label:string;started:boolean;
+};
+type DragOverlay = {
+  x:number;y:number;count:number;label:string;
+  destination:string|null;mode:DragMode;
+};
+
 type Progress = {role:string;completed_bytes:number;total_bytes:number};
 type AgentResponse = { agents: HcssAgent[] };
 
@@ -102,8 +112,15 @@ export function HcssExplorerPage() {
   const [modal,setModal]=useState<Modal|null>(null);
   const [name,setName]=useState('');
   const [menu,setMenu]=useState<Menu|null>(null);
-  const [dragPath,setDragPath]=useState('');
-  const [dragTarget,setDragTarget]=useState('');
+  // WebView2 intercepts HTML5 drag-and-drop. Match WebOS Files 027B:
+  // pointer gesture + drop-target hit testing + lightweight drag ghost.
+  const explorerRef=useRef<HTMLElement|null>(null);
+  const dragGhostRef=useRef<HTMLDivElement|null>(null);
+  const pendingDragRef=useRef<PendingDrag|null>(null);
+  const dragStatusRef=useRef<{destination:string|null;mode:DragMode}|null>(null);
+  const suppressClickUntilRef=useRef(0);
+  const [dragTarget,setDragTarget]=useState<string|null>(null);
+  const [dragOverlay,setDragOverlay]=useState<DragOverlay|null>(null);
   const [destFolder,setDestFolder]=useState('');
   const destinationRef=useRef(destFolder);
   destinationRef.current=destFolder;
@@ -130,9 +147,16 @@ export function HcssExplorerPage() {
   const selectionFence=JSON.stringify([scope,folder]);
   const currentFence=useRef(selectionFence);
   currentFence.current=selectionFence;
+  const dragScopeRef=useRef(scope);
+  dragScopeRef.current=scope;
   const writable=Boolean(online&&agent?.online&&root?.allow_write&&endpoints.length&&!busy);
   const deletable=Boolean(online&&agent?.online&&root?.allow_delete&&endpoints.length&&!busy);
   const readable=Boolean(root?.allow_read&&endpoints.length&&!busy);
+  const dragPermissionsRef=useRef({write:writable,read:readable});
+  dragPermissionsRef.current={write:writable,read:readable};
+  const deletePermissionHint=root&&!root.allow_delete
+    ? 'Удаление запрещено настройками этого root HC Storage Service (allow_delete: false).'
+    : '';
   const shown=useMemo(()=>sorted(items.filter(x=>pathIsDirectChild(folder,x)),sort,showHidden,query),
     [items,sort,showHidden,query,folder]);
   const chosen=shown.filter(x=>selected.has(x.path));
@@ -311,7 +335,15 @@ export function HcssExplorerPage() {
       if(operation==='move'&&clipboard?.mode==='move')setClipboard(null);
       setModal(null);
     }catch(e){
-      setError(`Выполнено ${completed} из ${entries.length}. ${String(e)}`);
+      const reason=String(e);
+      const readableReason=reason.includes('DELETE_FORBIDDEN')
+        ? 'Удаление запрещено настройками HC SS (allow_delete: false).'
+        : reason.includes('PERMISSION_DENIED')
+        ? 'Файловая система отказала в доступе: проверь права пользователя службы HC SS и каталога.'
+        : reason.includes('FILE_OPERATION_FAILED')&&operation==='delete'
+        ? 'HC SS не смог удалить объект. Непустые каталоги сейчас удалять нельзя; для файла проверь серверные логи.'
+        : reason;
+      setError(`Выполнено ${completed} из ${entries.length}. ${readableReason}`);
       if(completed)setReload(x=>x+1);
     }finally{locked.current=false;setBusy(false);setProgress(null)}
   }
@@ -344,25 +376,128 @@ export function HcssExplorerPage() {
     await batch(mode==='copy'?'copy':'move',entries);
   }
 
-  const beginDrop=(e:DragEvent<HTMLElement>,path:string)=>{
-    if(!writable)return;
-    const paths=selected.has(path)?Array.from(selected):[path];
-    e.dataTransfer.effectAllowed='copyMove';
-    e.dataTransfer.setData('application/x-homecloud-explorer',JSON.stringify({scope,paths}));
-    setDragPath(path);
-  };
-  const drop=(e:DragEvent<HTMLElement>,target:string)=>{
-    e.preventDefault();e.stopPropagation();setDragTarget('');setDragPath('');
-    if(!writable)return;
-    let data:{scope:string;paths:string[]}|null=null;
-    try{data=JSON.parse(e.dataTransfer.getData('application/x-homecloud-explorer'))}catch{return}
-    if(!data||data.scope!==scope||!Array.isArray(data.paths))return;
-    const safe=data.paths.filter(p=>typeof p==='string'&&items.some(x=>x.path===p));
-    if(!safe.length||safe.some(p=>target===p||target.startsWith(p+'/')))return;
-    const mode=e.ctrlKey?'copy':'move';
-    if(mode==='copy'&&!root?.allow_read){setError('Нет права чтения для копирования');return}
+  // The handler and current filesystem selection are read at pointerup, so
+  // a reconnect/changed root cannot apply a stale drag to another root.
+  const transferOnDropRef=useRef<(paths:string[],target:string,mode:DragMode)=>void>(()=>{});
+  transferOnDropRef.current=(paths,target,mode)=>{
+    if(locked.current||!writable||mode==='copy'&&!readable)return;
+    const safe=paths.filter(p=>items.some(x=>x.path===p));
+    if(safe.length!==paths.length || safe.some(p=>target===p||target.startsWith(p+'/')))return;
+    if(mode==='move'&&safe.every(p=>parentOf(p)===target))return;
     void batch(mode,safe.map(path=>({path,newPath:join(target,basename(path))})));
   };
+
+  function handlePointerDownEntry(e:ReactPointerEvent<HTMLButtonElement>,item:HcssDirectoryItem){
+    if(e.button!==0||e.isPrimary===false||busy||!writable)return;
+    pendingDragRef.current={
+      pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,
+      paths:selected.has(item.path)?Array.from(selected):[item.path],
+      label:item.name,scope,started:false,
+    };
+  }
+
+  useEffect(()=>{
+    const rootElement=()=>explorerRef.current;
+    function validDestination(paths:string[],target:string,mode:DragMode){
+      const perms=dragPermissionsRef.current;
+      if(!perms.write || mode==='copy'&&!perms.read)return false;
+      if(paths.some(p=>target===p||target.startsWith(p+'/')))return false;
+      if(mode==='move'&&paths.every(p=>parentOf(p)===target))return false;
+      return true;
+    }
+    function candidateAt(x:number,y:number,paths:string[],mode:DragMode):string|null{
+      const element=document.elementFromPoint(x,y);
+      const explorer=rootElement();
+      if(!element||!explorer?.contains(element))return null;
+      const dropNode=element.closest<HTMLElement>('[data-hc-drop-path]');
+      const path=dropNode?.getAttribute('data-hc-drop-path');
+      if(path===null||path===undefined||!validDestination(paths,path,mode))return null;
+      return path; // empty string is the valid HC SS root directory
+    }
+    function clear(){
+      pendingDragRef.current=null;
+      dragStatusRef.current=null;
+      setDragTarget(null);
+      setDragOverlay(null);
+      rootElement()?.classList.remove('hc-explorer-pointer-dragging');
+    }
+    function move(event:PointerEvent){
+      const drag=pendingDragRef.current;
+      if(!drag||drag.pointerId!==event.pointerId)return;
+      if(drag.scope!==dragScopeRef.current){clear();return}
+      if(!drag.started&&Math.hypot(event.clientX-drag.startX,event.clientY-drag.startY)<7)return;
+      if(!drag.started){
+        drag.started=true;
+        rootElement()?.classList.add('hc-explorer-pointer-dragging');
+        window.getSelection()?.removeAllRanges();
+      }
+      event.preventDefault();
+      const mode:DragMode=event.ctrlKey?'copy':'move';
+      const destination=candidateAt(event.clientX,event.clientY,drag.paths,mode);
+      const previous=dragStatusRef.current;
+      const bounds=rootElement()?.getBoundingClientRect();
+      const x=event.clientX-(bounds?.left??0)+15;
+      const y=event.clientY-(bounds?.top??0)+17;
+      if(!previous||previous.destination!==destination||previous.mode!==mode){
+        dragStatusRef.current={destination,mode};
+        setDragTarget(destination);
+        setDragOverlay({x,y,count:drag.paths.length,label:drag.label,destination,mode});
+      }else if(dragGhostRef.current){
+        dragGhostRef.current.style.left=`${x}px`;
+        dragGhostRef.current.style.top=`${y}px`;
+      }
+      const center=rootElement()?.querySelector<HTMLElement>('.hc-explorer-center');
+      if(center){
+        const rect=center.getBoundingClientRect();
+        if(event.clientX>=rect.left&&event.clientX<=rect.right&&event.clientY>=rect.top&&event.clientY<=rect.bottom){
+          if(event.clientY>rect.bottom-42)center.scrollTop+=18;
+          else if(event.clientY<rect.top+42)center.scrollTop-=18;
+        }
+      }
+    }
+    function up(event:PointerEvent){
+      const drag=pendingDragRef.current;
+      if(!drag||drag.pointerId!==event.pointerId)return;
+      if(drag.started){
+        event.preventDefault();
+        suppressClickUntilRef.current=Date.now()+350;
+        const mode:DragMode=event.ctrlKey?'copy':'move';
+        const target=drag.scope===dragScopeRef.current
+          ?candidateAt(event.clientX,event.clientY,drag.paths,mode):null;
+        if(target!==null)transferOnDropRef.current(drag.paths,target,mode);
+      }
+      clear();
+    }
+    function cancel(event:PointerEvent){
+      if(pendingDragRef.current?.pointerId===event.pointerId)clear();
+    }
+    function keyboard(event:KeyboardEvent){
+      if(event.key==='Escape'&&pendingDragRef.current?.started){
+        event.preventDefault();event.stopImmediatePropagation();clear();
+      }
+    }
+    function click(event:MouseEvent){
+      if(Date.now()<suppressClickUntilRef.current){
+        suppressClickUntilRef.current=0;
+        event.preventDefault();event.stopImmediatePropagation();
+      }
+    }
+    window.addEventListener('pointermove',move,{capture:true,passive:false});
+    window.addEventListener('pointerup',up,true);
+    window.addEventListener('pointercancel',cancel,true);
+    window.addEventListener('keydown',keyboard,true);
+    document.addEventListener('click',click,true);
+    window.addEventListener('blur',clear);
+    return ()=>{
+      window.removeEventListener('pointermove',move,true);
+      window.removeEventListener('pointerup',up,true);
+      window.removeEventListener('pointercancel',cancel,true);
+      window.removeEventListener('keydown',keyboard,true);
+      document.removeEventListener('click',click,true);
+      window.removeEventListener('blur',clear);
+      clear();
+    };
+  },[]);
 
   useEffect(()=>{
     const close=()=>setMenu(null);
@@ -439,7 +574,10 @@ export function HcssExplorerPage() {
       else if(path!==newPath)await batch(
         selectedForModal[0]?.kind==='folder'?'move':'rename',[{path,newPath}]);
       else setModal(null);
-    }else if(modal.type==='delete')await batch('delete',paths.map(path=>({path})));
+    }else if(modal.type==='delete'){
+      if(!root?.allow_delete){setError('Удаление запрещено для выбранного root: allow_delete = false.');return}
+      await batch('delete',paths.map(path=>({path})));
+    }
     else if(modal.type==='destination'){
       const entries=paths.map(path=>({path,newPath:join(destFolder,basename(path))}));
       if(entries.some(e=>e.path===e.newPath||destFolder===e.path||destFolder.startsWith(e.path+'/'))){
@@ -482,14 +620,9 @@ export function HcssExplorerPage() {
       key:item.path,
       type:'button' as const,
       title:item.path,
-      draggable:!busy,
-      onDragStart:(e:DragEvent<HTMLButtonElement>)=>beginDrop(e,item.path),
-      onDragEnd:()=>{setDragPath('');setDragTarget('')},
-      onDragOver:(e:DragEvent<HTMLButtonElement>)=>{
-        if(item.kind==='folder'&&writable){e.preventDefault();e.dataTransfer.dropEffect=e.ctrlKey?'copy':'move';setDragTarget(item.path)}
-      },
-      onDragLeave:()=>{if(dragTarget===item.path)setDragTarget('')},
-      onDrop:(e:DragEvent<HTMLButtonElement>)=>{if(item.kind==='folder')drop(e,item.path)},
+      draggable:false,
+      'data-hc-drop-path':item.kind==='folder'?item.path:undefined,
+      onPointerDown:(e:ReactPointerEvent<HTMLButtonElement>)=>handlePointerDownEntry(e,item),
       onClick:(e:ReactMouseEvent<HTMLButtonElement>)=>selectEntry(item,e),
       onDoubleClick:()=>{if(item.kind==='folder')navigate(item.path);else showModal('properties',[item.path])},
       onContextMenu:(e:ReactMouseEvent<HTMLButtonElement>)=>{
@@ -520,7 +653,7 @@ export function HcssExplorerPage() {
     </button>;
   }
 
-  return <section className="hc-explorer" aria-label="Проводник HomeCloud">
+  return <section ref={explorerRef} className="hc-explorer" aria-label="Проводник HomeCloud">
     <aside className="hc-explorer-sidebar" aria-label="Места">
       <div className="hc-explorer-brand"><span className="hc-explorer-brand__mark">▤</span>
         <div><strong>Проводник</strong><span>HomeCloud Navigator</span></div></div>
@@ -548,7 +681,7 @@ export function HcssExplorerPage() {
           disabled={busy} onClick={()=>changeRoot(rootKey(r))}>
           <span>▣</span><em>{r.name||r.id}</em><i>{r.kind}</i>
         </button>)}
-        {root&&<button type="button" onClick={()=>navigate('')}
+        {root&&<button type="button" data-hc-drop-path="" onClick={()=>navigate('')}
           className={!folder?'is-active':''} disabled={busy}>
           <span>⌂</span><em>Корень</em></button>}
       </div>
@@ -556,8 +689,8 @@ export function HcssExplorerPage() {
         <span className="hc-explorer-sidebar__label">Избранное</span>
         {!favorites.length&&<small>ПКМ по папке → В избранное</small>}
         {favorites.map(p=><div className="hc-explorer-favorite" key={p}>
-          <button type="button" onClick={()=>navigate(p)} disabled={busy}
-            className={folder===p?'is-active':''}><span>☆</span><em>{basename(p)}</em></button>
+          <button type="button" data-hc-drop-path={p} onClick={()=>navigate(p)} disabled={busy}
+            className={`${folder===p?'is-active':''}${dragTarget===p?' is-drop-target':''}`}><span>☆</span><em>{basename(p)}</em></button>
           <button type="button" title="Убрать" aria-label={`Убрать ${p} из избранного`}
             onClick={()=>setFavorite(p)}>×</button></div>)}
       </div>
@@ -590,6 +723,8 @@ export function HcssExplorerPage() {
           title="Двойной клик или Ctrl+L — перейти к пути" onDoubleClick={()=>{setAddress(folder);setAddressEditing(true)}}>
           <span className="hc-explorer-path__root">{rootLabel}</span>
           {folderCrumbs(folder).map(c=><button type="button" key={c.path}
+            data-hc-drop-path={c.path}
+            className={dragTarget===c.path?'is-drop-target':''}
             disabled={busy||c.path===folder} onClick={()=>navigate(c.path)}>
             {c.path?'› '+c.label:' /'}</button>)}
         </nav>}
@@ -614,7 +749,9 @@ export function HcssExplorerPage() {
           <button type="button" disabled={selected.size!==1||!writable||
               (chosen[0]?.kind==='file'&&!deletable)}
             onClick={()=>showModal('rename')}>Переименовать</button>
-          <button type="button" className="is-danger" disabled={!deletable||!selected.size}
+          <button type="button" className="is-danger"
+            disabled={!selected.size||!online||!agent?.online||!endpoints.length||busy}
+            title={deletePermissionHint||'Удалить выбранные объекты'}
             onClick={()=>showModal('delete')}>Удалить</button>
         </div>
         <div className="hc-explorer-commandbar__group hc-explorer-commandbar__group--right">
@@ -635,8 +772,8 @@ export function HcssExplorerPage() {
           </div>
         </div>
       </div>
-      <div className="hc-explorer-center" onDragOver={e=>{if(writable&&dragPath)e.preventDefault()}}
-        onDrop={e=>drop(e,folder)}>
+      <div className={`hc-explorer-center${dragTarget===folder?' is-drop-target':''}`}
+        data-hc-drop-path={root?folder:undefined}>
         {!root?<div className="hc-explorer-empty">Выбери доступный HC Storage Service и разрешённый каталог</div>:
           browseStatus==='loading'?<div className="hc-explorer-empty">Открываем каталог…</div>:
           browseStatus==='error'?<div className="hc-explorer-empty" role="alert">{error}</div>:<>
@@ -656,6 +793,17 @@ export function HcssExplorerPage() {
         <span>{busy?'Выполняется файловая операция':rootLabel} · {folder||'/'}</span>
       </footer>
     </div>
+
+    {dragOverlay&&<div ref={dragGhostRef}
+      className={`hc-explorer-drag-ghost ${dragOverlay.destination!==null?'is-allowed':'is-denied'}`}
+      style={{left:dragOverlay.x,top:dragOverlay.y}} aria-hidden="true">
+      <span className="hc-explorer-drag-ghost__icon">{dragOverlay.destination!==null?'▤':'×'}</span>
+      <span className="hc-explorer-drag-ghost__body">
+        <strong>{dragOverlay.label}{dragOverlay.count>1?` (+${dragOverlay.count-1})`:''}</strong>
+        <small>{dragOverlay.destination===null?'Нельзя переместить сюда':
+          dragOverlay.mode==='copy'?'Копировать сюда':'Переместить сюда'}</small>
+      </span>
+    </div>}
 
     {menu&&<div className="hc-explorer-context" role="menu" style={{left:Math.max(0,menu.x),top:Math.max(0,menu.y)}}
       onPointerDown={e=>e.stopPropagation()}>
@@ -677,7 +825,8 @@ export function HcssExplorerPage() {
       {menuPaths.length===1&&items.find(x=>x.path===menuPaths[0])?.kind==='file'&&mediaFile(basename(menuPaths[0]))&&
         <button role="menuitem" onClick={()=>showModal('tv',menuPaths)}>Воспроизвести на TV…</button>}
       <button role="menuitem" onClick={()=>showModal('properties',menuPaths)}>Свойства…</button>
-      <button role="menuitem" className="is-danger" disabled={!deletable}
+      <button role="menuitem" className="is-danger"
+        title={deletePermissionHint||undefined}
         onClick={()=>showModal('delete',menuPaths)}>Удалить…</button>
     </div>}
 
@@ -708,8 +857,13 @@ export function HcssExplorerPage() {
             <input autoFocus maxLength={180} value={name} onChange={e=>setName(e.target.value)}
               onKeyDown={(e:ReactKeyboardEvent<HTMLInputElement>)=>{if(e.key==='Enter'){e.preventDefault();void submitModal()}}}/>
           </label>}
-        {modal.type==='delete'&&<p>Удалить {modal.paths.length} объект(ов)?
-          Действие необратимо. Каталоги HC SS удаляются только пустыми.</p>}
+        {modal.type==='delete'&&<>
+          <p>Удалить {modal.paths.length} объект(ов)?
+            Действие необратимо. Каталоги HC SS удаляются только пустыми.</p>
+          {deletePermissionHint&&<p role="alert" className="hc-explorer-dialog__error">
+            {deletePermissionHint} Изменить разрешение может только администратор HC SS.
+          </p>}
+        </>}
         {modal.type==='properties'&&selectedForModal.map(item=><dl className="hc-explorer-properties" key={item.path}>
           <dt>Имя</dt><dd>{item.name}</dd>
           <dt>Тип</dt><dd>{categoryName[category(item)]}</dd>
@@ -763,6 +917,7 @@ export function HcssExplorerPage() {
             !['properties','history'].includes(modal.type)&&<button type="button"
               className={modal.type==='delete'?'is-danger':'is-primary'}
               disabled={busy||modal.type==='destination'&&destLoading||
+                modal.type==='delete'&&!deletable||
                 ['create-folder','create-file','rename'].includes(modal.type)&&!canUseName(name.trim())}
               onClick={()=>void submitModal()}>{modal.type==='delete'?'Удалить':'Подтвердить'}</button>}
         </footer>
