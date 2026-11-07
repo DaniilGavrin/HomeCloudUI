@@ -100,3 +100,14 @@ test('both Servers overview and Settings retain confirmed server removal', () =>
   assert.match(poolHook, /invoke<PoolSnapshot>\('homecloud_pool_delete'/);
   assert.match(poolNative, /fn homecloud_pool_delete\(/);
 });
+
+test('native file transfer repeats only integrity errors, not failed permissions', () => {
+  const native = read('src-tauri/src/file_transfer.rs');
+  const page = read('src/components/storage/HcssStoragePage.tsx');
+  assert.match(native, /MAX_INTEGRITY_ATTEMPTS: usize = 3/);
+  assert.match(native, /async fn retry_integrity/);
+  assert.match(native, /INTEGRITY_ERROR: &str = "CHECKSUM_MISMATCH"/);
+  assert.match(native, /tokio::test/);
+  assert.match(native, /drop\(file\)/);
+  assert.match(page, /integrity_retries/);
+});

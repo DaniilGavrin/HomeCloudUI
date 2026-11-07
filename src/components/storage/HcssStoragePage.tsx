@@ -175,15 +175,19 @@ export function HcssStoragePage() {
         localFile = dest;
       }
       if (liveSelection.current !== actionKey) return;
-      await invoke('homecloud_hcss_file_operation', {
+      const result = await invoke<{integrity_retries?: number}>('homecloud_hcss_file_operation', {
         ...target, operation, path: remotePath,
         newPath: newPath ?? null, localFile: localFile ?? null,
       });
       if (liveSelection.current !== actionKey) return;
-      setFileNotice(operation==='download' ? 'Файл скачан и проверен по SHA-256.' :
+      const message = operation==='download' ? 'Файл скачан и проверен по SHA-256.' :
         operation==='upload' ? 'Файл загружен и проверен по SHA-256.' :
         operation==='mkdir' ? 'Каталог создан.' :
-        operation==='rename' ? 'Файл переименован.' : 'Элемент удалён.');
+        operation==='rename' ? 'Файл переименован.' : 'Элемент удалён.';
+      const retries = result.integrity_retries ?? 0;
+      setFileNotice(retries > 0
+        ? `${message} Целостность подтверждена после ${retries} повторных попыток.`
+        : message);
       setPendingDelete(null);setFile(null);setDirectoryName('');setRenameName('');
       if (operation==='delete' && remotePath===folder) {
         setFolder(old=>old.split('/').slice(0,-1).join('/'));
