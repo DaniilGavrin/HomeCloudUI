@@ -307,7 +307,7 @@ export function HcssStoragePage() {
             </div>
             <span role="status">{fileConnected
               ? 'Файловый канал обнаружен · доступ к операциям зависит от прав разрешённого каталога'
-              : 'Файловый канал недоступен: включи режим trusted_network и разрешённый IP клиента в конфигурации HC SS'}</span>
+              : 'Файловый канал недоступен: включи file_ws в режиме trusted_network на приватном IP узла HC SS'}</span>
           </div>
 
           <div className="hc-storage__section-head"><h3>Разрешённые корни HC SS</h3><span>{roots.length} опубликовано</span></div>
