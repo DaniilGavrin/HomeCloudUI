@@ -19,10 +19,10 @@ export const navigationItems: NavItem[] = [
         description: 'Комнаты, устройства и управление',
     },
     {
-        id: 'media',
-        label: 'Мультимедиа',
-        shortLabel: 'Медиа',
-        description: 'ТВ, аудио, стриминг и воспроизведение',
+        id: 'explorer',
+        label: 'Проводник',
+        shortLabel: 'Файлы',
+        description: 'Файлы и каталоги HC Storage Service',
     },
     {
         id: 'storage',

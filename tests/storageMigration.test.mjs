@@ -6,17 +6,25 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 
 test('the Storage screen points only to HC Storage Service', () => {
   const page = read('src/components/storage/StoragePage.tsx');
-  assert.match(page, /HcssStoragePage/);
+  assert.match(page, /HcssStorageOverviewPage/);
   assert.doesNotMatch(page, /LegacyStoragePage|Storage Manager|legacy/i);
   assert.equal(existsSync(new URL('../src/components/storage/LegacyStoragePage.tsx', import.meta.url)), false);
 });
 
-test('the Media page uses HC SS → TV, never the legacy file catalog', () => {
-  const media = read('src/components/media/MediaPage.tsx');
-  assert.match(media, /HcStorageTvLauncher/);
-  for (const banned of ['useHomeCloudStorage', 'storage.files.list', 'visibleCatalog', 'Storage Manager']) {
-    assert.equal(media.includes(banned), false, `Unexpected legacy media path: ${banned}`);
-  }
+test('the old local multimedia player is replaced by the HC SS explorer', () => {
+  const nav = read('src/data/navigation.ts');
+  const shell = read('src/components/shell/ShellLayout.tsx');
+  const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+  assert.match(nav, /label: 'Проводник'/);
+  assert.match(nav, /id: 'explorer'/);
+  assert.match(shell, /activeId === 'explorer'/);
+  assert.match(shell, /HcssExplorerPage/);
+  assert.doesNotMatch(shell, /MediaPage|mediaActivated/);
+  assert.doesNotMatch(explorer, /<video|<audio|URL\.createObjectURL|HTMLMediaElement/);
+  assert.equal(existsSync(new URL('../src/components/media/MediaPage.tsx', import.meta.url)), false);
+  assert.match(explorer, /homecloud_hcss_browse/);
+  assert.match(explorer, /homecloud_hcss_file_operation/);
+  assert.match(explorer, /homecloud_hcss_play/);
   assert.equal(existsSync(new URL('../src/hooks/useHomeCloudStorage.ts', import.meta.url)), false);
 });
 
@@ -36,12 +44,11 @@ test('Rust IPC does not allow Backend Storage Manager transfer commands', () => 
 });
 
 test('native HC SS mutations are fenced across file dialogs and root changes', () => {
-  const page = read('src/components/storage/HcssStoragePage.tsx');
+  const page = read('src/components/explorer/HcssExplorerPage.tsx');
   const native = read('src-tauri/src/file_transfer.rs');
-  assert.match(page, /operationLock\.current = true/);
-  assert.match(page, /if \(liveSelection\.current !== actionKey\) return/);
-  assert.match(page, /setPendingDelete\(null\)/);
-  assert.match(page, /disabled=\{fileBusy/);
+  assert.match(page, /locked\.current=true/);
+  assert.match(page, /if\(fence!==currentFence\.current\)throw/);
+  assert.match(page, /aria-modal="true"/);
   assert.match(native, /valid_endpoint\(endpoint\)/);
   assert.match(native, /sha256/gi);
   assert.match(native, /fs::hard_link\(&tmp,&local\)/);
@@ -51,7 +58,7 @@ test('no implicitly registered localhost primary or undeletable server', () => {
   const pool = read('src-tauri/src/server_pool.rs');
   const runtime = read('src-tauri/src/lib.rs');
   const page = read('src/components/servers/ServersPage.tsx');
-  const storage = read('src/components/storage/HcssStoragePage.tsx');
+  const storage = read('src/components/explorer/HcssExplorerPage.tsx');
   assert.match(pool, /fn migrate_legacy_primary/);
   assert.match(pool, /server\.ipv4\.as_deref\(\) == Some\("127\.0\.0\.1"\)/);
   assert.doesNotMatch(pool, /Основной HomeCloudBackend нельзя удалить/);
@@ -61,7 +68,7 @@ test('no implicitly registered localhost primary or undeletable server', () => {
 });
 
 test('HC SS file connections are discovered without Tailnet URL or token inputs', () => {
-  const ui = read('src/components/storage/HcssStoragePage.tsx');
+  const ui = read('src/components/explorer/HcssExplorerPage.tsx');
   const native = read('src-tauri/src/file_transfer.rs');
   const model = read('src/components/storage/hcssModel.ts');
   assert.match(model, /file_ws\?/);
@@ -73,12 +80,12 @@ test('HC SS file connections are discovered without Tailnet URL or token inputs'
 
 
 test('HC SS discovers file transfer without a mode or key configuration', () => {
-  const ui = read('src/components/storage/HcssStoragePage.tsx');
+  const ui = read('src/components/explorer/HcssExplorerPage.tsx');
   const model = read('src/components/storage/hcssModel.ts');
   const native = read('src-tauri/src/file_transfer.rs');
   assert.match(model, /endpoints\?: string\[\]/);
-  assert.match(ui, /fileEndpoints/);
-  assert.match(ui, /endpoints: \[\.\.\.fileEndpoints\]/);
+  assert.match(ui, /endpoints/);
+  assert.match(ui, /endpoints:\[\.\.\.endpoints\]/);
   assert.doesNotMatch(ui, /file_ws\?\.mode|auth_mode|включи file_ws|trusted_network/);
   assert.match(native, /endpoints: Vec<String>/);
   assert.match(native, /for endpoint in endpoints/);
@@ -103,27 +110,46 @@ test('both Servers overview and Settings retain confirmed server removal', () =>
 
 test('native file transfer repeats only integrity errors, not failed permissions', () => {
   const native = read('src-tauri/src/file_transfer.rs');
-  const page = read('src/components/storage/HcssStoragePage.tsx');
+  const page = read('src/components/explorer/HcssExplorerPage.tsx');
   assert.match(native, /MAX_INTEGRITY_ATTEMPTS: usize = 3/);
   assert.match(native, /async fn retry_integrity/);
   assert.match(native, /INTEGRITY_ERROR: &str = "CHECKSUM_MISMATCH"/);
   assert.match(native, /tokio::test/);
   assert.match(native, /drop\(file\)/);
-  assert.match(page, /integrity_retries/);
+  assert.match(page, /homecloud:hcss-transfer-progress/);
 });
 
-test('HC SS moves files using native WS operation and folder picker', () => {
-  const ui = read('src/components/storage/HcssStoragePage.tsx');
-  const picker = read('src/components/storage/HcssMovePicker.tsx');
+test('HC SS moves files and directories through native WS and destination dialog', () => {
+  const ui = read('src/components/explorer/HcssExplorerPage.tsx');
   const native = read('src-tauri/src/file_transfer.rs');
   assert.match(native, /"move"=>"file\.move"/);
   assert.match(native, /action=="file\.rename" \|\| action=="file\.move"/);
-  assert.match(ui, /import \{ HcssMovePicker \}/);
-  assert.match(ui, /fileAction\('move', file\.path, destination\)/);
-  assert.match(ui, /root\.allow_write && <button/);
-  assert.match(picker, /homecloud_hcss_browse/);
-  assert.match(picker, /pathIsDirectChild/);
-  assert.match(picker, /sameDirectory/);
-  assert.match(picker, /onMove\(destinationPath\)/);
-  assert.doesNotMatch(picker, /allow_delete/);
+  assert.match(ui, /setDestFolder/);
+  assert.match(ui, /homecloud_hcss_browse/);
+  assert.match(ui, /modal\.type==='destination'/);
+  assert.match(ui, /onDrop/);
+});
+
+test('WebOS explorer supports remote copy/move and modal-only file properties', () => {
+  const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+  const native = read('src-tauri/src/file_transfer.rs');
+  assert.match(explorer,/await batch\(mode==='copy'\?'copy':'move',entries\)/);
+  assert.match(explorer,/await fileAction\(operation,entry.path,entry.newPath,entry.localFile\)/);
+  assert.match(explorer,/aria-modal="true"/);
+  assert.match(explorer,/onContextMenu/);
+  assert.match(explorer,/onDragStart/);
+  assert.match(explorer,/onDrop/);
+  assert.match(explorer,/event\.shiftKey/);
+  assert.match(explorer,/event\.ctrlKey/);
+  assert.match(native,/"copy"=>"file\.copy"/);
+  assert.match(native,/"touch"=>"file\.touch"/);
+  assert.match(native,/action=="file\.copy"/);
+});
+
+test('TV playback from HC SS explorer requires confirmed room replacement', () => {
+ const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+ assert.match(explorer, /useHomeCloudMediaRooms/);
+ assert.match(explorer, /existingRoom&&!replaceRoom/);
+ assert.match(explorer, /type="checkbox" checked=\{replaceRoom\}/);
+ assert.match(explorer, /refreshMediaRooms\(serverId\)/);
 });

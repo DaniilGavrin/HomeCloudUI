@@ -27,7 +27,7 @@ fn valid_endpoint(endpoint: &str) -> bool {
 fn valid_path(path: &str) -> bool {
     !path.is_empty() && path.len()<=1800 && !path.starts_with('/')
       && !path.contains('\\') && !path.contains(':') && !path.contains('\0')
-      && path.split('/').all(|p| !p.is_empty() && p!="." && p!=".." && !p.starts_with(".hcss-upload-"))
+      && path.split('/').all(|p| !p.is_empty() && p!="." && p!=".." && !p.starts_with(".hcss-upload-") && !p.starts_with(".hcss-copy-"))
 }
 fn valid_root(kind: &str, id: &str) -> bool {
     matches!(kind,"disk"|"folder") && !id.is_empty() && id.len()<=128
@@ -216,12 +216,14 @@ pub async fn homecloud_hcss_file_operation(
         "download"=>"file.get",
         "upload"=>"file.put",
         "mkdir"=>"file.mkdir",
+        "touch"=>"file.touch",
+        "copy"=>"file.copy",
         "delete"=>"file.delete",
         "rename"=>"file.rename",
         "move"=>"file.move",
         _=>return Err("Неизвестная файловая операция".into())
     };
-    if (action=="file.rename" || action=="file.move") &&
+    if (action=="file.rename" || action=="file.move" || action=="file.copy") &&
        !new_path.as_deref().is_some_and(valid_path) {
         return Err("Недопустимый путь назначения".into());
     }
@@ -258,7 +260,24 @@ pub async fn homecloud_hcss_file_operation(
     let id=transfer_id();
     let result=async {
         send(&mut socket,json!({"v":1,"id":id,"type":action,"root":root,"path":path,"new_path":new_path.unwrap_or_default()})).await?;
-        response(next(&mut socket).await?,"file.complete",&id)
+        loop {
+            let frame=next(&mut socket).await?;
+            if action=="file.copy" {
+                if let Message::Text(ref text)=frame {
+                    let value:Value=serde_json::from_str(text.as_str()).map_err(|e|e.to_string())?;
+                    if value.get("id").and_then(Value::as_str)!=Some(id.as_str()) {
+                        return Err("HC SS ответил на другой запрос".into());
+                    }
+                    if value.get("type").and_then(Value::as_str)==Some("file.progress") {
+                        let done=value.get("completed_bytes").and_then(Value::as_u64)
+                            .ok_or("HC SS передал некорректный прогресс")?;
+                        progress(&app,"copy",done,0);
+                        continue;
+                    }
+                }
+            }
+            break response(frame,"file.complete",&id);
+        }
     }.await;
     let _=socket.close(None).await;
     result
