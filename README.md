@@ -48,3 +48,14 @@ sha256sum -c SHA256SUMS.txt
 
 This pipeline only builds and publishes packages. It does not deploy to
 HomeCloud nodes, restart the Backend, or modify Storage Service.
+
+## Automatic HC SS file transfers
+
+HC Storage Service publishes its file WebSocket addresses through Backend.
+HomeCloudUI tries the published private LAN and overlay addresses in order,
+without manual URL fields, authentication modes, tokens or IP allowlists.
+The server firewall controls access to port 8093 and HC SS enforces root
+read/write/delete permissions. If the chosen address is unreachable, the UI
+reports the connection error instead of asking for a `file_ws` setting.
+
+Deploy order: HomeCloudBackend, HC Storage Service, then HomeCloudUI.
