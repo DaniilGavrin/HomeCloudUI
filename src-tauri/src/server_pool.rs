@@ -13,7 +13,8 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 pub const POOL_EVENT: &str = "homecloud:server-pool";
 const PORT: u16 = 8080;
 const RETRY: Duration = Duration::from_secs(5);
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
+// Preserve the pre-KAN-81 primary WebSocket dial/hello timeout budget.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(9);
 const STATUS_INTERVAL: Duration = Duration::from_secs(15);
 const PING_INTERVAL: Duration = Duration::from_secs(1);
@@ -144,7 +145,10 @@ fn migrate_legacy_primary(entries: Vec<ServerEntry>) -> (Vec<ServerEntry>, bool)
     for mut server in entries {
         if server.id == "primary" {
             changed = true;
-            if server.ipv4.as_deref() == Some("127.0.0.1") && server.ipv6.is_none() {
+            // Drop only the original generated localhost stub. A user-renamed
+            // loopback Backend is an explicit configuration and must survive.
+            if server.builtin && server.name == "HomeCloudBackend"
+                && server.ipv4.as_deref() == Some("127.0.0.1") && server.ipv6.is_none() {
                 continue;
             }
             let mut id = "node-migrated-primary".to_string();
@@ -181,7 +185,15 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
         let bootstrap = default_primary();
         if bootstrap.ipv4.is_some() || bootstrap.ipv6.is_some() { vec![bootstrap] } else { Vec::new() }
     };
-    let (entries, migrated) = migrate_legacy_primary(entries);
+    let (mut entries, migrated) = migrate_legacy_primary(entries);
+    // KAN-81 migration can remove the only legacy stub. If the administrator
+    // explicitly supplied HOMECLOUD_WS_URL, preserve that connection instead
+    // of persisting an empty pool. Do not re-add a server to a deliberately
+    // empty, already-migrated pool.
+    if existed && migrated && entries.is_empty() {
+        let explicit = default_primary();
+        if explicit.ipv4.is_some() || explicit.ipv6.is_some() { entries.push(explicit); }
+    }
     // Persist once before connecting, so the removed loopback stub cannot
     // return after reboot. save() retains a .bak during the atomic swap.
     if migrated || !existed {
@@ -356,12 +368,15 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
     let mut last_rtt = None;
     loop {
         update_node(&app, &entry.id, "connecting", None, None, None);
-        let mut last_err = "Не удалось подключиться".to_owned();
+        let mut attempted = Vec::new();
         for url in addresses(&entry) {
-            match run_secondary_session(&app, &entry, &url, &mut last_rtt).await {
-                Ok(()) => last_err = "Соединение закрыто сервером".into(),
-                Err(error) => last_err = error,
-            }
+            let failure = match run_secondary_session(&app, &entry, &url, &mut last_rtt).await {
+                Ok(()) => "Соединение закрыто сервером".to_owned(),
+                Err(error) => error,
+            };
+            // Keep the error for EACH configured address, instead of reporting
+            // only the last IPv6 timeout when IPv4 failed for another reason.
+            attempted.push(format!("{url}: {failure}"));
             // Each address attempt owns a distinct socket. Mark the observed
             // devices offline before trying a fallback address.
             crate::storage::disconnected(&app, &entry.id);
@@ -370,16 +385,18 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
             let state = app.state::<ServerPool>();
             state.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
             state.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
-            // If the active session dropped, retry that address, instead of
-            // jumping immediately to another IP of the same node.
-            if last_err.starts_with("session ended:") { break; }
+            // Try the alternate configured IP after a dropped session too.
+            // Otherwise an unhealthy IPv4 endpoint can mask a working IPv6 one.
         }
         app.state::<ServerPool>().refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         crate::storage::disconnected(&app, &entry.id);
         crate::device_registry::disconnected(&app, &entry.id);
-        update_node(&app, &entry.id, "offline", None, None, Some(last_err));
+        let detail = if attempted.is_empty() {
+            "Не задан IPv4 или IPv6 адрес Backend".to_owned()
+        } else { attempted.join(" | ") };
+        update_node(&app, &entry.id, "offline", None, None, Some(detail));
         last_rtt = None;
         tokio::time::sleep(RETRY).await;
     }
@@ -623,7 +640,7 @@ mod tests {
     #[test]
     fn no_implicit_localhost_and_removable_primary_migration() {
         let (empty, changed) = migrate_legacy_primary(vec![
-            ServerEntry { id: "primary".into(), name: "Default".into(),
+            ServerEntry { id: "primary".into(), name: "HomeCloudBackend".into(),
                 ipv4: Some("127.0.0.1".into()), ipv6: None, builtin: true },
             ServerEntry { id: "node-a".into(), name: "Home".into(),
                 ipv4: Some("192.168.0.147".into()), ipv6: None, builtin: false },
@@ -639,6 +656,16 @@ mod tests {
         assert_eq!(migrated[0].id, "node-migrated-primary");
         assert!(!migrated[0].builtin);
         assert_eq!(migrated[0].ipv4.as_deref(), Some("192.168.0.147"));
+        // An explicitly named loopback connection is legitimate and must not
+        // be confused with the silently injected old "HomeCloudBackend" stub.
+        let (named, changed) = migrate_legacy_primary(vec![
+            ServerEntry { id: "primary".into(), name: "My local Backend".into(),
+                ipv4: Some("127.0.0.1".into()), ipv6: None, builtin: true },
+        ]);
+        assert!(changed);
+        assert_eq!(named.len(), 1);
+        assert_eq!(named[0].ipv4.as_deref(), Some("127.0.0.1"));
+        assert!(!named[0].builtin);
     }
 
 }
