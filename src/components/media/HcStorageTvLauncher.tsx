@@ -32,7 +32,7 @@ const sizeLabel = (bytes = 0) => bytes >= 1073741824
   ? `${(bytes / 1073741824).toFixed(2)} ГиБ` : `${(bytes / 1048576).toFixed(1)} МиБ`;
 
 export function HcStorageTvLauncher({ servers, devices }: { servers: PoolServer[]; devices: RegisteredDevice[] }) {
-  const [serverId, setServerId] = useState('primary');
+  const [serverId, setServerId] = useState('');
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentId, setAgentId] = useState('');
   const [rootId, setRootId] = useState('');
