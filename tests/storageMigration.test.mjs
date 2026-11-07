@@ -42,7 +42,7 @@ test('native HC SS mutations are fenced across file dialogs and root changes', (
   assert.match(page, /if \(liveSelection\.current !== actionKey\) return/);
   assert.match(page, /setPendingDelete\(null\)/);
   assert.match(page, /disabled=\{fileBusy/);
-  assert.match(native, /valid_endpoint\(&endpoint\)/);
+  assert.match(native, /valid_endpoint\(endpoint\)/);
   assert.match(native, /sha256/gi);
   assert.match(native, /fs::hard_link\(&tmp,&local\)/);
 });
