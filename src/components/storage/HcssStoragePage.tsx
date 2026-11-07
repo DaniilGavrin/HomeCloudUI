@@ -31,9 +31,6 @@ export function HcssStoragePage() {
   const [nextCursor, setNextCursor] = useState('');
   const [moreLoading, setMoreLoading] = useState(false);
   const [moreError, setMoreError] = useState('');
-  // Direct Tailnet management credential is deliberately memory-only.
-  const [fileEndpoint, setFileEndpoint] = useState('');
-  const [fileToken, setFileToken] = useState('');
   const [fileBusy, setFileBusy] = useState(false);
   const operationLock = useRef(false);
   const [fileError, setFileError] = useState('');
@@ -55,7 +52,8 @@ export function HcssStoragePage() {
     return items.filter(item => pathIsDirectChild(folder, item) && (!q || item.name.toLocaleLowerCase('ru-RU').includes(q)));
   }, [items, folder, filter]);
   const filesCount = items.filter(v => v.kind === 'file').length;
-  const fileConnected = Boolean(fileEndpoint.trim() && fileToken.trim());
+  const fileEndpoint = agent?.online && agent.file_ws?.mode === 'trusted_network' ? agent.file_ws.endpoint : '';
+  const fileConnected = Boolean(fileEndpoint);
   const selectionKey=JSON.stringify([serverId,nodeId,rootId,folder,browseReload]);
   const liveSelection=useRef(selectionKey);
   liveSelection.current=selectionKey;
@@ -78,7 +76,7 @@ export function HcssStoragePage() {
   useEffect(() => {
     let active = true;
     setAgents([]); setNodeId(''); setRootId(''); setFolder('');
-    setFileEndpoint('');setFileToken('');setFileNotice('');setFileError('');setFileProgress(null);setPendingDelete(null);
+    setFileNotice('');setFileError('');setFileProgress(null);setPendingDelete(null);
     setItems([]); setFile(null); setFilter(''); setPartial(false);
     setCatalogError(''); setBrowseError('');
     if (!online) { setCatalogPhase('offline'); setBrowsePhase('idle'); return () => { active = false; }; }
@@ -127,7 +125,7 @@ export function HcssStoragePage() {
     const next = agents.find(a => a.storage_node_id === nextId);
     const allowed = next?.roots?.find(isBrowsableRoot);
     setNodeId(nextId); setRootId(allowed ? rootKey(allowed) : '');
-    setFileEndpoint('');setFileToken('');setFileNotice('');setFileError('');
+    setFileNotice('');setFileError('');
     setFolder(''); setFilter(''); setFile(null);
   }
   function chooseRoot(nextId: string) {
@@ -150,7 +148,7 @@ export function HcssStoragePage() {
     operationLock.current = true;
     setFileBusy(true);
     const actionKey = selectionKey;
-    const target = {endpoint: fileEndpoint.trim(), token: fileToken.trim(),
+    const target = {endpoint: fileEndpoint,
       rootKind: root.kind, rootId: root.id};
     setFileError('');setFileNotice('');setFileProgress(null);
     try {
@@ -226,7 +224,7 @@ export function HcssStoragePage() {
         <p>Диски и файлы узлов HomeCloud. Просмотр через Backend WS, без прямого подключения к HC SS.</p>
       </div>
       <div className="hc-storage__actions">
-        <span className="hc-hcss__read-only">HC SS · защищённый Tailnet</span>
+        <span className="hc-hcss__read-only">HC Storage Service</span>
         <button className="hc-storage__button" type="button" onClick={reloadAll}
           disabled={!online || catalogPhase === 'loading'}>↻ Обновить</button>
       </div>
@@ -304,17 +302,12 @@ export function HcssStoragePage() {
           </div>
           <p className="hc-storage__note">Инвентаризация показывает смонтированные файловые системы; наличие диска не даёт доступ к его содержимому. Файлы доступны только через разрешённые корни HC SS.</p>
           <div className="hc-hcss__transfer-settings homecloud-glass">
-            <div><strong>Защищённая передача файлов HC SS</strong>
-              <small>Отдельный файловый WebSocket через Tailscale. Ключ остаётся только в памяти HomeCloudUI и не отправляется в Backend. HC SS должен разрешать Tailscale IP этого компьютера.</small></div>
-            <label>Адрес HC SS в Tailscale
-              <input value={fileEndpoint} disabled={fileBusy} onChange={e=>setFileEndpoint(e.target.value)}
-                placeholder="ws://100.x.y.z:8093/ws/files" spellCheck={false} autoComplete="off" />
-            </label>
-            <label>Ключ HC SS (64 символа HEX)
-              <input type="password" value={fileToken} disabled={fileBusy} onChange={e=>setFileToken(e.target.value)}
-                placeholder="Ключ из защищённого файла HC SS" spellCheck={false} autoComplete="off" />
-            </label>
-            <span>{fileConnected ? 'Реквизиты введены, соединение будет проверено при операции' : 'Для управления файлами введи адрес и ключ HC SS'}</span>
+            <div><strong>Файловый доступ</strong>
+              <small>HomeCloudUI автоматически использует адрес, опубликованный выбранным HC Storage Service. Никаких отдельных полей для Tailscale и постоянных ключей.</small>
+            </div>
+            <span role="status">{fileConnected
+              ? 'Файловый канал обнаружен · доступ к операциям зависит от прав разрешённого каталога'
+              : 'Файловый канал недоступен: включи режим trusted_network и разрешённый IP клиента в конфигурации HC SS'}</span>
           </div>
 
           <div className="hc-storage__section-head"><h3>Разрешённые корни HC SS</h3><span>{roots.length} опубликовано</span></div>
