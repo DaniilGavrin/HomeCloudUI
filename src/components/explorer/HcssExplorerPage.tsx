@@ -666,8 +666,9 @@ export function HcssExplorerPage() {
       <span>{error}</span><button type="button" aria-label="Закрыть" onClick={()=>setError('')}>×</button>
     </div>}
     {busy&&progress&&<div className="hc-explorer-progress" role="status">
-      {progress.role==='upload'?'Загрузка':'Скачивание'} · {formatBytes(progress.completed_bytes)} / {formatBytes(progress.total_bytes)}
-      <div><i style={{width:`${progress.total_bytes?Math.min(100,progress.completed_bytes*100/progress.total_bytes):0}%`}}/></div>
+      {progress.role==='upload'?'Загрузка':progress.role==='copy'?'Копирование':'Скачивание'} · {formatBytes(progress.completed_bytes)}
+      {progress.total_bytes>0?' / '+formatBytes(progress.total_bytes):' скопировано'}
+      {progress.total_bytes>0&&<div><i style={{width:`${Math.min(100,progress.completed_bytes*100/progress.total_bytes)}%`}}/></div>}
     </div>}
 
     {modal&&<div className="hc-explorer-modal-backdrop" onPointerDown={e=>{if(e.target===e.currentTarget&&!busy)setModal(null)}}>
