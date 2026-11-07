@@ -94,7 +94,7 @@ export function SettingsPage() {
             return <article key={s.id} className="hc-settings__server homecloud-glass">
               <span className="hc-settings__tile-icon"><Icon type="server" /></span>
               <div className="hc-settings__identity"><strong>{s.name}</strong><small>{[s.ipv4, s.ipv6].filter(Boolean).join(' · ')}</small></div>
-              <span className={`hc-settings__status ${online ? 'is-online' : phase === 'connecting' || phase === 'loading' ? 'is-connecting' : 'is-offline'}`}><i />{online ? 'Online' : phase === 'connecting' || phase === 'loading' ? 'Connecting' : phase === 'error' ? 'Ошибка данных' : 'Offline'}</span>
+              <span className={`hc-settings__status ${online ? 'is-online' : phase === 'connecting' ? 'is-connecting' : 'is-offline'}`}><i />{online ? 'Online' : phase === 'connecting' ? 'Connecting' : phase === 'error' ? 'Ошибка данных' : 'Offline'}</span>
               <div className="hc-settings__server-actions"><button type="button" title="Изменить" aria-label={`Изменить ${s.name}`} onClick={() => openForm(s)}><Icon type="edit" /></button>
                 <button type="button" title="Удалить" aria-label={`Удалить ${s.name}`} onClick={() => {setConfirmId(s.id); setActionError(null); setScreen('delete');}}><Icon type="delete" /></button>
               </div>
