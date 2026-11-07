@@ -91,3 +91,27 @@
  .hc-hcss__file-detail dt:not(:first-of-type) {margin-top:7px;}
  .hc-hcss__read-only {font-size:10px;}
 }
+
+/* KAN-81: HC SS direct Tailnet file-transfer controls. */
+.hc-hcss__transfer-settings {border-radius:17px; padding:17px; margin:20px 0 8px; display:grid;gap:12px;}
+.hc-hcss__transfer-settings>div {display:grid;gap:6px;}
+.hc-hcss__transfer-settings strong {font-size:14px;}
+.hc-hcss__transfer-settings small,.hc-hcss__transfer-settings>span {color:rgba(218,237,252,.65);font-size:11px;line-height:1.6;}
+.hc-hcss__transfer-settings label,.hc-hcss__actions label {display:grid;gap:7px;min-width:0;font-size:12px;color:rgba(231,246,255,.8);}
+.hc-hcss__transfer-settings input,.hc-hcss__actions input {
+  color:#f1faff; font:inherit;font-size:12px;min-width:0;width:100%;min-height:42px;padding:10px 12px;
+  border-radius:12px;border:1px solid rgba(182,232,248,.17);background:rgba(4,24,43,.35);
+}
+.hc-hcss__transfer-settings input:focus-visible,.hc-hcss__actions input:focus-visible {outline:2px solid #99eaff;outline-offset:2px;}
+.hc-hcss__actions {display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:12px 0;}
+.hc-hcss__actions label {flex:1;min-width:min(220px,100%);}
+.hc-hcss__file-detail .hc-hcss__actions {margin-top:22px;}
+.hc-hcss__delete-button {border-color:rgba(255,139,162,.6);background:rgba(161,46,67,.25);color:#ffd5dc;}
+.hc-hcss__delete-confirm {display:flex;flex-wrap:wrap;align-items:center;gap:12px;border:1px solid rgba(246,157,164,.33);border-radius:14px;padding:15px;margin:13px 0;background:rgba(94,35,46,.25);}
+.hc-hcss__delete-confirm strong {width:100%;color:#ffe8eb;}
+.hc-hcss__delete-confirm span {font-size:12px;color:rgba(255,226,233,.85);flex:1;}
+.hc-hcss__success {background:rgba(26,101,72,.19);border:1px solid rgba(82,219,157,.28);color:#bcf6d4;border-radius:12px;margin:13px 0;padding:12px 15px;font-size:12px;}
+.hc-hcss__progress {padding:13px 15px;margin-top:13px;background:rgba(34,80,98,.14);border-radius:12px;font-size:12px;}
+.hc-hcss__progress>div {height:5px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.12);margin-top:10px;}
+.hc-hcss__progress i {height:100%;display:block;background:linear-gradient(90deg,#5fd5eb,#998fff);transition:width 100ms linear;}
+@media(max-width:710px){.hc-hcss__transfer-settings{padding:13px;}.hc-hcss__actions label{width:100%;}.hc-hcss__actions button{flex:1;}}

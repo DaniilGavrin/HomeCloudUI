@@ -34,3 +34,15 @@ test('Rust IPC does not allow Backend Storage Manager transfer commands', () => 
   assert.match(storage, /"storage\.fs\.list"/);
   assert.equal(existsSync(new URL('../src-tauri/capabilities/homecloud-storage.json', import.meta.url)), false);
 });
+
+test('native HC SS mutations are fenced across file dialogs and root changes', () => {
+  const page = read('src/components/storage/HcssStoragePage.tsx');
+  const native = read('src-tauri/src/file_transfer.rs');
+  assert.match(page, /operationLock\.current = true/);
+  assert.match(page, /if \(liveSelection\.current !== actionKey\) return/);
+  assert.match(page, /setPendingDelete\(null\)/);
+  assert.match(page, /disabled=\{fileBusy/);
+  assert.match(native, /valid_endpoint\(endpoint\)/);
+  assert.match(native, /sha256/gi);
+  assert.match(native, /fs::hard_link\(&tmp,&local\)/);
+});

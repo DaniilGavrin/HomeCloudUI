@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { useHomeCloudConnection } from '../../hooks/useHomeCloudConnection';
 import {
@@ -22,11 +24,26 @@ export function HcssStoragePage() {
   const [file, setFile] = useState<HcssDirectoryItem | null>(null);
   const [filter, setFilter] = useState('');
   const [reload, setReload] = useState(0);
+  const [browseReload, setBrowseReload] = useState(0);
   const [catalogPhase, setCatalogPhase] = useState<'offline' | 'loading' | 'ready' | 'error'>('offline');
   const [browsePhase, setBrowsePhase] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [catalogError, setCatalogError] = useState('');
   const [browseError, setBrowseError] = useState('');
   const [partial, setPartial] = useState(false);
+  const [nextCursor, setNextCursor] = useState('');
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [moreError, setMoreError] = useState('');
+  // Direct Tailnet management credential is deliberately memory-only.
+  const [fileEndpoint, setFileEndpoint] = useState('');
+  const [fileToken, setFileToken] = useState('');
+  const [fileBusy, setFileBusy] = useState(false);
+  const operationLock = useRef(false);
+  const [fileError, setFileError] = useState('');
+  const [fileNotice, setFileNotice] = useState('');
+  const [fileProgress, setFileProgress] = useState<{role:string;completed_bytes:number;total_bytes:number}|null>(null);
+  const [directoryName, setDirectoryName] = useState('');
+  const [renameName, setRenameName] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const backend = pool.servers.find(s => s.id === serverId);
   const online = serverId === 'primary' ? connection.phase === 'online' : backend?.phase === 'ready';
@@ -40,6 +57,17 @@ export function HcssStoragePage() {
     return items.filter(item => pathIsDirectChild(folder, item) && (!q || item.name.toLocaleLowerCase('ru-RU').includes(q)));
   }, [items, folder, filter]);
   const filesCount = items.filter(v => v.kind === 'file').length;
+  const fileConnected = Boolean(fileEndpoint.trim() && fileToken.trim());
+  const selectionKey=JSON.stringify([serverId,nodeId,rootId,folder,browseReload]);
+  const liveSelection=useRef(selectionKey);
+  liveSelection.current=selectionKey;
+  useEffect(() => {
+    let active=true;let stop:(()=>void)|undefined;
+    void listen<{role:string;completed_bytes:number;total_bytes:number}>('homecloud:hcss-transfer-progress',ev=>{
+      if(active)setFileProgress(ev.payload);
+    }).then(fn=>{if(active)stop=fn;else fn();}).catch(()=>{});
+    return ()=>{active=false;stop?.();};
+  }, []);
   const dirsCount = items.filter(v => v.kind === 'folder').length;
 
   useEffect(() => {
@@ -52,6 +80,7 @@ export function HcssStoragePage() {
   useEffect(() => {
     let active = true;
     setAgents([]); setNodeId(''); setRootId(''); setFolder('');
+    setFileEndpoint('');setFileToken('');setFileNotice('');setFileError('');setFileProgress(null);setPendingDelete(null);
     setItems([]); setFile(null); setFilter(''); setPartial(false);
     setCatalogError(''); setBrowseError('');
     if (!online) { setCatalogPhase('offline'); setBrowsePhase('idle'); return () => { active = false; }; }
@@ -74,7 +103,7 @@ export function HcssStoragePage() {
   // Requests are cancelled logically when changing Backend, node, root or folder.
   useEffect(() => {
     let active = true;
-    setItems([]); setFile(null); setPartial(false); setBrowseError('');
+    setItems([]); setFile(null); setPartial(false); setBrowseError('');setNextCursor('');setMoreError('');setMoreLoading(false);setPendingDelete(null);
     if (!online || !agent?.online || !root) {
       setBrowsePhase('idle');
       return () => { active = false; };
@@ -88,25 +117,108 @@ export function HcssStoragePage() {
       if (result.root?.kind !== root.kind || result.root?.id !== root.id || result.path !== folder ||
         !Array.isArray(result.items)) throw new Error('Некорректный каталог, полученный от HC SS');
       setItems(result.items);
-      setPartial(Boolean(result.next_cursor));
+      setPartial(Boolean(result.next_cursor));setNextCursor(result.next_cursor??'');
       setBrowsePhase('ready');
     }).catch(err => { if (active) { setBrowseError(String(err)); setBrowsePhase('error'); } });
     return () => { active = false; };
-  }, [serverId, online, nodeId, rootId, folder, agent?.online, root?.kind, root?.id]);
+  }, [serverId, online, nodeId, rootId, folder, browseReload, agent?.online, root?.kind, root?.id]);
 
   function chooseNode(nextId: string) {
+    if (operationLock.current) return;
+    setPendingDelete(null);
     const next = agents.find(a => a.storage_node_id === nextId);
     const allowed = next?.roots?.find(isBrowsableRoot);
     setNodeId(nextId); setRootId(allowed ? rootKey(allowed) : '');
+    setFileEndpoint('');setFileToken('');setFileNotice('');setFileError('');
     setFolder(''); setFilter(''); setFile(null);
   }
   function chooseRoot(nextId: string) {
-    setRootId(nextId); setFolder(''); setFilter(''); setFile(null);
+    if (operationLock.current) return;
+    setPendingDelete(null);
+    setRootId(nextId); setFolder(''); setFilter(''); setFile(null);setFileNotice('');setFileError('');
   }
   function enterFolder(path: string) {
-    setFolder(path); setFilter(''); setFile(null);
+    if (operationLock.current) return;
+    setPendingDelete(null);
+    setFolder(path); setFilter(''); setFile(null);setFileNotice('');setFileError('');
   }
   function reloadAll() { setReload(x => x + 1); }
+
+  async function fileAction(operation: 'upload'|'download'|'mkdir'|'rename'|'delete',
+    itemPath?: string, newPath?: string) {
+    if (!agent?.online || !root || !fileConnected || operationLock.current) return;
+    // Lock before awaiting the native dialog. A root switch during a dialog
+    // must never turn a user-approved action into a mutation on another node.
+    operationLock.current = true;
+    setFileBusy(true);
+    const actionKey = selectionKey;
+    const target = {endpoint: fileEndpoint.trim(), token: fileToken.trim(),
+      rootKind: root.kind, rootId: root.id};
+    setFileError('');setFileNotice('');setFileProgress(null);
+    try {
+      let remotePath = itemPath ?? '';
+      let localFile: string | undefined;
+      if (operation === 'upload') {
+        const chosen = await open({multiple:false,directory:false,title:'Файл для загрузки в HC Storage Service'});
+        if (!chosen || typeof chosen !== 'string') return;
+        localFile = chosen;
+        const name = chosen.split('\\').join('/').split('/').pop() ?? '';
+        if (!name || name==='.' || name==='..') return;
+        remotePath = folder ? `${folder}/${name}` : name;
+      }
+      if (operation === 'download') {
+        const source = items.find(x => x.path === remotePath && x.kind === 'file');
+        if (!source) return;
+        const dest = await save({defaultPath:source.name,title:'Сохранить из HC Storage Service'});
+        if (!dest || typeof dest !== 'string') return;
+        localFile = dest;
+      }
+      if (liveSelection.current !== actionKey) return;
+      await invoke('homecloud_hcss_file_operation', {
+        ...target, operation, path: remotePath,
+        newPath: newPath ?? null, localFile: localFile ?? null,
+      });
+      if (liveSelection.current !== actionKey) return;
+      setFileNotice(operation==='download' ? 'Файл скачан и проверен по SHA-256.' :
+        operation==='upload' ? 'Файл загружен и проверен по SHA-256.' :
+        operation==='mkdir' ? 'Каталог создан.' :
+        operation==='rename' ? 'Файл переименован.' : 'Элемент удалён.');
+      setPendingDelete(null);setFile(null);setDirectoryName('');setRenameName('');
+      if (operation==='delete' && remotePath===folder) {
+        setFolder(old=>old.split('/').slice(0,-1).join('/'));
+      }
+      if (operation!=='download') setBrowseReload(x=>x+1);
+    } catch (error) {
+      if (liveSelection.current === actionKey) setFileError(String(error));
+    } finally {
+      operationLock.current = false;
+      setFileBusy(false);
+      setFileProgress(null);
+    }
+  }
+  async function loadMore() {
+    if (!root || !agent?.online || !nextCursor || moreLoading || browsePhase!=='ready') return;
+    const key=selectionKey;
+    setMoreLoading(true);setMoreError('');
+    try {
+      const result=await invoke<HcssListResponse>('homecloud_hcss_browse',{
+        serverId,storageNodeId:nodeId,rootKind:root.kind,rootId:root.id,path:folder,cursor:nextCursor,
+      });
+      if (liveSelection.current!==key)return;
+      if (result.root?.kind!==root.kind||result.root?.id!==root.id||result.path!==folder||!Array.isArray(result.items)) {
+        throw new Error('HC SS вернул каталог, отличный от запрошенного');
+      }
+      setItems(current=>{
+        const seen=new Set(current.map(v=>v.path));
+        return [...current,...result.items.filter(v=>pathIsDirectChild(folder,v)&&!seen.has(v.path))];
+      });
+      setNextCursor(result.next_cursor??'');
+      setPartial(Boolean(result.next_cursor));
+    }catch(error){if(liveSelection.current===key)setMoreError(String(error));}
+    finally{if(liveSelection.current===key)setMoreLoading(false);}
+  }
+  function fileCanWrite(){return Boolean(root?.allow_write&&fileConnected&&!fileBusy);}
+  function fileCanDelete(){return Boolean(root?.allow_delete&&fileConnected&&!fileBusy);}
 
   return <section className="hc-storage hc-storage--hcss" aria-label="HC Storage Service">
     <header className="hc-storage__head hc-storage__head--main">
@@ -116,7 +228,7 @@ export function HcssStoragePage() {
         <p>Диски и файлы узлов HomeCloud. Просмотр через Backend WS, без прямого подключения к HC SS.</p>
       </div>
       <div className="hc-storage__actions">
-        <span className="hc-hcss__read-only">Только просмотр</span>
+        <span className="hc-hcss__read-only">HC SS · защищённый Tailnet</span>
         <button className="hc-storage__button" type="button" onClick={reloadAll}
           disabled={!online || catalogPhase === 'loading'}>↻ Обновить</button>
       </div>
@@ -124,7 +236,7 @@ export function HcssStoragePage() {
     <div className="hc-storage__scroll">
       <div className="hc-storage__filters">
         <label><span>Backend</span>
-          <select aria-label="Выбрать Backend" value={serverId} onChange={e => setServerId(e.target.value)}>
+          <select aria-label="Выбрать Backend" disabled={fileBusy} value={serverId} onChange={e => setServerId(e.target.value)}>
             {pool.servers.length
               ? pool.servers.map(s => <option value={s.id} key={s.id}>{s.name} · {s.phase}</option>)
               : <option value="primary">Основной Backend</option>}
@@ -164,7 +276,7 @@ export function HcssStoragePage() {
         </div> : <div className="hc-hcss__nodes" role="group" aria-label="Узлы хранения">
           {agents.map(a => <button key={a.storage_node_id} type="button"
             className={`hc-hcss__node homecloud-glass${nodeId === a.storage_node_id ? ' hc-hcss__node--active' : ''}`}
-            onClick={() => chooseNode(a.storage_node_id)}>
+            disabled={fileBusy} onClick={() => chooseNode(a.storage_node_id)}>
             <strong>{a.storage_node_id}</strong>
             <span className={a.online ? 'hc-storage__pill hc-storage__pill--online' : 'hc-storage__pill'}>{a.online ? 'Online' : 'Offline'}</span>
             <small>Последняя активность: {a.last_seen ? new Date(a.last_seen).toLocaleString('ru-RU') : '—'}</small>
@@ -193,12 +305,25 @@ export function HcssStoragePage() {
             })}
           </div>
           <p className="hc-storage__note">Инвентаризация показывает смонтированные файловые системы; наличие диска не даёт доступ к его содержимому. Файлы доступны только через разрешённые корни HC SS.</p>
+          <div className="hc-hcss__transfer-settings homecloud-glass">
+            <div><strong>Защищённая передача файлов HC SS</strong>
+              <small>Отдельный файловый WebSocket через Tailscale. Ключ остаётся только в памяти HomeCloudUI и не отправляется в Backend. HC SS должен разрешать Tailscale IP этого компьютера.</small></div>
+            <label>Адрес HC SS в Tailscale
+              <input value={fileEndpoint} disabled={fileBusy} onChange={e=>setFileEndpoint(e.target.value)}
+                placeholder="ws://100.x.y.z:8093/ws/files" spellCheck={false} autoComplete="off" />
+            </label>
+            <label>Ключ HC SS (64 символа HEX)
+              <input type="password" value={fileToken} disabled={fileBusy} onChange={e=>setFileToken(e.target.value)}
+                placeholder="Ключ из защищённого файла HC SS" spellCheck={false} autoComplete="off" />
+            </label>
+            <span>{fileConnected ? 'Реквизиты введены, соединение будет проверено при операции' : 'Для управления файлами введи адрес и ключ HC SS'}</span>
+          </div>
 
           <div className="hc-storage__section-head"><h3>Разрешённые корни HC SS</h3><span>{roots.length} опубликовано</span></div>
           <div className="hc-hcss__roots" role="group" aria-label="Разрешённые корни">
             {roots.length === 0 ? <div className="hc-storage__empty homecloud-glass">Корни ещё не опубликованы узлом.</div> :
               roots.map(r => <button type="button" key={rootKey(r)}
-                disabled={!agent.online || !isBrowsableRoot(r)}
+                disabled={fileBusy || !agent.online || !isBrowsableRoot(r)}
                 className={`hc-hcss__root homecloud-glass${rootKey(r) === rootId ? ' hc-hcss__root--active' : ''}`}
                 onClick={() => chooseRoot(rootKey(r))}>
                 <strong>{r.name || r.id}</strong><small>{r.kind} · {r.id}</small>
@@ -209,22 +334,36 @@ export function HcssStoragePage() {
 
           <div className="hc-storage__section-head hc-storage__section-head--files">
             <div><h3>Проводник HC SS</h3><span>{root ? `${root.name || root.id} · ${folder || '/'}` : 'Выбери доступный корень'}</span></div>
-            <button className="hc-storage__button" type="button" disabled={!root || !folder || browsePhase === 'loading'}
+            <button className="hc-storage__button" type="button" disabled={fileBusy || !root || !folder || browsePhase === 'loading'}
               onClick={() => enterFolder(folder.split('/').slice(0, -1).join('/'))}>← Вверх</button>
           </div>
           {root && <>
             <nav className="hc-hcss__breadcrumbs" aria-label="Путь каталога">
               {folderCrumbs(folder).map((crumb, i) => <button key={crumb.path} type="button"
                 aria-current={crumb.path === folder ? 'page' : undefined}
-                disabled={browsePhase === 'loading' || crumb.path === folder}
+                disabled={fileBusy || browsePhase === 'loading' || crumb.path === folder}
                 onClick={() => enterFolder(crumb.path)}>{i ? '/ ' : ''}{crumb.label}</button>)}
             </nav>
+            {root.allow_delete && folder && <div className="hc-hcss__actions">
+              <button className="hc-storage__button hc-hcss__delete-button" type="button"
+                disabled={!fileCanDelete()} onClick={()=>setPendingDelete(folder)}>Удалить текущий пустой каталог</button>
+            </div>}
+            {root.allow_write && <div className="hc-hcss__actions">
+              <label>Новый каталог<input value={directoryName} onChange={e=>setDirectoryName(e.target.value)}
+                 maxLength={180} placeholder="Название каталога" spellCheck={false}/></label>
+              <button className="hc-storage__button hc-storage__button--primary" type="button"
+                disabled={!fileCanWrite() || !directoryName.trim() || directoryName.includes('/') || directoryName.includes('\\')}
+                onClick={()=>void fileAction('mkdir', folder ? `${folder}/${directoryName.trim()}` : directoryName.trim())}>
+                Создать каталог</button>
+              <button className="hc-storage__button hc-storage__button--primary" type="button"
+                disabled={!fileCanWrite()} onClick={()=>void fileAction('upload')}>↑ Загрузить файл</button>
+            </div>}
             <div className="hc-storage__toolbar">
               <label><span aria-hidden="true">⌕</span><input type="search" value={filter}
                 onChange={e => setFilter(e.target.value)} placeholder="Поиск в текущем каталоге"
                 aria-label="Поиск файлов в текущем каталоге"/></label>
               <button type="button" className="hc-storage__button" disabled={browsePhase === 'loading'}
-                onClick={reloadAll}>↻</button>
+                onClick={()=>setBrowseReload(x=>x+1)}>↻</button>
             </div>
             {browsePhase === 'loading' && <div className="hc-storage__empty homecloud-glass">Открываем каталог…</div>}
             {browsePhase === 'error' && <div role="alert" className="hc-hcss__error">{browseError}</div>}
@@ -234,7 +373,7 @@ export function HcssStoragePage() {
               </div> : <div className="hc-storage__files">
                 {visible.map(item => <button key={item.path} type="button"
                   className={`hc-storage__file-row homecloud-glass${file?.path === item.path ? ' hc-hcss__file--selected' : ''}`}
-                  onClick={() => item.kind === 'folder' ? enterFolder(item.path) : setFile(item)}>
+                  disabled={fileBusy} onClick={() => item.kind === 'folder' ? enterFolder(item.path) : setFile(item)}>
                   <span className="hc-storage__file-icon">{item.kind === 'folder' ? '▤' : '▧'}</span>
                   <span className="hc-storage__file-text"><strong title={item.name}>{item.name}</strong>
                     <small>{item.kind === 'folder' ? 'Каталог' : 'Файл'} · {formatModified(item.modified_unix_nano)}</small></span>
@@ -242,9 +381,12 @@ export function HcssStoragePage() {
                   <span aria-hidden="true">›</span>
                 </button>)}
               </div>}
-              {partial && <p className="hc-hcss__warning" role="status">
-                Показаны первые 500 элементов. HC SS поддерживает cursor, но Backend пока не передаёт параметр пагинации.
-              </p>}
+              {partial && <div className="hc-hcss__actions">
+                <button className="hc-storage__button" type="button" disabled={moreLoading||fileBusy}
+                  onClick={()=>void loadMore()}>{moreLoading?'Загружаем…':'Показать ещё 500 элементов'}</button>
+                <span>Список загружается страницами, без полного чтения каталога в память</span>
+              </div>}
+              {moreError && <div className="hc-hcss__error" role="alert">{moreError}</div>}
               {file && <aside className="hc-hcss__file-detail homecloud-glass" aria-label="Сведения о выбранном файле">
                 <div><strong>{file.name}</strong>
                   <button className="hc-storage__button" type="button" onClick={() => setFile(null)} aria-label="Закрыть сведения о файле">×</button>
@@ -255,8 +397,37 @@ export function HcssStoragePage() {
                   <dt>Изменён</dt><dd>{formatModified(file.modified_unix_nano)}</dd>
                   <dt>HCS1 file ID</dt><dd className="hc-hcss__file-id">{file.file_id || 'Не предоставлен Storage Service'}</dd>
                 </dl>
-                <p className="hc-storage__note">Скачивание и операции записи через HC SS ещё не реализованы в Backend; они не подменяются старыми командами Storage Manager.</p>
+                <div className="hc-hcss__actions">
+                  <button className="hc-storage__button hc-storage__button--primary" type="button"
+                    disabled={!root.allow_read||!fileConnected||fileBusy}
+                    onClick={()=>void fileAction('download',file.path)}>↓ Скачать с SHA-256</button>
+                  {root.allow_write&&root.allow_delete&&<>
+                    <label>Новое имя файла<input value={renameName} onChange={e=>setRenameName(e.target.value)}
+                      placeholder={file.name} maxLength={180}/></label>
+                    <button className="hc-storage__button" type="button"
+                      disabled={!fileCanWrite()||!renameName.trim()||renameName.includes('/')||renameName.includes('\\')}
+                      onClick={()=>void fileAction('rename',file.path,(folder ? `${folder}/` : '')+renameName.trim())}>
+                      Переименовать</button>
+                  </>}
+                  {root.allow_delete&&<button className="hc-storage__button" type="button" disabled={!fileCanDelete()}
+                    onClick={()=>setPendingDelete(file.path)}>Удалить файл</button>}
+                </div>
               </aside>}
+              {root.allow_delete && pendingDelete && <div className="hc-hcss__delete-confirm" role="alertdialog"
+                aria-label="Подтверждение удаления">
+                <strong>Удалить «{items.find(x=>x.path===pendingDelete)?.name ?? pendingDelete}»?</strong>
+                <span>Действие необратимо. Каталоги удаляются только пустыми.</span>
+                <button className="hc-storage__button" type="button" disabled={fileBusy}
+                  onClick={()=>setPendingDelete(null)}>Отмена</button>
+                <button className="hc-storage__button hc-hcss__delete-button" type="button"
+                  disabled={!fileCanDelete()} onClick={()=>void fileAction('delete',pendingDelete)}>Подтвердить удаление</button>
+              </div>}
+              {fileProgress&&fileBusy&&<div className="hc-hcss__progress" role="status">
+                {fileProgress.role==='upload'?'Загрузка':'Скачивание'} · {formatBytes(fileProgress.completed_bytes)} / {formatBytes(fileProgress.total_bytes)}
+                <div><i style={{width:`${fileProgress.total_bytes ? Math.round(fileProgress.completed_bytes*100/fileProgress.total_bytes):100}%`}}/></div>
+              </div>}
+              {fileError && <div className="hc-hcss__error" role="alert">{fileError}</div>}
+              {fileNotice && <div className="hc-hcss__success" role="status">{fileNotice}</div>}
             </>}
           </>}
         </>}
