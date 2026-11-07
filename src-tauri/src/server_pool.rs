@@ -640,7 +640,7 @@ mod tests {
     #[test]
     fn no_implicit_localhost_and_removable_primary_migration() {
         let (empty, changed) = migrate_legacy_primary(vec![
-            ServerEntry { id: "primary".into(), name: "Default".into(),
+            ServerEntry { id: "primary".into(), name: "HomeCloudBackend".into(),
                 ipv4: Some("127.0.0.1".into()), ipv6: None, builtin: true },
             ServerEntry { id: "node-a".into(), name: "Home".into(),
                 ipv4: Some("192.168.0.147".into()), ipv6: None, builtin: false },
