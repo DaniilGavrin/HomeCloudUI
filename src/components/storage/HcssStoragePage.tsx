@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
-import { useHomeCloudConnection } from '../../hooks/useHomeCloudConnection';
 import {
   type HcssAgent, type HcssDirectoryItem, type HcssListResponse,
   filesystemVolumes, folderCrumbs, formatBytes, formatModified,
@@ -14,8 +13,7 @@ type AgentResponse = { agents: HcssAgent[] };
 
 export function HcssStoragePage() {
   const { snapshot: pool } = useHomeCloudPool();
-  const connection = useHomeCloudConnection();
-  const [serverId, setServerId] = useState('primary');
+  const [serverId, setServerId] = useState('');
   const [agents, setAgents] = useState<HcssAgent[]>([]);
   const [nodeId, setNodeId] = useState('');
   const [rootId, setRootId] = useState('');
@@ -46,7 +44,7 @@ export function HcssStoragePage() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const backend = pool.servers.find(s => s.id === serverId);
-  const online = serverId === 'primary' ? connection.phase === 'online' : backend?.phase === 'ready';
+  const online = backend?.phase === 'ready';
   const agent = agents.find(a => a.storage_node_id === nodeId) ?? null;
   const roots = agent?.roots ?? [];
   const root = roots.find(r => rootKey(r) === rootId && isBrowsableRoot(r)) ?? null;
@@ -239,7 +237,7 @@ export function HcssStoragePage() {
           <select aria-label="Выбрать Backend" disabled={fileBusy} value={serverId} onChange={e => setServerId(e.target.value)}>
             {pool.servers.length
               ? pool.servers.map(s => <option value={s.id} key={s.id}>{s.name} · {s.phase}</option>)
-              : <option value="primary">Основной Backend</option>}
+              : <option value="">Серверы не добавлены</option>}
           </select>
         </label>
         <span className={online ? 'hc-storage__state hc-storage__state--online' : 'hc-storage__state'}>
