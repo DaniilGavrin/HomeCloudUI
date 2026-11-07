@@ -7,7 +7,7 @@ import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { useHomeCloudDeviceRegistry } from '../../hooks/useHomeCloudDeviceRegistry';
 import { kindOf } from '../devices/deviceKind';
 import {
-  type HcssAgent, type HcssDirectoryItem, type HcssListResponse, type HcssRoot,
+  type HcssAgent, type HcssDirectoryItem, type HcssListResponse,
   rootKey, isBrowsableRoot, pathIsDirectChild, folderCrumbs, formatModified, formatBytes,
 } from '../storage/hcssModel';
 import '../../styles/explorer.css';
@@ -312,7 +312,7 @@ export function HcssExplorerPage() {
     if(!picked)return;
     const files=(Array.isArray(picked)?picked:[picked]).filter((p):p is string=>typeof p==='string');
     if(files.length>100){setError('Максимум 100 файлов за одну операцию');return}
-    const entries=files.map(localFile=>({localFile,path:join(folder,basename(localFile.replaceAll('\\','/')))}));
+    const entries=files.map(localFile=>({localFile,path:join(folder,basename(localFile.replace(/\\\\/g,'/')))}));
     await batch('upload',entries);
   }
 
@@ -709,7 +709,7 @@ export function HcssExplorerPage() {
             <option value="">Выбери TV</option>
             {tvs.map(d=><option key={d.device_id} value={d.device_id}>{d.device_id}</option>)}
           </select></label>
-          <label>Сеть<select value={network} onChange={e=>setNetwork(e.target.value)}>
+          <label>Сеть<select value={network} onChange={e=>setNetwork(e.target.value as 'lan'|'tailscale')}>
             <option value="lan">LAN</option><option value="tailscale">Tailscale</option>
           </select></label>
           <small>Запуск выполняет Backend. Локального видеоплеера в HomeCloudUI нет.</small>
