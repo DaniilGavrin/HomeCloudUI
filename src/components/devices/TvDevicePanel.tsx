@@ -117,7 +117,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
 
       <div className="hc-tv-device__actions">
         <button type="button" className="hc-tv-device__action hc-tv-device__action--primary" onClick={onOpenMedia}>
-          Перейти в мультимедиа
+          Открыть проводник
         </button>
         <button type="button" className="hc-tv-device__action" disabled={busy} onClick={onRefresh}>
           {busy ? 'Обновление…' : 'Обновить устройства'}
@@ -132,7 +132,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
       {snapshot.phase === 'ready' && !room && (
         <div className="hc-tv-device__empty" role="status">
           <strong>Активной медиакомнаты нет</strong>
-          <p>Здесь отображаются комнаты, уже созданные на Backend. Запуск серверного файла через <code>media.rooms.play</code> из медиатеки подключим отдельно; текущий раздел «Мультимедиа» пока не создаёт такую комнату.</p>
+          <p>Комнаты создаёт Backend. Для запуска файла из HC Storage Service открой «Проводник», выбери медиафайл, затем «Воспроизвести на TV». Управление текущей комнатой остаётся здесь.</p>
         </div>
       )}
 
