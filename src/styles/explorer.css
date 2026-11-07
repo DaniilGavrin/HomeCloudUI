@@ -750,3 +750,6 @@
 @media(prefers-reduced-motion:reduce){
  .hc-explorer *{transition:none!important;animation:none!important}
 }
+
+.hc-explorer-confirm-checkbox{display:flex!important;align-items:center;gap:9px;line-height:1.5;cursor:pointer}
+.hc-explorer-confirm-checkbox input[type="checkbox"]{width:18px;min-width:18px;height:18px;accent-color:#75dcea}

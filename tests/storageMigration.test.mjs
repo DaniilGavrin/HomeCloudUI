@@ -145,3 +145,11 @@ test('WebOS explorer supports remote copy/move and modal-only file properties', 
   assert.match(native,/"touch"=>"file\.touch"/);
   assert.match(native,/action=="file\.copy"/);
 });
+
+test('TV playback from HC SS explorer requires confirmed room replacement', () => {
+ const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+ assert.match(explorer, /useHomeCloudMediaRooms/);
+ assert.match(explorer, /existingRoom&&!replaceRoom/);
+ assert.match(explorer, /type="checkbox" checked=\{replaceRoom\}/);
+ assert.match(explorer, /refreshMediaRooms\(serverId\)/);
+});

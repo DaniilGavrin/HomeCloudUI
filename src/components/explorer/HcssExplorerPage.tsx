@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { useHomeCloudDeviceRegistry } from '../../hooks/useHomeCloudDeviceRegistry';
+import { useHomeCloudMediaRooms, refreshMediaRooms } from '../../hooks/useHomeCloudMediaRooms';
 import { kindOf } from '../devices/deviceKind';
 import {
   type HcssAgent, type HcssDirectoryItem, type HcssListResponse,
@@ -71,6 +72,7 @@ function icon(item:HcssDirectoryItem,size:'lg'|'sm'='sm') {
 export function HcssExplorerPage() {
   const {snapshot:pool}=useHomeCloudPool();
   const {snapshot:registry}=useHomeCloudDeviceRegistry();
+  const {snapshot:mediaRooms}=useHomeCloudMediaRooms(serverId);
   const [serverId,setServerId]=useState('');
   const [agents,setAgents]=useState<HcssAgent[]>([]);
   const [nodeId,setNodeId]=useState('');
@@ -109,6 +111,7 @@ export function HcssExplorerPage() {
   const [destCursor,setDestCursor]=useState('');
   const [destLoading,setDestLoading]=useState(false);
   const [tvId,setTvId]=useState('');
+  const [replaceRoom,setReplaceRoom]=useState(false);
   const [network,setNetwork]=useState<'lan'|'tailscale'>('lan');
   const [addressEditing,setAddressEditing]=useState(false);
   const [address,setAddress]=useState('');
@@ -135,6 +138,9 @@ export function HcssExplorerPage() {
   const chosen=shown.filter(x=>selected.has(x.path));
   const allChosen=items.filter(x=>selected.has(x.path));
   const tvs=registry.devices.filter(d=>d.server_id===serverId&&d.online&&kindOf(d.client_type)==='tv');
+  const existingRoom=mediaRooms.phase==='ready'&&mediaRooms.server_id===serverId
+    ? mediaRooms.rooms.find(room=>room.target.device_id===tvId&&room.room_state!=='CLOSED')
+    : null;
   const selectedForModal=modal?.paths.map(p=>items.find(x=>x.path===p)).filter((x):x is HcssDirectoryItem=>Boolean(x))??[];
 
   useEffect(()=>{
@@ -268,6 +274,7 @@ export function HcssExplorerPage() {
 
   function showModal(type:Modal['type'],paths:string[]=Array.from(selected)){
     setMenu(null);setError('');setName(type==='rename'&&paths.length===1?basename(paths[0]):'');
+    if(type==='tv'){setTvId('');setReplaceRoom(false)}
     setModal(type==='destination'?{type,paths,mode:'move'}:{type,paths} as Modal);
     if(type==='destination')setDestFolder(folder);
   }
@@ -446,6 +453,13 @@ export function HcssExplorerPage() {
   async function playOnTv(){
     const item=selectedForModal[0],tv=tvs.find(d=>d.device_id===tvId);
     if(!item||!tv||!item.file_id?.startsWith('hc1.')||!agent||!root||busy)return;
+    if(!root.allow_read){setError('Нет разрешения HC SS на чтение файла');return}
+    if(mediaRooms.phase!=='ready'||mediaRooms.server_id!==serverId){
+      setError('Состояние медиакомнат Backend ещё не загружено');return;
+    }
+    if(existingRoom&&!replaceRoom){
+      setError('На телевизоре уже есть активная медиакомната. Подтверди её замену.');return;
+    }
     setBusy(true);setError('');
     try{
       const r=await invoke<{room_id:string}>('homecloud_hcss_play',{
@@ -453,6 +467,7 @@ export function HcssExplorerPage() {
         fileId:item.file_id,network,
       });
       setNotice(`Backend принял команду воспроизведения · комната ${r.room_id}. Статус подтверждается TV.`);
+      await refreshMediaRooms(serverId);
       setModal(null);
     }catch(e){setError(String(e))}
     finally{setBusy(false)}
@@ -717,20 +732,26 @@ export function HcssExplorerPage() {
         </div>}
         {modal.type==='tv'&&<div className="hc-explorer-tv">
           <p>{selectedForModal[0]?.name}</p>
-          <label>Телевизор<select value={tvId} onChange={e=>setTvId(e.target.value)}>
+          <label>Телевизор<select value={tvId} onChange={e=>{setTvId(e.target.value);setReplaceRoom(false)}}>
             <option value="">Выбери TV</option>
             {tvs.map(d=><option key={d.device_id} value={d.device_id}>{d.device_id}</option>)}
           </select></label>
           <label>Сеть<select value={network} onChange={e=>setNetwork(e.target.value as 'lan'|'tailscale')}>
             <option value="lan">LAN</option><option value="tailscale">Tailscale</option>
           </select></label>
+          {existingRoom&&<label className="hc-explorer-confirm-checkbox">
+            <input type="checkbox" checked={replaceRoom} onChange={e=>setReplaceRoom(e.target.checked)}/>
+            <span>На этом TV уже есть медиакомната. Заменить текущее воспроизведение?</span>
+          </label>}
+          {mediaRooms.phase!=='ready'&&<small>Ожидание состояния медиакомнат от Backend…</small>}
           <small>Запуск выполняет Backend. Локального видеоплеера в HomeCloudUI нет.</small>
         </div>}
         {error&&<p className="hc-explorer-dialog__error" role="alert">{error}</p>}
         <footer>
           <button type="button" disabled={busy} onClick={()=>{setModal(null);setError('')}}>Закрыть</button>
           {modal.type==='tv'?<button type="button" className="is-primary"
-            disabled={busy||!tvId||!selectedForModal[0]?.file_id}
+            disabled={busy||!tvId||!root?.allow_read||mediaRooms.phase!=='ready'||
+              Boolean(existingRoom&&!replaceRoom)||!selectedForModal[0]?.file_id}
             onClick={()=>void playOnTv()}>Воспроизвести на TV</button>:
             !['properties','history'].includes(modal.type)&&<button type="button"
               className={modal.type==='delete'?'is-danger':'is-primary'}
