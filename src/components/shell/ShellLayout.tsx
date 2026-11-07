@@ -7,7 +7,6 @@ import { DevicesPage } from '../devices/DevicesPage';
 import { HomePage } from '../home/HomePage';
 import { ServersPage } from '../servers/ServersPage';
 import { SettingsPage } from '../settings/SettingsPage';
-import { StoragePage } from '../storage/StoragePage';
 import { HcssExplorerPage } from '../explorer/HcssExplorerPage';
 
 type DeviceMode = 'desktop' | 'touch' | 'tv';
@@ -147,8 +146,6 @@ export function ShellLayout() {
                 <HcssExplorerPage />
               ) : activeId === 'servers' ? (
                 <ServersPage />
-              ) : activeId === 'storage' ? (
-                <StoragePage />
               ) : activeId === 'settings' ? (
                 <SettingsPage />
               ) : (
