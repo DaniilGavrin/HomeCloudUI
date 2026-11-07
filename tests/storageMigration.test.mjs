@@ -136,8 +136,8 @@ test('HC SS moves files using native WS operation and folder picker', () => {
 test('WebOS explorer supports remote copy/move and modal-only file properties', () => {
   const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
   const native = read('src-tauri/src/file_transfer.rs');
-  assert.match(explorer,/fileAction\('copy'/);
-  assert.match(explorer,/fileAction\('move'/);
+  assert.match(explorer,/await batch\(mode==='copy'\?'copy':'move',entries\)/);
+  assert.match(explorer,/await fileAction\(operation,entry.path,entry.newPath,entry.localFile\)/);
   assert.match(explorer,/aria-modal="true"/);
   assert.match(explorer,/onContextMenu/);
   assert.match(explorer,/onDragStart/);
