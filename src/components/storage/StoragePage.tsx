@@ -1,4 +1,4 @@
 import '../../styles/storage.css';
 
-// KAN-80: HC Storage Service is the single canonical storage interface.
-export { HcssStoragePage as StoragePage } from './HcssStoragePage';
+// Inventory and filesystem operations are separate UI surfaces.
+export { HcssStorageOverviewPage as StoragePage } from './HcssStorageOverviewPage';
