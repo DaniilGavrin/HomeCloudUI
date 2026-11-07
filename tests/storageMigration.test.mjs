@@ -16,6 +16,8 @@ test('the old local multimedia player is replaced by the HC SS explorer', () => 
   const shell = read('src/components/shell/ShellLayout.tsx');
   const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
   assert.match(nav, /label: 'Проводник'/);
+  assert.match(nav, /id: 'explorer'/);
+  assert.match(shell, /activeId === 'explorer'/);
   assert.match(shell, /HcssExplorerPage/);
   assert.doesNotMatch(shell, /MediaPage|mediaActivated/);
   assert.doesNotMatch(explorer, /<video|<audio|URL\.createObjectURL|HTMLMediaElement/);

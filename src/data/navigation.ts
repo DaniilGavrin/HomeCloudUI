@@ -19,7 +19,7 @@ export const navigationItems: NavItem[] = [
         description: 'Комнаты, устройства и управление',
     },
     {
-        id: 'media',
+        id: 'explorer',
         label: 'Проводник',
         shortLabel: 'Файлы',
         description: 'Файлы и каталоги HC Storage Service',

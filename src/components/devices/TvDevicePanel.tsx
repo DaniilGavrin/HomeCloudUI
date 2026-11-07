@@ -7,7 +7,7 @@ type TvDevicePanelProps = {
   backendName: string;
   busy: boolean;
   onRefresh: () => void;
-  onOpenMedia: () => void;
+  onOpenExplorer: () => void;
 };
 
 function clock(positionMs: number): string {
@@ -17,7 +17,7 @@ function clock(positionMs: number): string {
 
 const MAX_SEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedia }: TvDevicePanelProps) {
+export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExplorer }: TvDevicePanelProps) {
   const { snapshot, error } = useHomeCloudMediaRooms(device.server_id);
   const room = snapshot.rooms.find(item => item.target.device_id === device.device_id) ?? null;
   const [commandBusy, setCommandBusy] = useState(false);
@@ -116,7 +116,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenMedi
       </div>
 
       <div className="hc-tv-device__actions">
-        <button type="button" className="hc-tv-device__action hc-tv-device__action--primary" onClick={onOpenMedia}>
+        <button type="button" className="hc-tv-device__action hc-tv-device__action--primary" onClick={onOpenExplorer}>
           Открыть проводник
         </button>
         <button type="button" className="hc-tv-device__action" disabled={busy} onClick={onRefresh}>

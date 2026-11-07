@@ -58,7 +58,7 @@ function clientLabel(device: RegisteredDevice): string {
 const SHORTCUTS: { id: string; icon: HomeIconName; title: string; description: string }[] = [
   { id: 'devices', icon: 'devices', title: 'Устройства', description: 'Активные подключения' },
   { id: 'storage', icon: 'storage', title: 'Хранилища', description: 'Диски и файлы' },
-  { id: 'media', icon: 'storage', title: 'Проводник', description: 'Файлы HC Storage Service' },
+  { id: 'explorer', icon: 'storage', title: 'Проводник', description: 'Файлы HC Storage Service' },
   { id: 'servers', icon: 'server', title: 'Серверы', description: 'Сервисы HomeCloud' },
 ];
 

@@ -142,8 +142,8 @@ export function ShellLayout() {
               {activeId === 'home' ? (
                 <HomePage connection={connection} now={time} onNavigate={setActiveId} />
               ) : activeId === 'devices' ? (
-                <DevicesPage onOpenMedia={() => setActiveId('media')} />
-              ) : activeId === 'media' ? (
+                <DevicesPage onOpenExplorer={() => setActiveId('explorer')} />
+              ) : activeId === 'explorer' ? (
                 <HcssExplorerPage />
               ) : activeId === 'servers' ? (
                 <ServersPage />
