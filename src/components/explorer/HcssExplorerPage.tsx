@@ -495,7 +495,14 @@ export function HcssExplorerPage() {
       onContextMenu:(e:ReactMouseEvent<HTMLButtonElement>)=>{
         e.preventDefault();e.stopPropagation();
         if(!selected.has(item.path))setSelected(new Set([item.path]));
-        setMenu({x:Math.min(e.clientX,window.innerWidth-210),y:Math.min(e.clientY,window.innerHeight-260),path:item.path});
+        // Event coordinates are viewport-relative, but the explorer is nested
+        // inside an animated workspace. Anchor the menu to the explorer.
+        const bounds=e.currentTarget.closest('.hc-explorer')?.getBoundingClientRect();
+        setMenu({
+          x:Math.max(6,Math.min(e.clientX-(bounds?.left??0),(bounds?.width??window.innerWidth)-210)),
+          y:Math.max(6,Math.min(e.clientY-(bounds?.top??0),(bounds?.height??window.innerHeight)-260)),
+          path:item.path,
+        });
       },
       'aria-selected':selected.has(item.path),
       role:'option',
