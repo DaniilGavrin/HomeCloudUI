@@ -127,7 +127,10 @@ test('HC SS moves files and directories through native WS and destination dialog
   assert.match(ui, /setDestFolder/);
   assert.match(ui, /homecloud_hcss_browse/);
   assert.match(ui, /modal\.type==='destination'/);
-  assert.match(ui, /onDrop/);
+  assert.match(ui, /handlePointerDownEntry/);
+  assert.match(ui, /document.elementFromPoint/);
+  assert.match(ui, /data-hc-drop-path/);
+  assert.doesNotMatch(ui, /dataTransfer|onDragStart/);
 });
 
 test('WebOS explorer supports remote copy/move and modal-only file properties', () => {
@@ -137,8 +140,10 @@ test('WebOS explorer supports remote copy/move and modal-only file properties', 
   assert.match(explorer,/await fileAction\(operation,entry.path,entry.newPath,entry.localFile\)/);
   assert.match(explorer,/aria-modal="true"/);
   assert.match(explorer,/onContextMenu/);
-  assert.match(explorer,/onDragStart/);
-  assert.match(explorer,/onDrop/);
+  assert.match(explorer,/onPointerDown/);
+  assert.match(explorer,/dragGhostRef/);
+  assert.match(explorer,/data-hc-drop-path/);
+  assert.doesNotMatch(explorer,/dataTransfer|onDragStart|onDrop/);
   assert.match(explorer,/event\.shiftKey/);
   assert.match(explorer,/event\.ctrlKey/);
   assert.match(native,/"copy"=>"file\.copy"/);
@@ -152,4 +157,15 @@ test('TV playback from HC SS explorer requires confirmed room replacement', () =
  assert.match(explorer, /existingRoom&&!replaceRoom/);
  assert.match(explorer, /type="checkbox" checked=\{replaceRoom\}/);
  assert.match(explorer, /refreshMediaRooms\(serverId\)/);
+});
+
+test('delete controls reflect HC SS root permission and show an explicit reason', () => {
+  const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+  const service = read('src/components/storage/hcssModel.ts');
+  assert.match(service,/allow_delete: boolean/);
+  assert.match(explorer,/const deletable=Boolean\(online&&agent\?\.online&&root\?\.allow_delete/);
+  assert.match(explorer,/deletePermissionHint/);
+  assert.match(explorer,/modal\.type==='delete'&&!deletable/);
+  assert.match(explorer,/DELETE_FORBIDDEN/);
+  assert.match(explorer,/fileAction\(operation,entry\.path,entry\.newPath,entry\.localFile\)/);
 });
