@@ -1,7 +1,7 @@
 {
   "name": "homecloud-ui",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test:devices": "node --experimental-strip-types --test tests/deviceKind.test.mjs",
-    "test:storage": "node --experimental-strip-types --test tests/hcssModel.test.mjs tests/storageMigration.test.mjs tests/explorerDrag.test.mjs"
+    "test:storage": "node --experimental-strip-types --test tests/hcssModel.test.mjs tests/storageMigration.test.mjs tests/explorerDrag.test.mjs tests/storageInventory.test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
