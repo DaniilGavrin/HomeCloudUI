@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { type HcssAgent, filesystemVolumes, formatBytes } from '../storage/hcssModel';
 import { capacityOf, inventoryTotals } from './storageInventory';
@@ -60,7 +60,7 @@ function Stat({ label, value, sub }: { label: string; value: number | string; su
   </div>;
 }
 
-function Definition({ label, children }: { label: string; children: React.ReactNode }) {
+function Definition({ label, children }: { label: string; children: ReactNode }) {
   return <div className="hc-si-detail">
     <dt>{label}</dt><dd>{children}</dd>
   </div>;
