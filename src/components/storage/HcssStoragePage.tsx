@@ -52,8 +52,13 @@ export function HcssStoragePage() {
     return items.filter(item => pathIsDirectChild(folder, item) && (!q || item.name.toLocaleLowerCase('ru-RU').includes(q)));
   }, [items, folder, filter]);
   const filesCount = items.filter(v => v.kind === 'file').length;
-  const fileEndpoint = agent?.online && agent.file_ws?.mode === 'trusted_network' ? agent.file_ws.endpoint : '';
-  const fileConnected = Boolean(fileEndpoint);
+  // Network locations are discovered by HC SS and forwarded by Backend.
+  // Use all published routes: LAN first, overlay network as fallback.
+  const publishedEndpoints = agent?.file_ws?.endpoints?.length
+    ? agent.file_ws.endpoints
+    : agent?.file_ws?.endpoint ? [agent.file_ws.endpoint] : [];
+  const fileEndpoints = agent?.online ? publishedEndpoints : [];
+  const fileConnected = fileEndpoints.length > 0;
   const selectionKey=JSON.stringify([serverId,nodeId,rootId,folder,browseReload]);
   const liveSelection=useRef(selectionKey);
   liveSelection.current=selectionKey;
@@ -148,7 +153,7 @@ export function HcssStoragePage() {
     operationLock.current = true;
     setFileBusy(true);
     const actionKey = selectionKey;
-    const target = {endpoint: fileEndpoint,
+    const target = {endpoints: [...fileEndpoints],
       rootKind: root.kind, rootId: root.id};
     setFileError('');setFileNotice('');setFileProgress(null);
     try {
@@ -303,11 +308,11 @@ export function HcssStoragePage() {
           <p className="hc-storage__note">Инвентаризация показывает смонтированные файловые системы; наличие диска не даёт доступ к его содержимому. Файлы доступны только через разрешённые корни HC SS.</p>
           <div className="hc-hcss__transfer-settings homecloud-glass">
             <div><strong>Файловый доступ</strong>
-              <small>HomeCloudUI автоматически использует адрес, опубликованный выбранным HC Storage Service. Никаких отдельных полей для Tailscale и постоянных ключей.</small>
+              <small>HC Storage Service автоматически публикует доступные адреса. HomeCloudUI выбирает рабочий сетевой маршрут без дополнительных настроек.</small>
             </div>
             <span role="status">{fileConnected
-              ? 'Файловый канал обнаружен · доступ к операциям зависит от прав разрешённого каталога'
-              : 'Файловый канал недоступен: включи file_ws в режиме trusted_network на приватном IP узла HC SS'}</span>
+              ? 'Адрес файлового канала получен · соединение проверяется при файловой операции'
+              : 'Нет файлового адреса от HC Storage Service. Проверь состояние узла и доступность порта 8093 через firewall.'}</span>
           </div>
 
           <div className="hc-storage__section-head"><h3>Разрешённые корни HC SS</h3><span>{roots.length} опубликовано</span></div>

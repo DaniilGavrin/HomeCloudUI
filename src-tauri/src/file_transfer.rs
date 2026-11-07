@@ -1,5 +1,5 @@
 //! KAN-81: native HC SS file data-plane client.
-//! The privileged credential is supplied per-session, never persisted or sent to Backend.
+//! File endpoints are discovered via Backend; no auth tokens or manual IP ACLs.
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -37,15 +37,25 @@ fn transfer_id() -> String {
 }
 type Socket = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
-async fn dial(endpoint: &str) -> Result<Socket,String> {
-    // Only private endpoints advertised by the selected HC SS agent are accepted.
-    // HC SS controls private-network reachability, optional source-IP ACL,
-    // and root-local read/write/delete permissions.
-    if !valid_endpoint(endpoint) {return Err("HC SS должен предоставить приватный LAN/Tailscale IP".into());}
-    let (socket,_)=tokio::time::timeout(Duration::from_secs(12),connect_async(endpoint)).await
-        .map_err(|_|"Тайм-аут подключения к HC SS".to_owned())?
-        .map_err(|e|format!("HC SS WS: {}",e))?;
-    Ok(socket)
+async fn dial(endpoints: &[String]) -> Result<Socket,String> {
+    // The host firewall is the network access boundary; Backend only provides
+    // private file-data URLs. Try alternatives instead of forcing users to
+    // configure LAN/Tailnet addresses and static keys.
+    if endpoints.is_empty() {return Err("HC SS не опубликовал файловые адреса".into());}
+    if endpoints.len()>16 {return Err("HC SS опубликовал слишком много файловых адресов".into());}
+    let mut failures=Vec::new();
+    for endpoint in endpoints {
+        if !valid_endpoint(endpoint) {
+            failures.push(format!("{endpoint}: неверный частный WS адрес"));
+            continue;
+        }
+        match tokio::time::timeout(Duration::from_secs(5), connect_async(endpoint)).await {
+            Ok(Ok((socket,_))) => return Ok(socket),
+            Ok(Err(error)) => failures.push(format!("{endpoint}: {error}")),
+            Err(_) => failures.push(format!("{endpoint}: тайм-аут соединения")),
+        }
+    }
+    Err(format!("Нет соединения с файловым каналом HC SS. Проверь порт 8093 и firewall: {}",failures.join(" | ")))
 }
 
 async fn send(socket: &mut Socket, value: Value) -> Result<(),String> {
@@ -151,7 +161,7 @@ async fn download(app:&AppHandle,socket:&mut Socket,id:&str,remote:&str,local:Pa
 #[tauri::command]
 pub async fn homecloud_hcss_file_operation(
     app: AppHandle,
-    endpoint: String,
+    endpoints: Vec<String>,
     operation: String, root_kind: String, root_id: String,
     path: String, new_path: Option<String>, local_file: Option<String>,
 ) -> Result<Value,String> {
@@ -165,7 +175,7 @@ pub async fn homecloud_hcss_file_operation(
         _=>return Err("Неизвестная файловая операция".into())
     };
     if action=="file.rename"&&!new_path.as_deref().is_some_and(valid_path){return Err("Недопустимый новый путь".into());}
-    let mut socket=dial(&endpoint).await?;
+    let mut socket=dial(&endpoints).await?;
     let id=transfer_id();
     let root=json!({"kind":root_kind,"id":root_id});
     let result=match action {

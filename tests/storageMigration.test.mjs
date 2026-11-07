@@ -72,6 +72,19 @@ test('HC SS file connections are discovered without Tailnet URL or token inputs'
 });
 
 
+test('HC SS discovers file transfer without a mode or key configuration', () => {
+  const ui = read('src/components/storage/HcssStoragePage.tsx');
+  const model = read('src/components/storage/hcssModel.ts');
+  const native = read('src-tauri/src/file_transfer.rs');
+  assert.match(model, /endpoints\?: string\[\]/);
+  assert.match(ui, /fileEndpoints/);
+  assert.match(ui, /endpoints: \[\.\.\.fileEndpoints\]/);
+  assert.doesNotMatch(ui, /file_ws\?\.mode|auth_mode|включи file_ws|trusted_network/);
+  assert.match(native, /endpoints: Vec<String>/);
+  assert.match(native, /for endpoint in endpoints/);
+  assert.doesNotMatch(native, /Bearer|HeaderValue|token: String/);
+});
+
 test('both Servers overview and Settings retain confirmed server removal', () => {
   const overview = read('src/components/servers/ServersPage.tsx');
   const settings = read('src/components/settings/SettingsPage.tsx');
