@@ -111,3 +111,19 @@ test('native file transfer repeats only integrity errors, not failed permissions
   assert.match(native, /drop\(file\)/);
   assert.match(page, /integrity_retries/);
 });
+
+test('HC SS moves files using native WS operation and folder picker', () => {
+  const ui = read('src/components/storage/HcssStoragePage.tsx');
+  const picker = read('src/components/storage/HcssMovePicker.tsx');
+  const native = read('src-tauri/src/file_transfer.rs');
+  assert.match(native, /"move"=>"file\.move"/);
+  assert.match(native, /action=="file\.rename" \|\| action=="file\.move"/);
+  assert.match(ui, /import \{ HcssMovePicker \}/);
+  assert.match(ui, /fileAction\('move', file\.path, destination\)/);
+  assert.match(ui, /root\.allow_write && <button/);
+  assert.match(picker, /homecloud_hcss_browse/);
+  assert.match(picker, /pathIsDirectChild/);
+  assert.match(picker, /sameDirectory/);
+  assert.match(picker, /onMove\(destinationPath\)/);
+  assert.doesNotMatch(picker, /allow_delete/);
+});
