@@ -249,6 +249,8 @@ export function ServersPage() {
   const [openedId, setOpenedId] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
   const [form, setForm] = useState({ name: '', ipv4: '', ipv6: '' });
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -258,6 +260,7 @@ export function ServersPage() {
   // All Backend nodes are user-configured and have equivalent Rust WS sessions.
   const servers: DisplayServer[] = pool.snapshot.servers;
   const selected = servers.find(server => server.id === openedId);
+  const deleting = servers.find(server => server.id === confirmId) ?? null;
 
   const closeDetails = useCallback(() => {
     focusTo.current = openedId;
@@ -270,21 +273,37 @@ export function ServersPage() {
   }, [pool.refresh]);
 
   useEffect(() => {
-    if (!openedId && !adding) return;
+    if (!openedId && !adding && !confirmId) return;
     const handler = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' && event.key !== 'Backspace') return;
       if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]')) return;
       event.preventDefault();
-      if (adding && !saving) { setAdding(false); setActionError(null); }
+      if (confirmId) {
+        if (!removing) { focusTo.current = confirmId; setConfirmId(null); setActionError(null); }
+      } else if (adding && !saving) { setAdding(false); setActionError(null); }
       else if (openedId) closeDetails();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [openedId, adding, saving, closeDetails]);
+  }, [openedId, adding, saving, confirmId, removing, closeDetails]);
 
   const showDetails = (id: string, toDiagnostics = false) => {
     setDiagnostics(toDiagnostics);
     setOpenedId(id);
+  };
+
+  const deleteServer = async () => {
+    if (!deleting || removing) return;
+    setRemoving(true);
+    setActionError(null);
+    try {
+      await pool.remove(deleting.id);
+      setConfirmId(null);
+    } catch (error) {
+      setActionError(String(error));
+    } finally {
+      setRemoving(false);
+    }
   };
 
   const submitNewServer = async (event: FormEvent<HTMLFormElement>) => {
@@ -372,6 +391,34 @@ export function ServersPage() {
               </button>
             </div>
           </form>
+        </motion.div>
+      ) : deleting ? (
+        <motion.div key={`delete-${deleting.id}`} className="hc-server-delete-page"
+          initial={{ opacity: 0, x: reduced ? 0 : 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: reduced ? 0 : -12 }}
+          transition={{ duration: reduced ? .08 : .2 }}>
+          <header className="hc-server-add-page__header">
+            <div className="hc-servers-eyebrow">HomeCloud · Server Pool</div>
+            <h2>Удаление сервера</h2>
+          </header>
+          <div className="hc-server-delete-page__confirm homecloud-glass" role="alertdialog"
+            aria-labelledby="hc-delete-server-title" aria-describedby="hc-delete-server-description">
+            <h3 id="hc-delete-server-title">Удалить «{deleting.name}»?</h3>
+            <p className="hc-server-delete-page__address">{addressLabel(deleting)}</p>
+            <p id="hc-delete-server-description">Подключение будет остановлено, а запись исчезнет из списка серверов и настроек. Сам HomeCloudBackend не будет остановлен или удалён.</p>
+            {actionError && <p className="hc-servers-message hc-servers-message--warning" role="alert">{actionError}</p>}
+            <div className="hc-server-delete-page__actions">
+              <button type="button" className="hc-server-action" autoFocus disabled={removing}
+                onClick={() => { focusTo.current = deleting.id; setConfirmId(null); setActionError(null); }}>
+                Отмена
+              </button>
+              <button type="button" className="hc-server-action hc-server-action--danger"
+                disabled={removing} onClick={() => void deleteServer()}>
+                {removing ? 'Удаление…' : 'Удалить из пула'}
+              </button>
+            </div>
+          </div>
         </motion.div>
       ) : selected ? (
         selected.data ? (
@@ -501,6 +548,11 @@ export function ServersPage() {
                     onClick={() => showDetails(server.id)}>Подробнее</button>
                   <button type="button" className="hc-server-card__button hc-server-card__button--secondary"
                     onClick={() => showDetails(server.id, true)}>Диагностика</button>
+                  <button type="button" className="hc-server-card__button hc-server-card__button--danger"
+                    aria-label={`Удалить сервер ${server.name} из пула`}
+                    onClick={() => { setActionError(null); setConfirmId(server.id); }}>
+                    Удалить сервер
+                  </button>
                 </div>
                 {!isOnline && <div className="hc-server-card__last-seen">
                   {data?.collected_at ? `Последние данные: ${time(data.collected_at)}` : server.error || 'Ожидание данных'}

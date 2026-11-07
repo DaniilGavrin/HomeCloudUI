@@ -70,3 +70,20 @@ test('HC SS file connections are discovered without Tailnet URL or token inputs'
   assert.doesNotMatch(native, /HeaderValue|Bearer|token: String/);
   assert.match(native, /ip\.is_private\(\)/);
 });
+
+
+test('both Servers overview and Settings retain confirmed server removal', () => {
+  const overview = read('src/components/servers/ServersPage.tsx');
+  const settings = read('src/components/settings/SettingsPage.tsx');
+  const poolHook = read('src/hooks/useHomeCloudPool.ts');
+  const poolNative = read('src-tauri/src/server_pool.rs');
+
+  assert.match(overview, /role="alertdialog"/);
+  assert.match(overview, /setConfirmId\(server\.id\)/);
+  assert.match(overview, /await pool\.remove\(deleting\.id\)/);
+  assert.match(overview, /Сам HomeCloudBackend не будет остановлен или удалён/);
+  assert.match(settings, /setScreen\('delete'\)/);
+  assert.match(settings, /await pool\.remove\(deleting\.id\)/);
+  assert.match(poolHook, /invoke<PoolSnapshot>\('homecloud_pool_delete'/);
+  assert.match(poolNative, /fn homecloud_pool_delete\(/);
+});
