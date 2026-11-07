@@ -72,8 +72,8 @@ function icon(item:HcssDirectoryItem,size:'lg'|'sm'='sm') {
 export function HcssExplorerPage() {
   const {snapshot:pool}=useHomeCloudPool();
   const {snapshot:registry}=useHomeCloudDeviceRegistry();
-  const {snapshot:mediaRooms}=useHomeCloudMediaRooms(serverId);
   const [serverId,setServerId]=useState('');
+  const {snapshot:mediaRooms}=useHomeCloudMediaRooms(serverId);
   const [agents,setAgents]=useState<HcssAgent[]>([]);
   const [nodeId,setNodeId]=useState('');
   const [rootId,setRootId]=useState('');
