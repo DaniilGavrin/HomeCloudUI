@@ -80,9 +80,8 @@ fn default_primary() -> ServerEntry {
     let ipv4 = host.parse::<Ipv4Addr>().ok().map(|ip| ip.to_string());
     let ipv6 = host.parse::<Ipv6Addr>().ok().map(|ip| ip.to_string());
     ServerEntry {
-        id: "primary".into(), name: "HomeCloudBackend".into(),
-        ipv4: ipv4.or_else(|| if ipv6.is_none() { Some("127.0.0.1".into()) } else { None }),
-        ipv6, builtin: true,
+        id: "node-bootstrap".into(), name: "HomeCloudBackend".into(),
+        ipv4, ipv6, builtin: false,
     }
 }
 
@@ -136,6 +135,35 @@ fn save(file: &PathBuf, servers: &[PoolNode]) -> Result<(), String> {
     Ok(())
 }
 
+/// Move old fixed primary into the ordinary removable pool. The generated
+/// localhost stub is discarded, but explicit remote primary addresses survive.
+fn migrate_legacy_primary(entries: Vec<ServerEntry>) -> (Vec<ServerEntry>, bool) {
+    let mut changed = false;
+    let ids: Vec<String> = entries.iter().map(|s| s.id.clone()).collect();
+    let mut out = Vec::with_capacity(entries.len());
+    for mut server in entries {
+        if server.id == "primary" {
+            changed = true;
+            if server.ipv4.as_deref() == Some("127.0.0.1") && server.ipv6.is_none() {
+                continue;
+            }
+            let mut id = "node-migrated-primary".to_string();
+            let mut counter = 1;
+            while ids.contains(&id) || out.iter().any(|n: &ServerEntry| n.id == id) {
+                id = format!("node-migrated-primary-{counter}");
+                counter += 1;
+            }
+            server.id = id;
+        }
+        if server.builtin {
+            changed = true;
+            server.builtin = false;
+        }
+        out.push(server);
+    }
+    (out, changed)
+}
+
 pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     let file = dir.join("server-pool.json");
@@ -144,18 +172,22 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
     if !file.exists() && bak.exists() {
         fs::copy(&bak, &file).map_err(|e| format!("Восстановление настроек пула: {e}"))?;
     }
-    let mut entries: Vec<ServerEntry> = if file.exists() {
+    let existed = file.exists();
+    let entries: Vec<ServerEntry> = if existed {
         let body = fs::read_to_string(&file).map_err(|e| format!("Чтение пула: {e}"))?;
         serde_json::from_str(&body).map_err(|e| format!("Ошибка формата пула серверов: {e}"))?
-    } else { vec![default_primary()] };
-    entries.retain(|e| e.id != "primary");
-    entries.insert(0, if file.exists() {
-        let body = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-        let original: Vec<ServerEntry> = serde_json::from_str(&body).map_err(|e| e.to_string())?;
-        original.into_iter().find(|e| e.id == "primary").unwrap_or_else(default_primary)
-    } else { default_primary() });
-    entries[0].builtin = true;
-    for e in entries.iter_mut().skip(1) { e.builtin = false; }
+    } else {
+        // Only an EXPLICIT environment endpoint creates a first-launch server.
+        let bootstrap = default_primary();
+        if bootstrap.ipv4.is_some() || bootstrap.ipv6.is_some() { vec![bootstrap] } else { Vec::new() }
+    };
+    let (entries, migrated) = migrate_legacy_primary(entries);
+    // Persist once before connecting, so the removed loopback stub cannot
+    // return after reboot. save() retains a .bak during the atomic swap.
+    if migrated || !existed {
+        let nodes: Vec<PoolNode> = entries.iter().cloned().map(PoolNode::new).collect();
+        save(&file, &nodes)?;
+    }
     let (tx, _) = watch::channel(0u64);
     let manager = ServerPool {
         file, inner: Mutex::new(PoolSnapshot { servers: entries.into_iter().map(PoolNode::new).collect(), revision: 0 }),
@@ -228,18 +260,13 @@ pub fn homecloud_pool_update(app: AppHandle, id: String, input: ServerInput) -> 
     publish(&app);
     if address_changed {
         if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
-        if id == "primary" {
-            crate::homecloud_ws::reset_primary_server(&app);
-            let p = app.state::<ServerPool>();
-            p.primary_changes.send_modify(|current| *current = current.wrapping_add(1));
-        } else { start_secondary(app, id); }
+        start_secondary(app, id);
     }
     Ok(snapshot)
 }
 
 #[tauri::command]
 pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot, String> {
-    if id == "primary" { return Err("Основной HomeCloudBackend нельзя удалить".into()); }
     let snapshot = {
         let p = app.state::<ServerPool>();
         let mut state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -261,7 +288,6 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
 
 #[tauri::command]
 pub fn homecloud_pool_refresh(app: AppHandle, id: String) -> Result<(), String> {
-    if id == "primary" { return Err("Для основного сервера используй homecloud_server_refresh".into()); }
     let p = app.state::<ServerPool>();
     let sender = p.refreshes.lock().unwrap_or_else(|e| e.into_inner()).get(&id).cloned();
     sender.ok_or("Сервер сейчас не подключён")?.try_send(()).map_err(|e| e.to_string())
@@ -322,7 +348,7 @@ fn start_secondary(app: AppHandle, id: String) {
 
 pub fn start_all(app: AppHandle) {
     let ids: Vec<String> = app.state::<ServerPool>().inner.lock().unwrap_or_else(|e| e.into_inner())
-        .servers.iter().filter(|n| !n.entry.builtin).map(|n| n.entry.id.clone()).collect();
+        .servers.iter().map(|n| n.entry.id.clone()).collect();
     for id in ids { start_secondary(app.clone(), id); }
 }
 
@@ -594,4 +620,25 @@ mod tests {
         let e = ServerEntry{id:"a".into(),name:"A".into(),ipv4:Some("1.2.3.4".into()),ipv6:Some("2001:db8::1".into()),builtin:false};
         assert_eq!(addresses(&e), ["ws://1.2.3.4:8080/ws", "ws://[2001:db8::1]:8080/ws"]);
     }
+    #[test]
+    fn no_implicit_localhost_and_removable_primary_migration() {
+        let (empty, changed) = migrate_legacy_primary(vec![
+            ServerEntry { id: "primary".into(), name: "Default".into(),
+                ipv4: Some("127.0.0.1".into()), ipv6: None, builtin: true },
+            ServerEntry { id: "node-a".into(), name: "Home".into(),
+                ipv4: Some("192.168.0.147".into()), ipv6: None, builtin: false },
+        ]);
+        assert!(changed);
+        assert_eq!(empty.len(), 1);
+        assert_eq!(empty[0].id, "node-a");
+        let (migrated, changed) = migrate_legacy_primary(vec![
+            ServerEntry { id: "primary".into(), name: "Remote".into(),
+                ipv4: Some("192.168.0.147".into()), ipv6: None, builtin: true },
+        ]);
+        assert!(changed);
+        assert_eq!(migrated[0].id, "node-migrated-primary");
+        assert!(!migrated[0].builtin);
+        assert_eq!(migrated[0].ipv4.as_deref(), Some("192.168.0.147"));
+    }
+
 }

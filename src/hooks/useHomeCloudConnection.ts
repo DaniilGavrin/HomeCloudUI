@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { useHomeCloudPool } from './useHomeCloudPool';
 
 export type ConnectionStatus = {
   phase: 'connecting' | 'online' | 'offline';
@@ -8,59 +6,16 @@ export type ConnectionStatus = {
   revision: number;
 };
 
-const EVENT_NAME = 'homecloud:connection-status';
-const STARTING_STATUS: ConnectionStatus = {
-  phase: 'connecting',
-  latency_ms: null,
-  revision: -1,
-};
-
+/** Aggregate the real user-configured Backend pool; never represent a hidden
+ * localhost connection as the HomeCloud connection status. */
 export function useHomeCloudConnection(): ConnectionStatus {
-  const [status, setStatus] = useState<ConnectionStatus>(STARTING_STATUS);
-
-  useEffect(() => {
-    let mounted = true;
-    let unlisten: (() => void) | null = null;
-
-    const apply = (incoming: ConnectionStatus) => {
-      if (!mounted) return;
-      // Events can arrive while the initial invoke is still in flight.
-      setStatus((current) => incoming.revision >= current.revision ? incoming : current);
-    };
-
-    const subscribeAndSync = async () => {
-      try {
-        const stop = await listen<ConnectionStatus>(EVENT_NAME, (event) => {
-          apply(event.payload);
-        });
-        if (!mounted) {
-          stop();
-          return;
-        }
-        unlisten = stop;
-      } catch (error) {
-        console.error('[HomeCloud] Cannot subscribe to Rust connection updates:', error);
-      }
-
-      try {
-        const current = await invoke<ConnectionStatus>('homecloud_connection_status');
-        apply(current);
-      } catch (error) {
-        console.error('[HomeCloud] Cannot read Rust connection status:', error);
-        if (mounted) {
-          setStatus((current) => current.revision < 0
-            ? { phase: 'offline', latency_ms: null, revision: -1 }
-            : current);
-        }
-      }
-    };
-
-    void subscribeAndSync();
-    return () => {
-      mounted = false;
-      unlisten?.();
-    };
-  }, []);
-
-  return status;
+  const { snapshot } = useHomeCloudPool();
+  const ready = snapshot.servers.filter(s => s.phase === 'ready');
+  const connecting = snapshot.servers.some(s => s.phase === 'connecting');
+  const rtt = ready.map(s => s.latency_ms).filter((n): n is number => n !== null && Number.isFinite(n));
+  return {
+    phase: ready.length > 0 ? 'online' : connecting ? 'connecting' : 'offline',
+    latency_ms: rtt.length ? Math.round(Math.min(...rtt)) : null,
+    revision: snapshot.revision,
+  };
 }

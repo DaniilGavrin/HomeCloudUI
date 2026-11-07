@@ -47,7 +47,8 @@ pub fn run() {
         .setup(|app| {
             server_pool::initialize(app.handle()).map_err(std::io::Error::other)?;
             device_registry::initialize(app.handle()).map_err(std::io::Error::other)?;
-            homecloud_ws::start(app.handle().clone());
+            device_registry::forget_server(app.handle(), "primary").map_err(std::io::Error::other)?;
+            // Every configured Backend is monitored by ServerPool; no hidden localhost WS.
             server_pool::start_all(app.handle().clone());
             Ok(())
         })

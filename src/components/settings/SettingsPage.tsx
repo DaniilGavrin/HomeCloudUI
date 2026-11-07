@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool, type PoolServer, type ServerPoolInput } from '../../hooks/useHomeCloudPool';
-import { useHomeCloudServer } from '../../hooks/useHomeCloudServer';
 import '../../styles/settings.css';
 
 type Screen = 'home' | 'pool' | 'form' | 'delete';
@@ -21,7 +20,6 @@ function Icon({ type }: { type: 'server' | 'plus' | 'back' | 'edit' | 'delete' |
 
 export function SettingsPage() {
   const pool = useHomeCloudPool();
-  const primary = useHomeCloudServer();
   const [screen, setScreen] = useState<Screen>('home');
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<ServerPoolInput>(EMPTY);
@@ -91,14 +89,14 @@ export function SettingsPage() {
           </header>
           {(pool.error || actionError) && <p className="hc-settings__error" role="alert">{pool.error || actionError}</p>}
           <div className="hc-settings__list">{pool.snapshot.servers.map(s => {
-            const phase = s.builtin ? primary.snapshot.phase : s.phase;
+            const phase = s.phase;
             const online = phase === 'ready';
             return <article key={s.id} className="hc-settings__server homecloud-glass">
               <span className="hc-settings__tile-icon"><Icon type="server" /></span>
-              <div className="hc-settings__identity"><strong>{s.name}</strong><small>{[s.ipv4, s.ipv6].filter(Boolean).join(' · ')}</small>{s.builtin && <em>Основной сервер HomeCloud</em>}</div>
-              <span className={`hc-settings__status ${online ? 'is-online' : phase === 'connecting' || phase === 'loading' ? 'is-connecting' : 'is-offline'}`}><i />{online ? 'Online' : phase === 'connecting' || phase === 'loading' ? 'Connecting' : phase === 'error' ? 'Ошибка данных' : 'Offline'}</span>
+              <div className="hc-settings__identity"><strong>{s.name}</strong><small>{[s.ipv4, s.ipv6].filter(Boolean).join(' · ')}</small></div>
+              <span className={`hc-settings__status ${online ? 'is-online' : phase === 'connecting' ? 'is-connecting' : 'is-offline'}`}><i />{online ? 'Online' : phase === 'connecting' ? 'Connecting' : phase === 'error' ? 'Ошибка данных' : 'Offline'}</span>
               <div className="hc-settings__server-actions"><button type="button" title="Изменить" aria-label={`Изменить ${s.name}`} onClick={() => openForm(s)}><Icon type="edit" /></button>
-                {!s.builtin && <button type="button" title="Удалить" aria-label={`Удалить ${s.name}`} onClick={() => {setConfirmId(s.id); setActionError(null); setScreen('delete');}}><Icon type="delete" /></button>}
+                <button type="button" title="Удалить" aria-label={`Удалить ${s.name}`} onClick={() => {setConfirmId(s.id); setActionError(null); setScreen('delete');}}><Icon type="delete" /></button>
               </div>
             </article>;
           })}</div>

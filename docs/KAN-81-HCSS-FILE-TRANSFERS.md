@@ -1,3 +1,15 @@
+# Update: User-configured Backend pool and auto-discovered HC SS file endpoint
+
+HomeCloudUI no longer creates an undeletable `127.0.0.1` Backend. All servers are ordinary user-managed pool entries. On the first start with no saved servers, the pool is empty; an explicitly set `HOMECLOUD_WS_URL` can still bootstrap one entry. Existing stored `primary` entries are migrated: generated loopback stub is removed, while a remote address is retained under a new, removable node ID. The former dedicated primary WebSocket is not started.
+
+HC SS now supports `file_ws.auth_mode: "trusted_network"`, bound to a private IPv4 with exact `allowed_client_ips`. HC SS advertises a file endpoint in `storage.agent.inventory`; Backend validates and exposes it through `storage.agent.status`. The UI uses this endpoint automatically, without user-entered URL, Tailnet requirement or static bearer key. File bytes still travel directly to HC SS, not via Backend.
+
+This mode is **not user authentication**. The existing Backend `hello` is not an authenticated user login. Trusted-network mode relies on isolation of the chosen private network, an explicit exact source-IP ACL and HC SS root permissions. Do not expose port 8093 publicly. For an untrusted LAN use the existing token mode, a TLS-capable authenticated design, or a protected tunnel. No `file_ws` endpoint is published when the service is disabled or in legacy token mode.
+
+The existing file-ws v1 behavior (size limits, SHA-256, no-overwrite, mkdir, rename regular files, delete regular files/empty folders) is unchanged. This change does not imply that the running HC SS on an existing installation has been updated or that delete/write has been enabled.
+
+---
+
 # KAN-81 — HomeCloudUI → HC SS file transfers
 
 The canonical Storage screen still gets **Backend WS inventory and browsing** through `homecloud_hcss_sources` / `homecloud_hcss_browse`. File transfers never share that control channel and do not use the old Storage Manager.
