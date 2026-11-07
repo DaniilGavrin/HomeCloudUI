@@ -8,7 +8,7 @@ import { HomePage } from '../home/HomePage';
 import { ServersPage } from '../servers/ServersPage';
 import { SettingsPage } from '../settings/SettingsPage';
 import { StoragePage } from '../storage/StoragePage';
-import { MediaPage } from '../media/MediaPage';
+import { HcssExplorerPage } from '../explorer/HcssExplorerPage';
 
 type DeviceMode = 'desktop' | 'touch' | 'tv';
 
@@ -29,15 +29,10 @@ function detectDeviceMode(): DeviceMode {
 
 export function ShellLayout() {
   const [activeId, setActiveId] = useState('home');
-  const [mediaActivated, setMediaActivated] = useState(false);
   const [deviceMode, setDeviceMode] = useState<DeviceMode>(detectDeviceMode);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [time, setTime] = useState(() => new Date());
   const connection = useHomeCloudConnection();
-
-  // Mount the media player after first visit, then keep it alive across sections.
-  // Audio playback and its in-memory playlist must not disappear on sidebar navigation.
-  useEffect(() => { if (activeId === 'media') setMediaActivated(true); }, [activeId]);
 
   useEffect(() => {
     const onResize = () => {
@@ -137,12 +132,6 @@ export function ShellLayout() {
           </header>
 
           <section className="homecloud-workspace">
-            {mediaActivated && (
-              <div className={activeId === 'media' ? 'h-full' : 'hidden'}>
-                <MediaPage />
-              </div>
-            )}
-            {activeId !== 'media' && (
             <motion.div
               key={activeItem.id}
               initial={{ opacity: 0, y: 18, scale: 0.985 }}
@@ -154,6 +143,8 @@ export function ShellLayout() {
                 <HomePage connection={connection} now={time} onNavigate={setActiveId} />
               ) : activeId === 'devices' ? (
                 <DevicesPage onOpenMedia={() => setActiveId('media')} />
+              ) : activeId === 'media' ? (
+                <HcssExplorerPage />
               ) : activeId === 'servers' ? (
                 <ServersPage />
               ) : activeId === 'storage' ? (
@@ -171,7 +162,6 @@ export function ShellLayout() {
                 </div>
               )}
             </motion.div>
-            )}
           </section>
         </main>
       </div>

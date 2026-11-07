@@ -20,9 +20,9 @@ export const navigationItems: NavItem[] = [
     },
     {
         id: 'media',
-        label: 'Мультимедиа',
-        shortLabel: 'Медиа',
-        description: 'ТВ, аудио, стриминг и воспроизведение',
+        label: 'Проводник',
+        shortLabel: 'Файлы',
+        description: 'Файлы и каталоги HC Storage Service',
     },
     {
         id: 'storage',

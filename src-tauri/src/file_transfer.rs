@@ -216,12 +216,14 @@ pub async fn homecloud_hcss_file_operation(
         "download"=>"file.get",
         "upload"=>"file.put",
         "mkdir"=>"file.mkdir",
+        "touch"=>"file.touch",
+        "copy"=>"file.copy",
         "delete"=>"file.delete",
         "rename"=>"file.rename",
         "move"=>"file.move",
         _=>return Err("Неизвестная файловая операция".into())
     };
-    if (action=="file.rename" || action=="file.move") &&
+    if (action=="file.rename" || action=="file.move" || action=="file.copy") &&
        !new_path.as_deref().is_some_and(valid_path) {
         return Err("Недопустимый путь назначения".into());
     }

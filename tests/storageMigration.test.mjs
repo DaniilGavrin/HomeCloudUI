@@ -11,12 +11,17 @@ test('the Storage screen points only to HC Storage Service', () => {
   assert.equal(existsSync(new URL('../src/components/storage/LegacyStoragePage.tsx', import.meta.url)), false);
 });
 
-test('the Media page uses HC SS → TV, never the legacy file catalog', () => {
-  const media = read('src/components/media/MediaPage.tsx');
-  assert.match(media, /HcStorageTvLauncher/);
-  for (const banned of ['useHomeCloudStorage', 'storage.files.list', 'visibleCatalog', 'Storage Manager']) {
-    assert.equal(media.includes(banned), false, `Unexpected legacy media path: ${banned}`);
-  }
+test('the old local multimedia player is replaced by the HC SS explorer', () => {
+  const nav = read('src/data/navigation.ts');
+  const shell = read('src/components/shell/ShellLayout.tsx');
+  const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+  assert.match(nav, /label: 'Проводник'/);
+  assert.match(shell, /HcssExplorerPage/);
+  assert.doesNotMatch(shell, /MediaPage|mediaActivated/);
+  assert.doesNotMatch(explorer, /<video|<audio|URL\.createObjectURL|HTMLMediaElement/);
+  assert.match(explorer, /homecloud_hcss_browse/);
+  assert.match(explorer, /homecloud_hcss_file_operation/);
+  assert.match(explorer, /homecloud_hcss_play/);
   assert.equal(existsSync(new URL('../src/hooks/useHomeCloudStorage.ts', import.meta.url)), false);
 });
 
@@ -126,4 +131,20 @@ test('HC SS moves files using native WS operation and folder picker', () => {
   assert.match(picker, /sameDirectory/);
   assert.match(picker, /onMove\(destinationPath\)/);
   assert.doesNotMatch(picker, /allow_delete/);
+});
+
+test('WebOS explorer supports remote copy/move and modal-only file properties', () => {
+  const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+  const native = read('src-tauri/src/file_transfer.rs');
+  assert.match(explorer,/fileAction\('copy'/);
+  assert.match(explorer,/fileAction\('move'/);
+  assert.match(explorer,/aria-modal="true"/);
+  assert.match(explorer,/onContextMenu/);
+  assert.match(explorer,/onDragStart/);
+  assert.match(explorer,/onDrop/);
+  assert.match(explorer,/event\.shiftKey/);
+  assert.match(explorer,/event\.ctrlKey/);
+  assert.match(native,/"copy"=>"file\.copy"/);
+  assert.match(native,/"touch"=>"file\.touch"/);
+  assert.match(native,/action=="file\.copy"/);
 });
