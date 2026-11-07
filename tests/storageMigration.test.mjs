@@ -46,3 +46,27 @@ test('native HC SS mutations are fenced across file dialogs and root changes', (
   assert.match(native, /sha256/gi);
   assert.match(native, /fs::hard_link\(&tmp,&local\)/);
 });
+
+test('no implicitly registered localhost primary or undeletable server', () => {
+  const pool = read('src-tauri/src/server_pool.rs');
+  const runtime = read('src-tauri/src/lib.rs');
+  const page = read('src/components/servers/ServersPage.tsx');
+  const storage = read('src/components/storage/HcssStoragePage.tsx');
+  assert.match(pool, /fn migrate_legacy_primary/);
+  assert.match(pool, /server\.ipv4\.as_deref\(\) == Some\("127\.0\.0\.1"\)/);
+  assert.doesNotMatch(pool, /Основной HomeCloudBackend нельзя удалить/);
+  assert.doesNotMatch(runtime, /homecloud_ws::start\(app\.handle\(\)\.clone\(\)\)/);
+  assert.doesNotMatch(page, /ipv4: '127\.0\.0\.1'/);
+  assert.doesNotMatch(storage, /<option value="primary">/);
+});
+
+test('HC SS file connections are discovered without Tailnet URL or token inputs', () => {
+  const ui = read('src/components/storage/HcssStoragePage.tsx');
+  const native = read('src-tauri/src/file_transfer.rs');
+  const model = read('src/components/storage/hcssModel.ts');
+  assert.match(model, /file_ws\?/);
+  assert.match(ui, /agent\.file_ws/);
+  assert.doesNotMatch(ui, /fileToken|setFileToken|setFileEndpoint|Адрес HC SS в Tailscale|Ключ HC SS/);
+  assert.doesNotMatch(native, /HeaderValue|Bearer|token: String/);
+  assert.match(native, /ip\.is_private\(\)/);
+});
