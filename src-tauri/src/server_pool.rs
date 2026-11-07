@@ -144,7 +144,10 @@ fn migrate_legacy_primary(entries: Vec<ServerEntry>) -> (Vec<ServerEntry>, bool)
     for mut server in entries {
         if server.id == "primary" {
             changed = true;
-            if server.ipv4.as_deref() == Some("127.0.0.1") && server.ipv6.is_none() {
+            // Drop only the original generated localhost stub. A user-renamed
+            // loopback Backend is an explicit configuration and must survive.
+            if server.builtin && server.name == "HomeCloudBackend"
+                && server.ipv4.as_deref() == Some("127.0.0.1") && server.ipv6.is_none() {
                 continue;
             }
             let mut id = "node-migrated-primary".to_string();
@@ -181,7 +184,15 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
         let bootstrap = default_primary();
         if bootstrap.ipv4.is_some() || bootstrap.ipv6.is_some() { vec![bootstrap] } else { Vec::new() }
     };
-    let (entries, migrated) = migrate_legacy_primary(entries);
+    let (mut entries, migrated) = migrate_legacy_primary(entries);
+    // KAN-81 migration can remove the only legacy stub. If the administrator
+    // explicitly supplied HOMECLOUD_WS_URL, preserve that connection instead
+    // of persisting an empty pool. Do not re-add a server to a deliberately
+    // empty, already-migrated pool.
+    if existed && migrated && entries.is_empty() {
+        let explicit = default_primary();
+        if explicit.ipv4.is_some() || explicit.ipv6.is_some() { entries.push(explicit); }
+    }
     // Persist once before connecting, so the removed loopback stub cannot
     // return after reboot. save() retains a .bak during the atomic swap.
     if migrated || !existed {
@@ -639,6 +650,16 @@ mod tests {
         assert_eq!(migrated[0].id, "node-migrated-primary");
         assert!(!migrated[0].builtin);
         assert_eq!(migrated[0].ipv4.as_deref(), Some("192.168.0.147"));
+        // An explicitly named loopback connection is legitimate and must not
+        // be confused with the silently injected old "HomeCloudBackend" stub.
+        let (named, changed) = migrate_legacy_primary(vec![
+            ServerEntry { id: "primary".into(), name: "My local Backend".into(),
+                ipv4: Some("127.0.0.1".into()), ipv6: None, builtin: true },
+        ]);
+        assert!(changed);
+        assert_eq!(named.len(), 1);
+        assert_eq!(named[0].ipv4.as_deref(), Some("127.0.0.1"));
+        assert!(!named[0].builtin);
     }
 
 }
