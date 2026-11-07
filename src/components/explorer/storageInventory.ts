@@ -1,4 +1,4 @@
-import { filesystemVolumes, type HcssAgent } from '../storage/hcssModel';
+import { filesystemVolumes, type HcssAgent } from '../storage/hcssModel.ts';
 
 // Counts only mounted filesystem inventory, never sums physical block devices
 // and their corresponding mounts as though they were separate capacities.
