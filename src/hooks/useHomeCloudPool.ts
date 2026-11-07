@@ -53,11 +53,7 @@ export function useHomeCloudPool() {
     setSnapshot(prev => next.revision >= prev.revision ? next : prev);
   }, []);
   const refresh = useCallback(async (id: string) => {
-    if (id === 'primary') {
-      await invoke('homecloud_server_refresh');
-    } else {
-      await invoke('homecloud_pool_refresh', { id });
-    }
+    await invoke('homecloud_pool_refresh', { id });
   }, []);
 
   return { snapshot, error, add, update, remove, refresh };
