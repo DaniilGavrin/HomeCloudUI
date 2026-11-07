@@ -162,7 +162,7 @@ export function HcssStoragePage() {
         const chosen = await open({multiple:false,directory:false,title:'Файл для загрузки в HC Storage Service'});
         if (!chosen || typeof chosen !== 'string') return;
         localFile = chosen;
-        const name = chosen.split(/[\\\\/]/).pop() ?? '';
+        const name = chosen.replaceAll('\\', '/').split('/').pop() ?? '';
         if (!name || name==='.' || name==='..') return;
         remotePath = folder ? `${folder}/${name}` : name;
       }
