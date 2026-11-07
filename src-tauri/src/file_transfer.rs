@@ -14,7 +14,7 @@ const MAX_UPLOAD: u64 = 32 << 30;
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn valid_endpoint(endpoint: &str) -> bool {
-    // No DNS, redirects, embedded credentials, browser origins or arbitrary LAN hosts.
+    // Only exact private IPv4 endpoints; reject public/DNS/credential-bearing URLs.
     let Some(hostport) = endpoint.strip_prefix("ws://").and_then(|s| s.strip_suffix("/ws/files")) else {return false};
     let Some((host,port)) = hostport.rsplit_once(':') else {return false};
     let Ok(ip) = host.parse::<Ipv4Addr>() else {return false};
@@ -39,8 +39,8 @@ type Socket = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStre
 
 async fn dial(endpoint: &str) -> Result<Socket,String> {
     // Only private endpoints advertised by the selected HC SS agent are accepted.
-    // Authorization for trusted_network mode happens on HC SS with an exact
-    // source-IP allowlist and root-local read/write/delete permissions.
+    // HC SS controls private-network reachability, optional source-IP ACL,
+    // and root-local read/write/delete permissions.
     if !valid_endpoint(endpoint) {return Err("HC SS должен предоставить приватный LAN/Tailscale IP".into());}
     let (socket,_)=tokio::time::timeout(Duration::from_secs(12),connect_async(endpoint)).await
         .map_err(|_|"Тайм-аут подключения к HC SS".to_owned())?
@@ -183,7 +183,7 @@ pub async fn homecloud_hcss_file_operation(
 mod tests {
     use super::{valid_endpoint,valid_root,valid_path};
     #[test]
-    fn protects_tailnet_credential_from_arbitrary_endpoints(){
+    fn accepts_private_lan_and_rejects_external_endpoints(){
         assert!(valid_endpoint("ws://100.114.58.74:8093/ws/files"));
         assert!(valid_endpoint("ws://192.168.0.147:8093/ws/files"));
         assert!(valid_endpoint("ws://10.42.0.3:8093/ws/files"));
