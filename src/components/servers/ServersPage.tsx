@@ -245,7 +245,6 @@ function coreCount(value: number) {
 }
 
 export function ServersPage() {
-  const primary = useHomeCloudServer();
   const pool = useHomeCloudPool();
   const [openedId, setOpenedId] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState(false);
@@ -256,19 +255,8 @@ export function ServersPage() {
   const focusTo = useRef<string | null>(null);
   const reduced = Boolean(useReducedMotion());
 
-  // The primary node uses the original Rust connection. All other nodes are
-  // monitored by the independent Rust WebSocket sessions in Server Pool.
-  const fallback: PoolServer = {
-    id: 'primary', name: 'HomeCloudBackend', ipv4: '127.0.0.1', ipv6: null,
-    builtin: true, phase: 'offline', latency_ms: null, data: null, error: null,
-  };
-  const entries = pool.snapshot.servers.length ? pool.snapshot.servers : [fallback];
-  const servers: DisplayServer[] = entries.map(server => server.builtin ? {
-    ...server,
-    phase: primary.snapshot.phase,
-    data: primary.snapshot.data ?? server.data,
-    error: primary.snapshot.error ?? server.error,
-  } : server);
+  // All Backend nodes are user-configured and have equivalent Rust WS sessions.
+  const servers: DisplayServer[] = pool.snapshot.servers;
   const selected = servers.find(server => server.id === openedId);
 
   const closeDetails = useCallback(() => {
@@ -278,9 +266,8 @@ export function ServersPage() {
   }, [openedId]);
 
   const refresh = useCallback(async (id: string) => {
-    if (id === 'primary') await primary.refresh();
-    else await pool.refresh(id);
-  }, [primary.refresh, pool.refresh]);
+    await pool.refresh(id);
+  }, [pool.refresh]);
 
   useEffect(() => {
     if (!openedId && !adding) return;
@@ -464,8 +451,8 @@ export function ServersPage() {
               Добавить сервер
             </button>
           </div>
-          {(pool.error || primary.refreshError || actionError) && <p className="hc-servers-message hc-servers-message--warning" role="alert">
-            {pool.error || primary.refreshError || actionError}
+          {(pool.error || actionError) && <p className="hc-servers-message hc-servers-message--warning" role="alert">
+            {pool.error || actionError}
           </p>}
 
           <div className="hc-servers-list">
