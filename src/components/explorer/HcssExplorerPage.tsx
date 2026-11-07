@@ -11,6 +11,7 @@ import {
   type HcssAgent, type HcssDirectoryItem, type HcssListResponse,
   rootKey, isBrowsableRoot, pathIsDirectChild, folderCrumbs, formatModified, formatBytes,
 } from '../storage/hcssModel';
+import { canDropInto, planDrop, type ExplorerDragMode } from './explorerDrag';
 import '../../styles/explorer.css';
 
 type Action = 'upload'|'download'|'mkdir'|'touch'|'copy'|'move'|'rename'|'delete';
@@ -23,7 +24,7 @@ type Modal =
   | { type: 'tv'; paths: string[] }
   | { type: 'history'; paths: string[] };
 type Menu = { x: number; y: number; path: string };
-type DragMode = 'copy'|'move';
+type DragMode = ExplorerDragMode;
 type PendingDrag = {
   pointerId:number;startX:number;startY:number;scope:string;
   paths:string[];label:string;started:boolean;
@@ -380,11 +381,12 @@ export function HcssExplorerPage() {
   // a reconnect/changed root cannot apply a stale drag to another root.
   const transferOnDropRef=useRef<(paths:string[],target:string,mode:DragMode)=>void>(()=>{});
   transferOnDropRef.current=(paths,target,mode)=>{
-    if(locked.current||!writable||mode==='copy'&&!readable)return;
+    if(locked.current||!canDropInto(paths,target,mode,{read:readable,write:writable}))return;
     const safe=paths.filter(p=>items.some(x=>x.path===p));
-    if(safe.length!==paths.length || safe.some(p=>target===p||target.startsWith(p+'/')))return;
-    if(mode==='move'&&safe.every(p=>parentOf(p)===target))return;
-    void batch(mode,safe.map(path=>({path,newPath:join(target,basename(path))})));
+    if(safe.length!==paths.length)return;
+    const entries=planDrop(safe,target,mode,
+      target===folder?items.map(item=>item.name):[]);
+    if(entries.length)void batch(mode,entries);
   };
 
   function handlePointerDownEntry(e:ReactPointerEvent<HTMLButtonElement>,item:HcssDirectoryItem){
@@ -400,10 +402,7 @@ export function HcssExplorerPage() {
     const rootElement=()=>explorerRef.current;
     function validDestination(paths:string[],target:string,mode:DragMode){
       const perms=dragPermissionsRef.current;
-      if(!perms.write || mode==='copy'&&!perms.read)return false;
-      if(paths.some(p=>target===p||target.startsWith(p+'/')))return false;
-      if(mode==='move'&&paths.every(p=>parentOf(p)===target))return false;
-      return true;
+      return canDropInto(paths,target,mode,{read:perms.read,write:perms.write});
     }
     function candidateAt(x:number,y:number,paths:string[],mode:DragMode):string|null{
       const element=document.elementFromPoint(x,y);
