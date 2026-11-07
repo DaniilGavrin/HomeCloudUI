@@ -3,7 +3,7 @@
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{net::Ipv4Addr, path::PathBuf, sync::atomic::{AtomicU64, Ordering}, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{future::Future, net::Ipv4Addr, path::PathBuf, sync::atomic::{AtomicU64, Ordering}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tauri::{AppHandle, Emitter};
 use tokio::{fs::{self, File}, io::{AsyncReadExt, AsyncWriteExt}};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -11,6 +11,8 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 const FRAME: usize = 128 * 1024;
 const FRAME_TIMEOUT: Duration = Duration::from_secs(45);
 const MAX_UPLOAD: u64 = 32 << 30;
+const MAX_INTEGRITY_ATTEMPTS: usize = 3;
+const INTEGRITY_ERROR: &str = "CHECKSUM_MISMATCH";
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn valid_endpoint(endpoint: &str) -> bool {
@@ -56,6 +58,34 @@ async fn dial(endpoints: &[String]) -> Result<Socket,String> {
         }
     }
     Err(format!("Нет соединения с файловым каналом HC SS. Проверь порт 8093 и firewall: {}",failures.join(" | ")))
+}
+
+// Only integrity failures are safe to repeat transparently. Authorization,
+// IO, permission, and destination-exists errors must return immediately.
+fn integrity_failure(message: &str) -> bool {
+    message.contains(INTEGRITY_ERROR)
+}
+
+async fn retry_integrity<F, Fut>(mut operation: F) -> Result<(Value, usize), String>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<Value, String>>,
+{
+    for attempt in 0..MAX_INTEGRITY_ATTEMPTS {
+        match operation().await {
+            Ok(response) => return Ok((response, attempt)),
+            Err(error) if integrity_failure(&error) => {
+                if attempt + 1 == MAX_INTEGRITY_ATTEMPTS {
+                    return Err(format!(
+                        "SHA-256 не совпал после {MAX_INTEGRITY_ATTEMPTS} попыток: {error}"
+                    ));
+                }
+                tokio::time::sleep(Duration::from_millis(200 * (attempt as u64 + 1))).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("MAX_INTEGRITY_ATTEMPTS is nonzero")
 }
 
 async fn send(socket: &mut Socket, value: Value) -> Result<(),String> {
@@ -112,25 +142,32 @@ async fn upload(app:&AppHandle,socket:&mut Socket,id:&str,remote:&str,local:Path
     let digest=format!("{:x}",hash.finalize());
     send(socket,json!({"v":1,"id":id,"type":"file.end","sha256":digest})).await?;
     let done=response(next(socket).await?,"file.complete",id)?;
-    if done.get("sha256").and_then(Value::as_str)!=Some(digest.as_str()){return Err("HC SS вернул другой SHA-256".into());}
+    if done.get("sha256").and_then(Value::as_str)!=Some(digest.as_str()){
+        return Err(format!("{INTEGRITY_ERROR}: HC SS вернул другую SHA-256"));
+    }
     Ok(done)
 }
 async fn download(app:&AppHandle,socket:&mut Socket,id:&str,remote:&str,local:PathBuf,root:Value) -> Result<Value,String> {
-    // Local target is never overwritten, even on a rename race.
-    if fs::try_exists(&local).await.map_err(|e|e.to_string())? {return Err("Файл назначения уже существует".into());}
+    // The user-selected destination is never overwritten. Even across retries,
+    // a temporary file is linked into place only after SHA-256 validation.
+    if fs::try_exists(&local).await.map_err(|e|e.to_string())? {
+        return Err("Файл назначения уже существует".into());
+    }
     send(socket,json!({"v":1,"id":id,"type":"file.get","root":root,"path":remote})).await?;
     let ready=response(next(socket).await?,"file.ready",id)?;
     let total=ready.get("size_bytes").and_then(Value::as_u64).ok_or("HC SS не предоставил размер")?;
     let tmp=local.with_extension(format!("hcsspart-{}",COUNTER.fetch_add(1,Ordering::Relaxed)));
     let mut file=File::create_new(&tmp).await.map_err(|e|format!("Временный файл: {e}"))?;
-    let result:Result<Value,String>=async {
+    let result: Result<Value,String> = async {
         let mut sum=Sha256::new();
         let mut received=0u64;
         loop {
             match next(socket).await? {
                 Message::Binary(bytes)=>{
                     received+=bytes.len() as u64;
-                    if bytes.len()>FRAME||received>total{return Err("HC SS передал больше заявленного размера".into());}
+                    if bytes.len()>FRAME || received>total {
+                        return Err(format!("{INTEGRITY_ERROR}: HC SS передал больше заявленного размера"));
+                    }
                     sum.update(&bytes);
                     file.write_all(&bytes).await.map_err(|e|e.to_string())?;
                     progress(app,"download",received,total);
@@ -140,13 +177,10 @@ async fn download(app:&AppHandle,socket:&mut Socket,id:&str,remote:&str,local:Pa
                     let actual=format!("{:x}",sum.finalize());
                     if received!=total || complete.get("size_bytes").and_then(Value::as_u64)!=Some(total) ||
                        complete.get("sha256").and_then(Value::as_str)!=Some(actual.as_str()) {
-                        return Err("SHA-256 / размер скачанного файла не совпадает".into());
+                        return Err(format!("{INTEGRITY_ERROR}: SHA-256 / размер скачанного файла не совпадает"));
                     }
                     file.flush().await.map_err(|e|e.to_string())?;
                     file.sync_all().await.map_err(|e|e.to_string())?;
-                    drop(file);
-                    fs::hard_link(&tmp,&local).await.map_err(|e|format!("Не удалось сохранить без перезаписи: {e}"))?;
-                    let _=fs::remove_file(&tmp).await;
                     return Ok(complete);
                 }
                 Message::Close(_)=>return Err("HC SS прервал загрузку".into()),
@@ -154,8 +188,20 @@ async fn download(app:&AppHandle,socket:&mut Socket,id:&str,remote:&str,local:Pa
             }
         }
     }.await;
-    if result.is_err(){let _=fs::remove_file(&tmp).await;}
-    result
+    // Close the temporary file before unlinking it (required on Windows).
+    drop(file);
+    match result {
+        Ok(complete)=>{
+            let linked=fs::hard_link(&tmp,&local).await;
+            let _=fs::remove_file(&tmp).await;
+            linked.map_err(|e|format!("Не удалось сохранить без перезаписи: {e}"))?;
+            Ok(complete)
+        }
+        Err(error)=>{
+            let _=fs::remove_file(&tmp).await;
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
@@ -175,17 +221,41 @@ pub async fn homecloud_hcss_file_operation(
         _=>return Err("Неизвестная файловая операция".into())
     };
     if action=="file.rename"&&!new_path.as_deref().is_some_and(valid_path){return Err("Недопустимый новый путь".into());}
+    let root=json!({"kind":root_kind,"id":root_id});
+    if action=="file.put" || action=="file.get" {
+        let local=local_path(local_file)?;
+        let is_upload=action=="file.put";
+        let (mut result,retries)=retry_integrity(|| {
+            let app=app.clone();
+            let endpoints=endpoints.clone();
+            let remote=path.clone();
+            let local=local.clone();
+            let root=root.clone();
+            async move {
+                // A checksum failure invalidates the entire transfer.
+                // Reconnect and create a fresh transfer ID for every attempt.
+                let mut socket=dial(&endpoints).await?;
+                let id=transfer_id();
+                let outcome=if is_upload {
+                    upload(&app,&mut socket,&id,&remote,local,root).await
+                } else {
+                    download(&app,&mut socket,&id,&remote,local,root).await
+                };
+                let _=socket.close(None).await;
+                outcome
+            }
+        }).await?;
+        if let Some(object)=result.as_object_mut() {
+            object.insert("integrity_retries".to_owned(),json!(retries));
+        }
+        return Ok(result);
+    }
     let mut socket=dial(&endpoints).await?;
     let id=transfer_id();
-    let root=json!({"kind":root_kind,"id":root_id});
-    let result=match action {
-        "file.put"=>upload(&app,&mut socket,&id,&path,local_path(local_file)?,root).await,
-        "file.get"=>download(&app,&mut socket,&id,&path,local_path(local_file)?,root).await,
-        _=>{
-            send(&mut socket,json!({"v":1,"id":id,"type":action,"root":root,"path":path,"new_path":new_path.unwrap_or_default()})).await?;
-            response(next(&mut socket).await?,"file.complete",&id)
-        }
-    };
+    let result=async {
+        send(&mut socket,json!({"v":1,"id":id,"type":action,"root":root,"path":path,"new_path":new_path.unwrap_or_default()})).await?;
+        response(next(&mut socket).await?,"file.complete",&id)
+    }.await;
     let _=socket.close(None).await;
     result
 }
@@ -212,4 +282,55 @@ mod tests {
         assert!(valid_root("disk","storage-hdd"));
         assert!(!valid_root("other","storage-hdd"));
     }
+
+    #[tokio::test]
+    async fn retries_integrity_mismatch_twice_and_then_succeeds() {
+        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        let count=Arc::new(AtomicUsize::new(0));
+        let (result,retries)=super::retry_integrity(|| {
+            let count=count.clone();
+            async move {
+                let attempt=count.fetch_add(1,Ordering::SeqCst);
+                if attempt<2 {Err("HC SS: CHECKSUM_MISMATCH".to_owned())}
+                else {Ok(serde_json::json!({"type":"file.complete"}))}
+            }
+        }).await.expect("recovery after checksum mismatch");
+        assert_eq!(retries,2);
+        assert_eq!(count.load(Ordering::SeqCst),3);
+        assert_eq!(result["type"],"file.complete");
+    }
+
+    #[tokio::test]
+    async fn never_retries_permission_denied_or_existing_file() {
+        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        for error in ["HC SS: WRITE_FORBIDDEN","HC SS: TARGET_EXISTS","Тайм-аут подключения"] {
+            let count=Arc::new(AtomicUsize::new(0));
+            let got=super::retry_integrity(|| {
+                let count=count.clone();
+                let err=error.to_owned();
+                async move {
+                    count.fetch_add(1,Ordering::SeqCst);
+                    Err(err)
+                }
+            }).await.expect_err("expected non-integrity error");
+            assert_eq!(count.load(Ordering::SeqCst),1);
+            assert_eq!(got,error);
+        }
+    }
+
+    #[tokio::test]
+    async fn stops_after_three_checksum_mismatches() {
+        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        let count=Arc::new(AtomicUsize::new(0));
+        let error=super::retry_integrity(|| {
+            let count=count.clone();
+            async move {
+                count.fetch_add(1,Ordering::SeqCst);
+                Err("CHECKSUM_MISMATCH".to_owned())
+            }
+        }).await.expect_err("three attempts must stop");
+        assert!(error.contains("3 попыток"));
+        assert_eq!(count.load(Ordering::SeqCst),3);
+    }
+
 }
