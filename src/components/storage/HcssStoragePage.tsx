@@ -84,7 +84,7 @@ export function HcssStoragePage() {
     let active = true;
     setAgents([]); setNodeId(''); setRootId(''); setFolder('');
     setMovingFile(null);
-    setFileNotice('setFileError('');setFileProgress(null);setPendingDelete(null);
+    setFileNotice('');setFileError('');setFileProgress(null);setPendingDelete(null);
     setItems([]); setFile(null); setFilter(''); setPartial(false);
     setCatalogError(''); setBrowseError('');
     if (!online) { setCatalogPhase('offline'); setBrowsePhase('idle'); return () => { active = false; }; }
