@@ -13,7 +13,8 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 pub const POOL_EVENT: &str = "homecloud:server-pool";
 const PORT: u16 = 8080;
 const RETRY: Duration = Duration::from_secs(5);
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
+// Preserve the pre-KAN-81 primary WebSocket dial/hello timeout budget.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(9);
 const STATUS_INTERVAL: Duration = Duration::from_secs(15);
 const PING_INTERVAL: Duration = Duration::from_secs(1);
