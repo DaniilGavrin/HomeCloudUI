@@ -4,10 +4,26 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('the Storage screen points only to HC Storage Service', () => {
-  const page = read('src/components/storage/StoragePage.tsx');
-  assert.match(page, /HcssStorageOverviewPage/);
-  assert.doesNotMatch(page, /LegacyStoragePage|Storage Manager|legacy/i);
+test('storage details are integrated only into Explorer, without a duplicate page', () => {
+  const nav = read('src/data/navigation.ts');
+  const home = read('src/components/home/HomePage.tsx');
+  const shell = read('src/components/shell/ShellLayout.tsx');
+  const explorer = read('src/components/explorer/HcssExplorerPage.tsx');
+  const info = read('src/components/explorer/StorageInformationDialog.tsx');
+  assert.doesNotMatch(nav, /id: 'storage'|label: 'Хранилища'/);
+  assert.doesNotMatch(home, /id: 'storage', icon/);
+  assert.doesNotMatch(shell, /StoragePage|activeId === 'storage'/);
+  assert.equal(existsSync(new URL('../src/components/storage/StoragePage.tsx', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../src/components/storage/HcssStorageOverviewPage.tsx', import.meta.url)), false);
+  assert.match(explorer, /StorageInformationDialog/);
+  assert.match(explorer, /ⓘ Хранилища/);
+  assert.match(info, /homecloud_hcss_sources/);
+  assert.match(info, /aria-modal="true"/);
+  assert.match(info, /role="tablist"/);
+  assert.match(info, /fs_type|filesystemVolumes/);
+  assert.match(info, /allow_delete/);
+  assert.match(info, /file_ws/);
+  assert.doesNotMatch(info, /homecloud_hcss_file_operation|fileAction\(/);
   assert.equal(existsSync(new URL('../src/components/storage/LegacyStoragePage.tsx', import.meta.url)), false);
 });
 

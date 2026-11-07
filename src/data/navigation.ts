@@ -25,12 +25,6 @@ export const navigationItems: NavItem[] = [
         description: 'Файлы и каталоги HC Storage Service',
     },
     {
-        id: 'storage',
-        label: 'Хранилища',
-        shortLabel: 'Хранилища',
-        description: 'Локальные диски, NFS и файлы',
-    },
-    {
         id: 'servers',
         label: 'Серверы',
         shortLabel: 'Серверы',

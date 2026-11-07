@@ -12,6 +12,7 @@ import {
   rootKey, isBrowsableRoot, pathIsDirectChild, folderCrumbs, formatModified, formatBytes,
 } from '../storage/hcssModel';
 import { canDropInto, planDrop, type ExplorerDragMode } from './explorerDrag';
+import { StorageInformationDialog } from './StorageInformationDialog';
 import '../../styles/explorer.css';
 
 type Action = 'upload'|'download'|'mkdir'|'touch'|'copy'|'move'|'rename'|'delete';
@@ -111,6 +112,12 @@ export function HcssExplorerPage() {
   const [forward,setForward]=useState<string[]>([]);
   const [favorites,setFavorites]=useState<string[]>([]);
   const [modal,setModal]=useState<Modal|null>(null);
+  const [storageInfoOpen,setStorageInfoOpen]=useState(false);
+  const storageInfoButton=useRef<HTMLButtonElement>(null);
+  const closeStorageInfo=useCallback(()=>{
+    setStorageInfoOpen(false);
+    requestAnimationFrame(()=>storageInfoButton.current?.focus());
+  },[]);
   const [name,setName]=useState('');
   const [menu,setMenu]=useState<Menu|null>(null);
   // WebView2 intercepts HTML5 drag-and-drop. Match WebOS Files 027B:
@@ -176,7 +183,7 @@ export function HcssExplorerPage() {
   useEffect(()=>{
     let active=true;
     setAgents([]);setNodeId('');setRootId('');setFolder('');
-    setBack([]);setForward([]);setSelected(new Set());setModal(null);setClipboard(null);
+    setBack([]);setForward([]);setSelected(new Set());setModal(null);setStorageInfoOpen(false);setClipboard(null);
     if(!online) return ()=>{active=false};
     setLoadingNodes(true);
     void invoke<AgentResponse>('homecloud_hcss_sources',{serverId}).then(data=>{
@@ -754,6 +761,11 @@ export function HcssExplorerPage() {
             onClick={()=>showModal('delete')}>Удалить</button>
         </div>
         <div className="hc-explorer-commandbar__group hc-explorer-commandbar__group--right">
+          <button ref={storageInfoButton} type="button" className="hc-explorer-storage-info-trigger"
+            title="Состояние узлов, дисков и разрешений HC Storage Service"
+            onClick={()=>{setMenu(null);setStorageInfoOpen(true)}}>
+            ⓘ Хранилища
+          </button>
           <button type="button" disabled={selected.size!==1}
             onClick={()=>showModal('properties')}>Свойства</button>
           <button type="button" title="История" onClick={()=>showModal('history',[])}>◷</button>
@@ -792,6 +804,12 @@ export function HcssExplorerPage() {
         <span>{busy?'Выполняется файловая операция':rootLabel} · {folder||'/'}</span>
       </footer>
     </div>
+
+    {storageInfoOpen&&<StorageInformationDialog
+      serverId={serverId} serverName={server?.name}
+      serverOnline={Boolean(online)}
+      initialAgents={agents} initialNodeId={nodeId}
+      onClose={closeStorageInfo} />}
 
     {dragOverlay&&<div ref={dragGhostRef}
       className={`hc-explorer-drag-ghost ${dragOverlay.destination!==null?'is-allowed':'is-denied'}`}
