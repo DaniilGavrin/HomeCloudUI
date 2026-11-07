@@ -103,6 +103,8 @@ export function HcssExplorerPage() {
   const [dragPath,setDragPath]=useState('');
   const [dragTarget,setDragTarget]=useState('');
   const [destFolder,setDestFolder]=useState('');
+  const destinationRef=useRef(destFolder);
+  destinationRef.current=destFolder;
   const [destItems,setDestItems]=useState<HcssDirectoryItem[]>([]);
   const [destCursor,setDestCursor]=useState('');
   const [destLoading,setDestLoading]=useState(false);
@@ -236,6 +238,7 @@ export function HcssExplorerPage() {
         serverId,storageNodeId:nodeId,rootKind:root.kind,rootId:root.id,path:current,cursor:next,
       });
       if(fence!==currentFence.current||result.path!==current||
+        (destination&&destinationRef.current!==current)||
         result.root.kind!==root.kind||result.root.id!==root.id) return;
       if(destination){
         setDestItems(old=>[...old,...result.items.filter(x=>x.kind==='folder'&&!old.some(y=>y.path===x.path))]);
@@ -326,6 +329,7 @@ export function HcssExplorerPage() {
 
   async function paste(paths=clipboard?.paths,mode=clipboard?.mode,to=folder){
     if(!writable||!clipboard||clipboard.scope!==scope||!paths||!mode)return;
+    if(mode==='copy'&&!root?.allow_read){setError('HC SS запрещает чтение для копирования');return;}
     const entries=paths.map(path=>({path,newPath:join(to,basename(path))}));
     if(entries.some(e=>e.path===e.newPath||to===e.path||to.startsWith(e.path+'/'))){
       setError('Нельзя копировать в тот же путь или переносить каталог внутрь себя');return;
@@ -341,7 +345,7 @@ export function HcssExplorerPage() {
     setDragPath(path);
   };
   const drop=(e:DragEvent<HTMLElement>,target:string)=>{
-    e.preventDefault();setDragTarget('');setDragPath('');
+    e.preventDefault();e.stopPropagation();setDragTarget('');setDragPath('');
     if(!writable)return;
     let data:{scope:string;paths:string[]}|null=null;
     try{data=JSON.parse(e.dataTransfer.getData('application/x-homecloud-explorer'))}catch{return}
@@ -349,6 +353,7 @@ export function HcssExplorerPage() {
     const safe=data.paths.filter(p=>typeof p==='string'&&items.some(x=>x.path===p));
     if(!safe.length||safe.some(p=>target===p||target.startsWith(p+'/')))return;
     const mode=e.ctrlKey?'copy':'move';
+    if(mode==='copy'&&!root?.allow_read){setError('Нет права чтения для копирования');return}
     void batch(mode,safe.map(path=>({path,newPath:join(target,basename(path))})));
   };
 
@@ -419,6 +424,9 @@ export function HcssExplorerPage() {
       if(!canUseName(trimmed)){setError('Недопустимое имя файла или каталога');return}
       const path=modal.type==='rename'?paths[0]:join(folder,trimmed);
       const newPath=join(parentOf(path),trimmed);
+      if(modal.type==='rename'&&selectedForModal[0]?.kind==='file'&&!deletable){
+        setError('Переименование файла запрещено правами этого root');return;
+      }
       if(modal.type==='create-folder')await batch('mkdir',[{path}]);
       else if(modal.type==='create-file')await batch('touch',[{path}]);
       else if(path!==newPath)await batch(
@@ -430,6 +438,7 @@ export function HcssExplorerPage() {
       if(entries.some(e=>e.path===e.newPath||destFolder===e.path||destFolder.startsWith(e.path+'/'))){
         setError('Нельзя переносить каталог внутрь самого себя');return;
       }
+      if(modal.mode==='copy'&&!root?.allow_read){setError('Нет права чтения для копирования');return}
       await batch(modal.mode,entries);
     }
   }
@@ -576,11 +585,12 @@ export function HcssExplorerPage() {
           <button type="button" disabled={!readable||chosen.length!==1||chosen[0].kind!=='file'}
             onClick={()=>void downloadFile()}>↓ Скачать</button>
           <span className="hc-explorer-commandbar__divider"/>
-          <button type="button" disabled={!selected.size} onClick={()=>putClipboard('copy')}>Копировать</button>
+          <button type="button" disabled={!selected.size||!readable} onClick={()=>putClipboard('copy')}>Копировать</button>
           <button type="button" disabled={!selected.size||!writable} onClick={()=>putClipboard('move')}>Вырезать</button>
           <button type="button" disabled={!writable||!clipboard||clipboard.scope!==scope}
             onClick={()=>void paste()}>Вставить</button>
-          <button type="button" disabled={selected.size!==1||!writable}
+          <button type="button" disabled={selected.size!==1||!writable||
+              (chosen[0]?.kind==='file'&&!deletable)}
             onClick={()=>showModal('rename')}>Переименовать</button>
           <button type="button" className="is-danger" disabled={!deletable||!selected.size}
             onClick={()=>showModal('delete')}>Удалить</button>
@@ -629,16 +639,17 @@ export function HcssExplorerPage() {
       onPointerDown={e=>e.stopPropagation()}>
       {items.find(x=>x.path===menu.path)?.kind==='folder'&&<button role="menuitem"
         onClick={()=>{navigate(menu.path);setMenu(null)}}>Открыть</button>}
-      <button role="menuitem" onClick={()=>putClipboard('copy',menuPaths)}>Копировать</button>
+      <button role="menuitem" disabled={!readable} onClick={()=>putClipboard('copy',menuPaths)}>Копировать</button>
       <button role="menuitem" disabled={!writable} onClick={()=>putClipboard('move',menuPaths)}>Вырезать</button>
       {items.find(x=>x.path===menu.path)?.kind==='folder'&&<button role="menuitem"
         onClick={()=>{setFavorite(menu.path);setMenu(null)}}>{favorites.includes(menu.path)?'Убрать из избранного':'В избранное'}</button>}
-      <button role="menuitem" disabled={!writable||menuPaths.length!==1}
+      <button role="menuitem" disabled={!writable||menuPaths.length!==1||
+          (items.find(x=>x.path===menuPaths[0])?.kind==='file'&&!deletable)}
         onClick={()=>showModal('rename',menuPaths)}>Переименовать</button>
       <button role="menuitem" disabled={!writable}
         onClick={()=>{setModal({type:'destination',paths:menuPaths,mode:'move'});setDestFolder(folder);setMenu(null)}}>
         Переместить в…</button>
-      <button role="menuitem" disabled={!writable}
+      <button role="menuitem" disabled={!writable||!readable}
         onClick={()=>{setModal({type:'destination',paths:menuPaths,mode:'copy'});setDestFolder(folder);setMenu(null)}}>
         Копировать в…</button>
       {menuPaths.length===1&&items.find(x=>x.path===menuPaths[0])?.kind==='file'&&mediaFile(basename(menuPaths[0]))&&
