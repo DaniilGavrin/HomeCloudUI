@@ -367,12 +367,15 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
     let mut last_rtt = None;
     loop {
         update_node(&app, &entry.id, "connecting", None, None, None);
-        let mut last_err = "Не удалось подключиться".to_owned();
+        let mut attempted = Vec::new();
         for url in addresses(&entry) {
-            match run_secondary_session(&app, &entry, &url, &mut last_rtt).await {
-                Ok(()) => last_err = "Соединение закрыто сервером".into(),
-                Err(error) => last_err = error,
-            }
+            let failure = match run_secondary_session(&app, &entry, &url, &mut last_rtt).await {
+                Ok(()) => "Соединение закрыто сервером".to_owned(),
+                Err(error) => error,
+            };
+            // Keep the error for EACH configured address, instead of reporting
+            // only the last IPv6 timeout when IPv4 failed for another reason.
+            attempted.push(format!("{url}: {failure}"));
             // Each address attempt owns a distinct socket. Mark the observed
             // devices offline before trying a fallback address.
             crate::storage::disconnected(&app, &entry.id);
@@ -381,16 +384,18 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
             let state = app.state::<ServerPool>();
             state.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
             state.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
-            // If the active session dropped, retry that address, instead of
-            // jumping immediately to another IP of the same node.
-            if last_err.starts_with("session ended:") { break; }
+            // Try the alternate configured IP after a dropped session too.
+            // Otherwise an unhealthy IPv4 endpoint can mask a working IPv6 one.
         }
         app.state::<ServerPool>().refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         crate::storage::disconnected(&app, &entry.id);
         crate::device_registry::disconnected(&app, &entry.id);
-        update_node(&app, &entry.id, "offline", None, None, Some(last_err));
+        let detail = if attempted.is_empty() {
+            "Не задан IPv4 или IPv6 адрес Backend".to_owned()
+        } else { attempted.join(" | ") };
+        update_node(&app, &entry.id, "offline", None, None, Some(detail));
         last_rtt = None;
         tokio::time::sleep(RETRY).await;
     }
