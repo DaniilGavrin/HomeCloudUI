@@ -182,7 +182,7 @@ test('delete controls reflect HC SS root permission and show an explicit reason'
   assert.match(explorer,/const deletable=Boolean\(online&&agent\?\.online&&root\?\.allow_delete/);
   assert.match(explorer,/deletePermissionHint/);
   assert.match(explorer,/modal\.type==='delete'&&!deletable/);
-  assert.match(explorer,/DELETE_FORBIDDEN/);
+  assert.match(read('src/components/explorer/fileOperationUX.ts'),/DELETE_FORBIDDEN/);
   assert.match(explorer,/fileAction\(operation,entry\.path,entry\.newPath,entry\.localFile\)/);
 });
 
