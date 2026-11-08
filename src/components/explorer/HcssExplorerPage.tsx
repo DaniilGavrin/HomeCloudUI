@@ -332,8 +332,10 @@ export function HcssExplorerPage() {
     const fence=currentFence.current;
     locked.current=true;setBusy(true);setProgress(null);setError('');setNotice('');setMenu(null);
     let completed=0;
+    let activePath='';
     try{
       for(const entry of entries){
+        activePath=entry.path;
         if(fence!==currentFence.current)throw Error('Изменился узел или каталог во время операции');
         await fileAction(operation,entry.path,entry.newPath,entry.localFile);
         completed++;
@@ -346,7 +348,7 @@ export function HcssExplorerPage() {
     }catch(e){
       const reason=String(e);
       const readableReason=friendlyFileError(reason,operation);
-      setError(`Выполнено ${completed} из ${entries.length}. ${readableReason}`);
+      setError(`Не удалось выполнить ${operation} (${basename(activePath)}). Выполнено ${completed} из ${entries.length}. ${readableReason}`);
       if(completed)setReload(x=>x+1);
     }finally{locked.current=false;setBusy(false);setProgress(null)}
   }
