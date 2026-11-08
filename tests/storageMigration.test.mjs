@@ -182,6 +182,23 @@ test('delete controls reflect HC SS root permission and show an explicit reason'
   assert.match(explorer,/const deletable=Boolean\(online&&agent\?\.online&&root\?\.allow_delete/);
   assert.match(explorer,/deletePermissionHint/);
   assert.match(explorer,/modal\.type==='delete'&&!deletable/);
-  assert.match(explorer,/DELETE_FORBIDDEN/);
+  assert.match(read('src/components/explorer/fileOperationUX.ts'),/DELETE_FORBIDDEN/);
   assert.match(explorer,/fileAction\(operation,entry\.path,entry\.newPath,entry\.localFile\)/);
+});
+
+
+test('KAN-82 Windows native file paths never become remote HC SS paths',async()=>{
+ const { uploadNameFromLocalPath,friendlyFileError } =
+   await import('../src/components/explorer/fileOperationUX.ts');
+ assert.equal(uploadNameFromLocalPath(String.raw`C:\Users\user\Downloads\Глянцевый логотип.png`),'Глянцевый логотип.png');
+ assert.equal(uploadNameFromLocalPath('C:/Users/user/Downloads/video.mp4'),'video.mp4');
+ assert.equal(uploadNameFromLocalPath('/home/daniil/file.txt'),'file.txt');
+ assert.match(friendlyFileError('HC SS: TARGET_EXISTS','upload'),/уже существует/);
+ assert.match(friendlyFileError('HC SS: PERMISSION_DENIED','upload'),/отказала в доступе/);
+ assert.match(friendlyFileError('HC SS: WRITE_FORBIDDEN','upload'),/allow_write/);
+ assert.match(friendlyFileError('Недопустимый путь или корень HC SS','upload'),/Недопустимый путь/);
+ const ui=read('src/components/explorer/HcssExplorerPage.tsx');
+ assert.match(ui,/uploadNameFromLocalPath\(localFile\)/);
+ assert.doesNotMatch(ui,/localFile\.replace\(/);
+ assert.match(ui,/Не удалось выбрать локальный файл/);
 });

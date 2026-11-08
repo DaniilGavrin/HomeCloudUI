@@ -12,6 +12,7 @@ import {
   rootKey, isBrowsableRoot, pathIsDirectChild, folderCrumbs, formatModified, formatBytes,
 } from '../storage/hcssModel';
 import { canDropInto, planDrop, type ExplorerDragMode } from './explorerDrag';
+import { uploadNameFromLocalPath, friendlyFileError } from './fileOperationUX';
 import { StorageInformationDialog } from './StorageInformationDialog';
 import '../../styles/explorer.css';
 
@@ -331,8 +332,10 @@ export function HcssExplorerPage() {
     const fence=currentFence.current;
     locked.current=true;setBusy(true);setProgress(null);setError('');setNotice('');setMenu(null);
     let completed=0;
+    let activePath='';
     try{
       for(const entry of entries){
+        activePath=entry.path;
         if(fence!==currentFence.current)throw Error('Изменился узел или каталог во время операции');
         await fileAction(operation,entry.path,entry.newPath,entry.localFile);
         completed++;
@@ -344,34 +347,45 @@ export function HcssExplorerPage() {
       setModal(null);
     }catch(e){
       const reason=String(e);
-      const readableReason=reason.includes('DELETE_FORBIDDEN')
-        ? 'Удаление запрещено настройками HC SS (allow_delete: false).'
-        : reason.includes('PERMISSION_DENIED')
-        ? 'Файловая система отказала в доступе: проверь права пользователя службы HC SS и каталога.'
-        : reason.includes('FILE_OPERATION_FAILED')&&operation==='delete'
-        ? 'HC SS не смог удалить объект. Непустые каталоги сейчас удалять нельзя; для файла проверь серверные логи.'
-        : reason;
-      setError(`Выполнено ${completed} из ${entries.length}. ${readableReason}`);
+      const readableReason=friendlyFileError(reason,operation);
+      setError(`Не удалось выполнить ${operation} (${basename(activePath)}). Выполнено ${completed} из ${entries.length}. ${readableReason}`);
       if(completed)setReload(x=>x+1);
     }finally{locked.current=false;setBusy(false);setProgress(null)}
   }
 
   async function uploadFiles(){
     if(!writable)return;
-    const picked=await open({title:'Загрузить файлы в HC Storage Service',multiple:true,directory:false});
-    if(!picked)return;
-    const files=(Array.isArray(picked)?picked:[picked]).filter((p):p is string=>typeof p==='string');
-    if(files.length>100){setError('Максимум 100 файлов за одну операцию');return}
-    const entries=files.map(localFile=>({localFile,path:join(folder,basename(localFile.replace(/\\\\/g,'/')))}));
-    await batch('upload',entries);
+    setError('');
+    try {
+      const picked=await open({title:'Загрузить файлы в HC Storage Service',multiple:true,directory:false});
+      if(!picked)return;
+      const files=(Array.isArray(picked)?picked:[picked]).filter((p):p is string=>typeof p==='string');
+      if(files.length>100){setError('Максимум 100 файлов за одну операцию');return}
+      const entries=files.map(localFile=>({
+        localFile,path:join(folder,uploadNameFromLocalPath(localFile)),
+      }));
+      if(entries.some(e=>!canUseName(basename(e.path)))){
+        setError('Выбран файл с недопустимым именем для HC SS');return;
+      }
+      if(new Set(entries.map(e=>e.path)).size!==entries.length){
+        setError('Выбраны разные файлы с одинаковым именем. Загрузи их в разные каталоги.');return;
+      }
+      await batch('upload',entries);
+    } catch(e) {
+      setError('Не удалось выбрать локальный файл: '+friendlyFileError(String(e),'upload'));
+    }
   }
 
   async function downloadFile(){
     const item=allChosen.length===1?allChosen[0]:null;
     if(!readable||!item||item.kind!=='file')return;
-    const destination=await save({title:'Скачать из HC Storage Service',defaultPath:item.name});
-    if(typeof destination!=='string')return;
-    await batch('download',[{path:item.path,localFile:destination}]);
+    try {
+      const destination=await save({title:'Скачать из HC Storage Service',defaultPath:item.name});
+      if(typeof destination!=='string')return;
+      await batch('download',[{path:item.path,localFile:destination}]);
+    } catch(e) {
+      setError('Не удалось выбрать путь скачивания: '+friendlyFileError(String(e),'download'));
+    }
   }
 
   async function paste(paths=clipboard?.paths,mode=clipboard?.mode,to=folder){
