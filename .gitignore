@@ -22,3 +22,32 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local configuration and credentials (never publish)
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+keystore.properties
+key.properties
+google-services.json
+GoogleService-Info.plist
+credentials.json
+secrets.json
+*.mobileprovision
+*.provisionprofile
+
+# Local databases and backups
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.bak
+*.backup
