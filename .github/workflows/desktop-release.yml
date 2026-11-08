@@ -62,6 +62,16 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+      # The Tauri AppImage toolchain normally downloads from GitHub Releases
+      # during bundling, where transient 504 responses have broken CI.
+      - name: Restore cached AppImage packaging tools
+        if: matrix.platform == 'linux-x64'
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target/.tauri
+          key: homecloud-ui-appimage-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            homecloud-ui-appimage-v1-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Linux Tauri system dependencies
         if: matrix.platform == 'linux-x64'
         shell: bash
@@ -76,8 +86,66 @@ jobs:
       - name: Verify Rust media room state and transport tests
         if: matrix.platform == 'linux-x64'
         run: cargo test --lib --manifest-path src-tauri/Cargo.toml
+      - name: Preload verified Tauri AppImage tools
+        if: matrix.platform == 'linux-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools='src-tauri/target/.tauri'
+          mkdir -p "$tools"
+          fetch_verified() {
+            local path="$1" url="$2" expected="$3" tmp
+            if [ -s "$path" ]; then
+              if [[ "$path" == *AppRun-* ]]; then
+                if echo "$expected  $path" | sha256sum --check --status; then return 0; fi
+                rm -f "$path"
+              else
+                # Tauri patches the linuxdeploy executable in-place after use.
+                return 0
+              fi
+            fi
+            tmp="$(mktemp "${RUNNER_TEMP}/hc-ui-tool-XXXXXX")"
+            if ! curl --fail --location --retry 10 --retry-all-errors --retry-delay 6 \
+              --retry-max-time 900 --connect-timeout 20 --max-time 180 \
+              --output "$tmp" "$url"; then
+              rm -f "$tmp"
+              return 1
+            fi
+            if ! echo "$expected  $tmp" | sha256sum --check --status; then
+              rm -f "$tmp"
+              echo "SHA-256 mismatch: $url" >&2
+              return 1
+            fi
+            chmod 770 "$tmp"
+            mv -f "$tmp" "$path"
+          }
+          fetch_verified "$tools/AppRun-x86_64" \
+            'https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64' \
+            'f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f'
+          fetch_verified "$tools/linuxdeploy-07333c6-x86_64.AppImage" \
+            'https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy-07333c6/linuxdeploy-x86_64.AppImage' \
+            '36a2d7e274d12e1050d0e9ecfe11d339ed54720b2bec464c286d53f8b07f5c62'
+          echo "Verified AppImage tools are ready"
       - name: Build Tauri desktop packages
-        run: npm run tauri -- build --bundles ${{ matrix.bundles }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.platform }}" == "windows-x64" ]]; then
+            npm run tauri -- build --bundles "${{ matrix.bundles }}"
+          else
+            # Compile once; retry only packaging if an upstream download fails.
+            npm run tauri -- build --no-bundle
+            for attempt in 1 2 3 4 5; do
+              if npm run tauri -- bundle --bundles "${{ matrix.bundles }}"; then
+                exit 0
+              fi
+              if [[ "$attempt" -eq 5 ]]; then
+                echo "Tauri packaging failed after five attempts" >&2
+                exit 1
+              fi
+              sleep $((attempt * 15))
+            done
+          fi
 
       - name: Collect Windows installer
         if: matrix.platform == 'windows-x64'
