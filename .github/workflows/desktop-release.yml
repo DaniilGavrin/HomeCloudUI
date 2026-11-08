@@ -64,14 +64,13 @@ jobs:
           workspaces: src-tauri -> target
       # The Tauri AppImage toolchain normally downloads from GitHub Releases
       # during bundling, where transient 504 responses have broken CI.
-      - name: Restore cached AppImage packaging tools
-        if: matrix.platform == 'linux-x64'
+      - name: Restore cached Tauri packaging tools
         uses: actions/cache@v4
         with:
           path: src-tauri/target/.tauri
-          key: homecloud-ui-appimage-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: homecloud-ui-tauri-tools-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
-            homecloud-ui-appimage-v1-${{ runner.os }}-${{ runner.arch }}-
+            homecloud-ui-tauri-tools-v2-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Linux Tauri system dependencies
         if: matrix.platform == 'linux-x64'
         shell: bash
@@ -126,6 +125,39 @@ jobs:
             'https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy-07333c6/linuxdeploy-x86_64.AppImage' \
             '36a2d7e274d12e1050d0e9ecfe11d339ed54720b2bec464c286d53f8b07f5c62'
           echo "Verified AppImage tools are ready"
+      - name: Preload verified Windows NSIS tools
+        if: matrix.platform == 'windows-x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tools = Join-Path 'src-tauri/target' '.tauri'
+          $nsis = Join-Path $tools 'NSIS'
+          New-Item -ItemType Directory -Path $tools -Force | Out-Null
+          function Download-Verified([string]$Url, [string]$Output, [string]$Sha256) {
+            $temp = "$Output.partial"
+            try {
+              & curl.exe --fail --location --retry 10 --retry-all-errors --retry-delay 6 --retry-max-time 900 --connect-timeout 20 --max-time 180 --output $temp $Url
+              if ($LASTEXITCODE -ne 0) { throw "Download failed (curl exit $LASTEXITCODE): $Url" }
+              $actual = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -ne $Sha256) { throw "SHA-256 mismatch for $Url" }
+              Move-Item -LiteralPath $temp -Destination $Output -Force
+            } finally { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
+          }
+          $nsisExe = Join-Path $nsis 'NSIS.exe'
+          if (!(Test-Path $nsisExe) -or (Get-FileHash -LiteralPath $nsisExe -Algorithm SHA1).Hash -ne '6D45D4E8CCF18FE1FDAC9164058F356102A2ECF2') {
+            $zip = Join-Path $env:RUNNER_TEMP 'hc-ui-nsis-3.13.zip'
+            Download-Verified 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip' $zip 'ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8'
+            Expand-Archive -LiteralPath $zip -DestinationPath $tools -Force
+            if (Test-Path $nsis) { Remove-Item -LiteralPath $nsis -Recurse -Force }
+            Move-Item -LiteralPath (Join-Path $tools 'nsis-3.13') -Destination $nsis
+          }
+          $plugin = Join-Path $nsis 'Plugins/x86-unicode/additional/nsis_tauri_utils.dll'
+          $expectedPlugin = '5ba143b5db4a87d32d6e7802e033330aae56cbceabe0d1e3ba41948385ad4709'
+          if (!(Test-Path $plugin) -or (Get-FileHash -LiteralPath $plugin -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedPlugin) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $plugin) -Force | Out-Null
+            Download-Verified 'https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll' $plugin $expectedPlugin
+          }
+          Write-Host 'Verified NSIS and Tauri plugin tools are ready.'
       - name: Build Tauri desktop packages
         shell: bash
         run: |
