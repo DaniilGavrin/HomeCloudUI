@@ -71,7 +71,7 @@ export function ShellLockScreen({ onUnlock }: Props) {
         </AnimatePresence>
         <motion.div className="hc-lock-date" {...reveal(0.22, 16)}>{date}</motion.div>
         <motion.div className="hc-lock-status" {...reveal(0.29, 12)}>
-          <ShellIcon name="lock" /> Оболочка заблокирована
+          <ShellIcon name="lock" /> Интерфейс заблокирован
         </motion.div>
         <motion.button
           className="hc-lock-unlock"
@@ -88,9 +88,6 @@ export function ShellLockScreen({ onUnlock }: Props) {
           <ShellIcon name="arrow" className="hc-lock-unlock-arrow" />
         </motion.button>
       </div>
-      <motion.div className="hc-lock-caption" {...reveal(0.42, 5)}>
-        Блокировка интерфейса · Без PIN-кода в текущей версии
-      </motion.div>
     </motion.section>
   );
 }
