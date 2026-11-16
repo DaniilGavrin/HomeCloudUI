@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { Cpu, Monitor, Server, Smartphone, Tv } from 'lucide-react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { useHomeCloudDeviceRegistry, type RegisteredDevice } from '../../hooks/useHomeCloudDeviceRegistry';
 import { kindOf, type DeviceKind } from './deviceKind';
@@ -20,16 +21,15 @@ const TYPES: { id: TypeFilter; label: string }[] = [
 ];
 
 function DeviceIcon({ kind }: { kind: DeviceKind }) {
-  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  return (
-    <svg {...common} width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
-      {kind === 'desktop' && <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></>}
-      {kind === 'mobile' && <><rect x="6.5" y="2" width="11" height="20" rx="2"/><path d="M10 18h4"/></>}
-      {kind === 'tv' && <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M9 22h6m-3-3v6"/></>}
-      {kind === 'server' && <><rect x="4" y="3" width="16" height="8" rx="2"/><rect x="4" y="13" width="16" height="8" rx="2"/><path d="M8 7h.01M8 17h.01M12 7h5M12 17h5"/></>}
-      {kind === 'other' && <><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6m-3-3v6"/></>}
-    </svg>
-  );
+  const icons = {
+    desktop: Monitor,
+    mobile: Smartphone,
+    tv: Tv,
+    server: Server,
+    other: Cpu,
+  };
+  const Icon = icons[kind];
+  return <Icon size={26} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 const labelFor = (id: string) => id.startsWith('homecloud-ui-') || id.startsWith('hc-ui-') ? 'HomeCloud UI' : id;
