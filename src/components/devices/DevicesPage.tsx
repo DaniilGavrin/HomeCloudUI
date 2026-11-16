@@ -37,7 +37,7 @@ const lastSeen = (seconds: number | null) => seconds === null ? 'Нет данн
 const keyFor = (device: RegisteredDevice) => JSON.stringify([device.server_id, device.device_id]);
 
 export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) {
-  const { snapshot, error, forget, refresh, send } = useHomeCloudDeviceRegistry();
+  const { snapshot, error, forget, refresh } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const [serverId, setServerId] = useState('all');
   const [search, setSearch] = useState('');
@@ -45,7 +45,6 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
   const [status, setStatus] = useState<StatusFilter>('all');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
-  const [payloadText, setPayloadText] = useState('{\n  "action": "media.pause"\n}');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeError, setNoticeError] = useState(false);
@@ -109,17 +108,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
     finally { setBusy(false); }
   };
 
-  const onSend = async () => {
-    if (!selected?.online) return;
-    setBusy(true); setNotice(null);
-    try {
-      const data: unknown = JSON.parse(payloadText);
-      if (data === null || Array.isArray(data) || typeof data !== 'object') throw Error('Нужен JSON-объект, например {"action":"media.pause"}');
-      const result = await send(selected, data as Record<string, unknown>);
-      setNoticeError(false); setNotice(result + '. Выполнение на устройстве не подтверждено.');
-    } catch (cause) { setNoticeError(true); setNotice(String(cause)); }
-    finally { setBusy(false); }
-  };
+
 
   return (
     <section className="hc-devices-page homecloud-glass" aria-label="Устройства HomeCloud">
@@ -149,15 +138,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
                   onOpenExplorer={onOpenExplorer}
                 />
               )}
-              {selected.online && !selectedIsTv ? (
-                <div className="hc-devices-command homecloud-glass">
-                  <h3>Отправить команду устройству</h3>
-                  <p>Команда отправляется выбранному устройству. Поддержка зависит от его возможностей.</p>
-                  <label htmlFor="hc-device-payload">JSON-сообщение</label>
-                  <textarea id="hc-device-payload" spellCheck={false} value={payloadText} onChange={e => setPayloadText(e.target.value)} rows={5}/>
-                  <button type="button" className="hc-devices-refresh" disabled={busy} onClick={() => void onSend()}>Отправить JSON</button>
-                </div>
-              ) : !selected.online ? (
+              {!selected.online ? (
                 <div className="hc-devices-command homecloud-glass">
                   <h3>Устройство отключено</h3>
                   <p>Последняя известная информация сохранена локально. Команды недоступны до переподключения.</p>
