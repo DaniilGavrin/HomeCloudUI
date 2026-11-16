@@ -47,10 +47,16 @@
     overflow: visible;
 }
 
+.homecloud-sidebar__nav {
+    /* Keep room for the tooltip inside the scroll container so it is not clipped. */
+    padding-right: 240px;
+    margin-right: -240px;
+}
+
 .homecloud-sidebar__hint {
     position: absolute;
-    z-index: 20;
-    top: 18px;
+    z-index: 30;
+    top: 50%;
     left: calc(100% + 12px);
     display: flex;
     align-items: center;
@@ -68,13 +74,13 @@
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
-    transform: translateX(-4px);
+    transform: translateY(-50%) translateX(-4px);
     transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.homecloud-sidebar__hint--visible {
+.homecloud-sidebar__hint {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(-50%) translateX(0);
 }
 
 .homecloud-brand {
@@ -112,7 +118,8 @@
 }
 
 .homecloud-nav-item {
-    width: 100%;
+    position: relative;
+    width: 68px;
     min-height: 54px;
     display: flex;
     align-items: center;
