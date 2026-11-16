@@ -80,7 +80,7 @@ export function SettingsPage() {
           <header className="hc-settings__header"><div><span className="hc-settings__eyebrow">HomeCloud · System</span><h2>Настройки</h2><p>Управление подключениями и параметрами оболочки</p></div></header>
           <div className="hc-settings__tiles">
             <button type="button" className="hc-settings__tile homecloud-glass" onClick={() => setScreen('pool')} ref={returnFocus}>
-              <span className="hc-settings__tile-icon"><Icon type="server" /></span><span><strong>Пул серверов</strong><small>Подключения HomeCloudBackend · {pool.snapshot.servers.length} в пуле</small></span><Icon type="arrow" />
+              <span className="hc-settings__tile-icon"><Icon type="server" /></span><span><strong>Пул серверов</strong><small>Подключённые серверы · {pool.snapshot.servers.length} в пуле</small></span><Icon type="arrow" />
             </button>
           </div>
         </> : screen === 'pool' ? <>
@@ -101,7 +101,7 @@ export function SettingsPage() {
             </article>;
           })}</div>
         </> : screen === 'form' ? <>
-          <header className="hc-settings__header"><div className="hc-settings__heading"><button className="hc-settings__back" onClick={back} aria-label="Назад к пулу серверов"><Icon type="back" /></button><div><span className="hc-settings__eyebrow">Настройки · Пул серверов</span><h2>{editing ? 'Изменить сервер' : 'Добавить сервер'}</h2><p>{editing ? selected?.name : 'Новое подключение HomeCloudBackend'}</p></div></div></header>
+          <header className="hc-settings__header"><div className="hc-settings__heading"><button className="hc-settings__back" onClick={back} aria-label="Назад к пулу серверов"><Icon type="back" /></button><div><span className="hc-settings__eyebrow">Настройки · Пул серверов</span><h2>{editing ? 'Изменить сервер' : 'Добавить сервер'}</h2><p>{editing ? selected?.name : 'Новое подключение к серверу'}</p></div></div></header>
           <form onSubmit={event => void submit(event)} className="hc-settings__form homecloud-glass">
             <label>Название сервера<input required maxLength={64} autoFocus placeholder="Например, Сервер в гостиной" value={form.name} onChange={e => setForm(v => ({...v,name:e.target.value}))}/></label>
             <div className="hc-settings__form-pair"><label>IPv4-адрес<input inputMode="decimal" placeholder="192.168.1.100" value={form.ipv4 ?? ''} onChange={e => setForm(v => ({...v,ipv4:e.target.value}))}/></label>
@@ -112,7 +112,7 @@ export function SettingsPage() {
           </form>
         </> : <>
           <header className="hc-settings__header"><div className="hc-settings__heading"><button className="hc-settings__back" onClick={back} aria-label="Назад к пулу"><Icon type="back" /></button><div><span className="hc-settings__eyebrow">Пул серверов</span><h2>Удаление сервера</h2></div></div></header>
-          <div className="hc-settings__form homecloud-glass"><h3>Удалить «{deleting?.name ?? 'Сервер'}»?</h3><p>Подключение будет остановлено, а сервер удалён из пула и раздела «Серверы». Сам Go Backend не затрагивается.</p>
+          <div className="hc-settings__form homecloud-glass"><h3>Удалить «{deleting?.name ?? 'Сервер'}»?</h3><p>Подключение будет остановлено, а сервер удалён из пула и раздела «Серверы». Работа самого сервера не изменится.</p>
             {actionError && <p className="hc-settings__error" role="alert">{actionError}</p>}
             <div className="hc-settings__form-actions"><button type="button" className="hc-settings__button" disabled={busy} onClick={back}>Отмена</button><button type="button" className="hc-settings__button hc-settings__button--danger" disabled={busy} onClick={() => void remove()}>{busy ? 'Удаление…' : 'Удалить сервер'}</button></div>
           </div>
