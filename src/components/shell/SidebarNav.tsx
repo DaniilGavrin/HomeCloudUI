@@ -1,7 +1,9 @@
 import { motion } from 'motion/react';
 import {
-  Bell, Camera, CloudSun, Cpu, Droplets, Flame, FolderOpen, House,
-  MonitorCog, Server, Settings, ShieldCheck, Thermometer, Workflow, Zap,
+  AirVent, Bell, BookOpen, Brush, CalendarDays, Camera, CarFront, CloudSun,
+  Cpu, Droplets, Flame, FolderOpen, HeartPulse, House, KeyRound, Lightbulb,
+  ListTodo, MonitorCog, Phone, Server, Settings, ShieldCheck, Sprout,
+  Thermometer, Wallet, Workflow, Wind, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { NavItem } from '../../data/navigation';
@@ -16,6 +18,20 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   heating: Thermometer,
   water: Droplets,
   gas: Flame,
+  ventilation: Wind,
+  'air-conditioning': AirVent,
+  locks: KeyRound,
+  transport: CarFront,
+  lighting: Lightbulb,
+  irrigation: Sprout,
+  cleaning: Brush,
+  communication: Phone,
+  'fire-system': Flame,
+  calendar: CalendarDays,
+  tasks: ListTodo,
+  'knowledge-base': BookOpen,
+  finances: Wallet,
+  medicine: HeartPulse,
   environment: CloudSun,
   notifications: Bell,
   servers: Server,

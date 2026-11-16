@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Bell, Camera, CloudSun, Droplets, Flame, MonitorCog, ShieldCheck,
-  Thermometer, Workflow, Zap,
+  AirVent, Bell, BookOpen, Brush, CalendarDays, Camera, CarFront, CloudSun,
+  Droplets, Flame, HeartPulse, KeyRound, Lightbulb, ListTodo, MonitorCog,
+  Phone, ShieldCheck, Sprout, Thermometer, Wallet, Workflow, Wind, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { SidebarNav } from './SidebarNav';
@@ -23,6 +24,20 @@ const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
   heating: Thermometer,
   water: Droplets,
   gas: Flame,
+  ventilation: Wind,
+  'air-conditioning': AirVent,
+  locks: KeyRound,
+  transport: CarFront,
+  lighting: Lightbulb,
+  irrigation: Sprout,
+  cleaning: Brush,
+  communication: Phone,
+  'fire-system': Flame,
+  calendar: CalendarDays,
+  tasks: ListTodo,
+  'knowledge-base': BookOpen,
+  finances: Wallet,
+  medicine: HeartPulse,
   environment: CloudSun,
   notifications: Bell,
   system: MonitorCog,
