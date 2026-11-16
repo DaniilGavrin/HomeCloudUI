@@ -566,6 +566,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
 
                 if let Some(record) = crate::homecloud_ws::parse_registered_device_event(&payload) {
                     crate::device_registry::updated(app, &entry.id, &record);
+                    queued_list = true;
                     continue;
                 }
                 if let Some((connected, device)) = crate::homecloud_ws::parse_device_event(&payload) {
