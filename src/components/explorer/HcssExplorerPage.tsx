@@ -620,7 +620,7 @@ export function HcssExplorerPage() {
     }
     setBusy(true);setError('');
     try{
-      const r=await invoke<{room_id:string}>('homecloud_hcss_play',{
+      await invoke<{room_id:string}>('homecloud_hcss_play',{
         serverId,deviceId:tv.device_id,storageNodeId:agent.storage_node_id,
         fileId:item.file_id,network,
       });
