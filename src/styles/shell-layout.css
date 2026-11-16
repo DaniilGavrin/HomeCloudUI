@@ -43,38 +43,9 @@
 .homecloud-sidebar {
     position: relative;
     height: 100%;
+    min-height: 0;
     border-radius: 22px;
-    overflow: visible;
-}
-
-.homecloud-sidebar__hint {
-    position: absolute;
-    z-index: 20;
-    top: 18px;
-    left: calc(100% + 12px);
-    display: flex;
-    align-items: center;
-    min-height: 40px;
-    max-width: 220px;
-    padding: 9px 14px;
-    border: 1px solid rgba(148, 220, 255, 0.2);
-    border-radius: 12px;
-    background: rgba(8, 15, 28, 0.96);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-    color: rgba(255, 255, 255, 0.94);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.2;
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transform: translateX(-4px);
-    transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.homecloud-sidebar__hint--visible {
-    opacity: 1;
-    transform: translateX(0);
+    overflow: hidden;
 }
 
 .homecloud-brand {
@@ -113,7 +84,7 @@
 
 .homecloud-nav-item {
     width: 100%;
-    min-height: 54px;
+    min-height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -147,8 +118,8 @@
 
 .homecloud-nav-item__icon {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 14px;
     display: flex;
     align-items: center;
@@ -248,4 +219,29 @@
     .hc-shell-topbar__right { gap: 7px; }
     .hc-shell-topbar__right > div:first-child { padding: 6px 8px; gap: 5px; }
     .hc-shell-topbar__right > div:first-child span { font-size: 11px; }
+}
+
+
+/* Keep the compact sidebar usable without introducing an inner scrollbar. */
+@media (max-height: 600px) {
+    .homecloud-sidebar > div > div:first-child {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .homecloud-sidebar .homecloud-nav-item {
+        min-height: 42px;
+        border-radius: 13px;
+    }
+
+    .homecloud-sidebar .homecloud-nav-item__icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 11px;
+    }
+
+    .homecloud-sidebar nav {
+        row-gap: 4px;
+        padding-bottom: 8px;
+    }
 }

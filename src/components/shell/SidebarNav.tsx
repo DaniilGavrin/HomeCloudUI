@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Cpu, FolderOpen, House, Server, Settings, Workflow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -20,30 +19,16 @@ type SidebarNavProps = {
 };
 
 export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
-  const [hintedItemId, setHintedItemId] = useState<string | null>(null);
-  const hintedItem = items.find((item) => item.id === hintedItemId);
 
   return (
-    <aside className="homecloud-glass homecloud-sidebar w-[68px] shrink-0" aria-label="HomeCloud">
+    <aside className="homecloud-glass homecloud-sidebar w-16 shrink-0" aria-label="HomeCloud">
       <div className="flex h-full flex-col">
-        <div className="flex justify-center px-2 pb-4 pt-5">
+        <div className="flex shrink-0 justify-center px-2 pb-3 pt-3">
           <div className="homecloud-brand__orb h-9 w-9 shrink-0" aria-hidden="true" />
         </div>
 
-        <div
-          className={[
-            'homecloud-sidebar__hint',
-            hintedItem ? 'homecloud-sidebar__hint--visible' : '',
-          ].join(' ')}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {hintedItem?.label ?? ''}
-        </div>
-
         <nav
-          className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-3"
+          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-1.5 pb-3"
           aria-label="Основная навигация"
         >
           {items.map((item, index) => {
@@ -54,20 +39,9 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
               <motion.button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  onChange(item.id);
-                  setHintedItemId(item.id);
-                }}
-                onPointerEnter={() => setHintedItemId(item.id)}
-                onPointerLeave={(event) => {
-                  // Touch has no hover state: keep the last tapped section visible.
-                  if (event.pointerType !== 'touch') {
-                    setHintedItemId(null);
-                  }
-                }}
-                onFocus={() => setHintedItemId(item.id)}
-                onBlur={() => setHintedItemId(null)}
+                onClick={() => onChange(item.id)}
                 aria-label={item.label}
+                title={item.label}
                 aria-current={active ? 'page' : undefined}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
