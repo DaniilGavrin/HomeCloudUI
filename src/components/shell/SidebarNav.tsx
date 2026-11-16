@@ -39,7 +39,7 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
         </div>
 
         <nav
-          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-1.5 pb-3"
+          className="hc-sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto px-1.5 pb-3"
           aria-label="Основная навигация"
         >
           {items.map((item, index) => {
