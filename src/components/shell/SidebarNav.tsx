@@ -1,5 +1,16 @@
 import { motion } from 'motion/react';
+import { Cpu, FolderOpen, House, Server, Settings, Workflow } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { NavItem } from '../../data/navigation';
+
+const NAV_ICONS: Record<string, LucideIcon> = {
+  home: House,
+  devices: Cpu,
+  explorer: FolderOpen,
+  servers: Server,
+  automation: Workflow,
+  settings: Settings,
+};
 
 type SidebarNavProps = {
   items: NavItem[];
@@ -43,6 +54,7 @@ export function SidebarNav({
         ].join(' ')}>
           {items.map((item, index) => {
             const active = item.id === activeId;
+            const Icon = NAV_ICONS[item.id] ?? FolderOpen;
 
             return (
               <motion.button
@@ -63,9 +75,9 @@ export function SidebarNav({
                   compact ? 'justify-center px-0' : 'gap-2 px-2',
                 ].join(' ')}
               >
-                <div className="homecloud-nav-item__icon">
-                  {item.label.charAt(0)}
-                </div>
+                <span className="homecloud-nav-item__icon" aria-hidden="true">
+                  <Icon size={20} strokeWidth={1.8} />
+                </span>
 
                 {!compact && (
                   <div className="min-w-0 text-left">
