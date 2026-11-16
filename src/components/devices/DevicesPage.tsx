@@ -128,7 +128,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
       setSelectedKey(null);
       setConfirmKey(null);
       setNoticeError(false);
-      setNotice(`Офлайн-устройство «${device.device_id}» удалено из локального списка.`);
+      setNotice(`Офлайн-устройство «${device.name || labelFor(device.device_id, device.client_type)}» удалено из реестра HomeCloud. При следующем подключении оно появится снова.`);
     } catch (cause) { setNoticeError(true); setNotice(String(cause)); }
     finally { setBusy(false); }
   };
@@ -179,7 +179,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
                   <p>Последняя известная информация сохранена локально. Команды недоступны до переподключения.</p>
                   {confirmKey === selectedKey ? (
                     <div className="hc-devices-confirm">
-                      <p>Удалить запись об устройстве? Это не отключает и не удаляет устройство на сервере. При новом подключении оно появится снова.</p>
+                      <p>Удалить запись из реестра HomeCloud? Это не отключает само устройство. При следующем подключении Backend создаст запись заново.</p>
                       <button type="button" className="hc-devices-danger" disabled={busy} onClick={() => void onForget(selected)}>Да, удалить запись</button>
                       <button type="button" className="hc-devices-refresh" onClick={() => setConfirmKey(null)}>Отмена</button>
                     </div>
