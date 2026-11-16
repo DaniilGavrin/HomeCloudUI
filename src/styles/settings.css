@@ -44,7 +44,7 @@
 @media(max-width:720px){.hc-settings__form-pair{grid-template-columns:1fr}.hc-settings__header{align-items:flex-start}.hc-settings__server{gap:10px}.hc-settings__identity{min-width:120px}}
 
 
-.hc-settings__sections-list{display:flex;flex-direction:column;gap:10px;width:min(100%,700px)}
+.hc-settings__sections-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:min(100%,760px)}
 .hc-settings__section-row{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;padding:14px 18px;border:1px solid rgba(232,251,255,.13);border-radius:18px;background:rgba(255,255,255,.025);color:#f2fbff;font-size:14px;font-weight:560;cursor:pointer;transition:background 140ms ease,border-color 140ms ease}
 .hc-settings__section-row:hover{border-color:rgba(129,233,255,.3);background:rgba(255,255,255,.045)}
 .hc-settings__section-row input{appearance:none;position:relative;flex:0 0 46px;width:46px;height:27px;margin:0;border:1px solid rgba(225,248,255,.22);border-radius:999px;background:rgba(255,255,255,.09);cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
@@ -52,4 +52,5 @@
 .hc-settings__section-row input:checked{border-color:rgba(124,227,255,.55);background:rgba(94,216,255,.28)}
 .hc-settings__section-row input:checked::after{transform:translateX(19px);background:#b9efff}
 .hc-settings__section-row input:focus-visible{outline:2px solid #9beaff;outline-offset:3px}
+@media(max-width:560px){.hc-settings__sections-list{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.hc-settings__section-row,.hc-settings__section-row input,.hc-settings__section-row input::after{transition:none}}
