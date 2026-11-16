@@ -7,6 +7,7 @@ import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudDeviceRegistry, type RegisteredDevice } from '../../hooks/useHomeCloudDeviceRegistry';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
+import type { SectionPreferences } from '../../hooks/useSectionPreferences';
 import type { ConnectionStatus } from '../../hooks/useHomeCloudConnection';
 import '../../styles/home.css';
 
@@ -16,6 +17,7 @@ type Props = {
   connection: ConnectionStatus;
   now: Date;
   onNavigate: (section: string) => void;
+  enabledSections: SectionPreferences;
 };
 
 const HOME_ICONS: Record<HomeIconName, LucideIcon> = {
@@ -93,10 +95,11 @@ function LatencyGraph({ values }: { values: number[] }) {
   );
 }
 
-export function HomePage({ connection, now, onNavigate }: Props) {
+export function HomePage({ connection, now, onNavigate, enabledSections }: Props) {
   const { snapshot, refresh, error: refreshError } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const reduced = Boolean(useReducedMotion());
+  const visibleShortcuts = SHORTCUTS.filter((shortcut) => enabledSections[shortcut.id as keyof SectionPreferences]);
   const [latencySamples, setLatencySamples] = useState<number[]>([]);
   const lastMeasuredRevision = useRef(-1);
   const connected = connection.phase === 'online';
@@ -145,9 +148,9 @@ export function HomePage({ connection, now, onNavigate }: Props) {
             <span className="hc-home-eyebrow"><span className="hc-home-eyebrow__line" /> HOMECLOUD · ОБЗОР</span>
             <h1>{greeting(now.getHours())}<span className="hc-home-title-dot">.</span></h1>
             <p>Устройства, сервисы и состояние домашней системы — в одном пространстве.</p>
-            <button className="hc-home-primary-action" type="button" onClick={() => onNavigate('devices')}>
+            {enabledSections.devices && <button className="hc-home-primary-action" type="button" onClick={() => onNavigate('devices')}>
               Открыть устройства <HomeIcon name="arrow" size={17} />
-            </button>
+            </button>}
           </div>
           <div className={`hc-home-hero__emblem ${connected ? 'hc-home-hero__emblem--online' : ''}`} aria-hidden="true">
             <div className="hc-home-orbit hc-home-orbit--outer" />
@@ -209,9 +212,9 @@ export function HomePage({ connection, now, onNavigate }: Props) {
                 </AnimatePresence>}
             </div>
             {refreshError && <p role="alert" className="hc-home-list-error">{refreshError}</p>}
-            <button type="button" className="hc-home-text-link" onClick={() => onNavigate('devices')}>
+            {enabledSections.devices && <button type="button" className="hc-home-text-link" onClick={() => onNavigate('devices')}>
               {count !== null && count > 4 ? `Все устройства · ${count}` : 'Перейти к устройствам'} <HomeIcon name="arrow" size={17} />
-            </button>
+            </button>}
           </motion.section>
 
           <motion.section className="hc-home-panel hc-home-network-panel homecloud-glass" {...enter(0.3)} aria-label="Мониторинг соединения">
@@ -222,12 +225,13 @@ export function HomePage({ connection, now, onNavigate }: Props) {
           </motion.section>
         </div>
 
-        <motion.div className="hc-home-section-label hc-home-section-label--second" {...enter(0.32)}>
-          <div><span className="hc-home-section-index">03</span><h2>Быстрый доступ</h2></div>
-          <span className="hc-home-caption">Разделы HomeCloud</span>
-        </motion.div>
-        <div className="hc-home-shortcuts">
-          {SHORTCUTS.map((shortcut, index) => (
+        {visibleShortcuts.length > 0 && <>
+          <motion.div className="hc-home-section-label hc-home-section-label--second" {...enter(0.32)}>
+            <div><span className="hc-home-section-index">03</span><h2>Быстрый доступ</h2></div>
+            <span className="hc-home-caption">Разделы HomeCloud</span>
+          </motion.div>
+          <div className="hc-home-shortcuts">
+          {visibleShortcuts.map((shortcut, index) => (
             <motion.button
               key={shortcut.id}
               type="button"
@@ -242,7 +246,8 @@ export function HomePage({ connection, now, onNavigate }: Props) {
               <span className="hc-home-shortcut__arrow"><HomeIcon name="arrow" size={18} /></span>
             </motion.button>
           ))}
-        </div>
+          </div>
+        </>}
       </div>
     </div>
   );
