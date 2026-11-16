@@ -245,3 +245,14 @@
         padding-bottom: 8px;
     }
 }
+
+
+/* The expanded section list remains accessible on short displays without a visible scrollbar. */
+.hc-sidebar-nav-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.hc-sidebar-nav-scroll::-webkit-scrollbar {
+    display: none;
+}
