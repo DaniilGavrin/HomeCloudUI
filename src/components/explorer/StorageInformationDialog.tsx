@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { X } from 'lucide-react';
+import { HardDrive, X } from 'lucide-react';
 import { type HcssAgent, filesystemVolumes, formatBytes } from '../storage/hcssModel';
 import { capacityOf, inventoryTotals } from './storageInventory';
 import '../../styles/storage-info.css';
@@ -167,7 +167,7 @@ export function StorageInformationDialog({
             className={`hc-si-node ${selected?.storage_node_id === agent.storage_node_id ? 'is-active' : ''}`}
             aria-pressed={selected?.storage_node_id === agent.storage_node_id}
             onClick={() => setNodeId(agent.storage_node_id)}>
-            <span className="hc-si-node-icon">▣</span>
+            <span className="hc-si-node-icon"><HardDrive size={18} strokeWidth={1.7} aria-hidden="true" /></span>
             <span className="hc-si-node-text">
               <strong>{agent.storage_node_id}</strong>
               <small>{agent.online ? 'Подключён' : 'Нет соединения'} · {agent.roots?.length ?? 0} root</small>
