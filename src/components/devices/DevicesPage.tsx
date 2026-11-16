@@ -36,7 +36,7 @@ const labelFor = (id: string) => id.startsWith('homecloud-ui-') || id.startsWith
 const lastSeen = (seconds: number | null) => seconds === null ? 'Нет данных' : new Date(seconds * 1000).toLocaleString('ru-RU');
 const keyFor = (device: RegisteredDevice) => JSON.stringify([device.server_id, device.device_id]);
 
-export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) {
+export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpenExplorer: () => void; canOpenExplorer?: boolean }) {
   const { snapshot, error, forget, refresh } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const [serverId, setServerId] = useState('all');
@@ -136,6 +136,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
                   busy={busy}
                   onRefresh={() => void onRefreshTv(selected)}
                   onOpenExplorer={onOpenExplorer}
+                  canOpenExplorer={canOpenExplorer}
                 />
               )}
               {!selected.online ? (
