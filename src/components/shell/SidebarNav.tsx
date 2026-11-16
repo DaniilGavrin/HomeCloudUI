@@ -30,20 +30,8 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
           <div className="homecloud-brand__orb h-9 w-9 shrink-0" aria-hidden="true" />
         </div>
 
-        <div
-          className={[
-            'homecloud-sidebar__hint',
-            hintedItem ? 'homecloud-sidebar__hint--visible' : '',
-          ].join(' ')}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {hintedItem?.label ?? ''}
-        </div>
-
         <nav
-          className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-3"
+          className="homecloud-sidebar__nav min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-3"
           aria-label="Основная навигация"
         >
           {items.map((item, index) => {
@@ -83,6 +71,11 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
                 <span className="homecloud-nav-item__icon" aria-hidden="true">
                   <Icon size={20} strokeWidth={1.8} />
                 </span>
+                {hintedItemId === item.id && (
+                  <span className="homecloud-sidebar__hint" role="tooltip">
+                    {item.label}
+                  </span>
+                )}
               </motion.button>
             );
           })}
