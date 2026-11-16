@@ -36,8 +36,8 @@ const labelFor = (id: string, clientType: string, name?: string) => {
   if (name?.trim()) return name.trim();
   if (id.startsWith('homecloud-ui-') || id.startsWith('hc-ui-')) return 'HomeCloud UI';
   const defaults: Record<string, string> = {
-    storage_service: 'Storage Service',
-    media_gateway: 'Media Gateway',
+    storage_service: 'Сервер хранения',
+    media_gateway: 'Медиашлюз',
     tv: 'TV Player',
     desktop: 'Компьютер',
     mobile: 'Мобильное устройство',
