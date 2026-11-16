@@ -146,7 +146,16 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
             </div>
             <div className="hc-devices-detail__scroll">
               <div className="hc-devices-eyebrow">Устройства / {serverLabel(selected.server_id)}</div>
-              <h2 className="hc-devices-detail__title">{labelFor(selected.device_id)}</h2>
+              <h2 className="hc-devices-detail__title">{labelFor(selected.device_id, selected.client_type, selected.name)}</h2>
+              {editingName ? (
+                <div className="hc-devices-rename">
+                  <input className="hc-devices-rename__input" value={nameDraft} maxLength={64} autoFocus onChange={e => setNameDraft(e.target.value)} aria-label="Новое имя устройства" />
+                  <button type="button" className="hc-devices-refresh" disabled={busy || !nameDraft.trim()} onClick={() => void onRename()}>Сохранить</button>
+                  <button type="button" className="hc-devices-refresh" disabled={busy} onClick={() => setEditingName(false)}>Отмена</button>
+                </div>
+              ) : (
+                <button type="button" className="hc-devices-refresh hc-devices-rename__trigger" onClick={() => { setNameDraft(selected.name || labelFor(selected.device_id, selected.client_type)); setEditingName(true); setNotice(null); }}>Переименовать</button>
+              )}
               <p className="hc-devices-subtitle">{TYPE_LABEL[kindOf(selected.client_type)]}</p>
               <div className="hc-devices-meta">
                 <div><span>Сервер</span><strong>{serverLabel(selected.server_id)}</strong></div>
