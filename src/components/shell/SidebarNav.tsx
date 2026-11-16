@@ -28,7 +28,7 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
         </div>
 
         <nav
-          className="homecloud-sidebar__nav min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-3"
+          className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-3"
           aria-label="Основная навигация"
         >
           {items.map((item, index) => {
