@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
+import {
+  Bell, Camera, CloudSun, Droplets, Flame, MonitorCog, ShieldCheck,
+  Thermometer, Workflow, Zap,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { SidebarNav } from './SidebarNav';
+import { SectionPlaceholderPage } from './SectionPlaceholderPage';
 import { navigationItems } from '../../data/navigation';
 import { useSectionPreferences } from '../../hooks/useSectionPreferences';
 import { useHomeCloudConnection } from '../../hooks/useHomeCloudConnection';
@@ -9,6 +15,19 @@ import { HomePage } from '../home/HomePage';
 import { ServersPage } from '../servers/ServersPage';
 import { SettingsPage } from '../settings/SettingsPage';
 import { HcssExplorerPage } from '../explorer/HcssExplorerPage';
+
+const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
+  security: ShieldCheck,
+  cameras: Camera,
+  energy: Zap,
+  heating: Thermometer,
+  water: Droplets,
+  gas: Flame,
+  environment: CloudSun,
+  notifications: Bell,
+  system: MonitorCog,
+  automation: Workflow,
+};
 
 export function ShellLayout() {
   const [activeId, setActiveId] = useState('home');
@@ -128,9 +147,11 @@ export function ShellLayout() {
               ) : activeId === 'settings' ? (
                 <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} />
               ) : (
-                <div className="homecloud-glass homecloud-card h-full min-h-[320px]">
-                  <div className="homecloud-card__title">{activeItem.label}</div>
-                </div>
+                <SectionPlaceholderPage
+                  title={activeItem.label}
+                  description={activeItem.description}
+                  icon={PLACEHOLDER_ICONS[activeId] ?? Workflow}
+                />
               )}
             </motion.div>
           </section>
