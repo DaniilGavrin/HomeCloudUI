@@ -11,6 +11,10 @@ pub struct DeviceRecord {
     pub server_id: String,
     pub device_id: String,
     pub client_type: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub first_seen_at: Option<u64>,
     pub online: bool,
     pub last_seen_at: Option<u64>,
 }
@@ -119,7 +123,8 @@ fn apply_device(devices: &mut Vec<DeviceRecord>, server_id: &str, device_id: &st
     } else if online {
         devices.push(DeviceRecord {
             server_id: server_id.to_owned(), device_id: device_id.to_owned(),
-            client_type: client_type.to_owned(), online: true, last_seen_at: Some(now_seconds()),
+            client_type: client_type.to_owned(), name: String::new(), first_seen_at: None,
+            online: true, last_seen_at: Some(now_seconds()),
         });
         true
     } else { false }
@@ -146,6 +151,51 @@ pub fn event(app: &AppHandle, server_id: &str, device_id: &str, client_type: &st
     if let Err(e) = edit(app, |all| Ok(apply_device(all, server_id, device_id, client_type, connected))) {
         eprintln!("[Devices] Failed to persist event: {e}");
     }
+}
+
+
+pub fn reconcile_snapshot(app: &AppHandle, server_id: &str, records: &[crate::homecloud_ws::RegisteredDevice]) {
+    if let Err(e) = edit(app, |all| {
+        let mut changed = false;
+        for record in records {
+            if record.device_id.is_empty() { continue; }
+            if let Some(old) = all.iter_mut().find(|d| d.server_id == server_id && d.device_id == record.device_id) {
+                let last_seen = Some(record.last_seen_at);
+                if old.client_type != record.client_type || old.name != record.name
+                    || old.online != record.online || old.first_seen_at != Some(record.first_seen_at)
+                    || old.last_seen_at != last_seen {
+                    old.client_type = record.client_type.clone();
+                    old.name = record.name.clone();
+                    old.first_seen_at = Some(record.first_seen_at);
+                    old.last_seen_at = last_seen;
+                    old.online = record.online;
+                    changed = true;
+                }
+            } else {
+                all.push(DeviceRecord {
+                    server_id: server_id.to_owned(),
+                    device_id: record.device_id.clone(),
+                    client_type: record.client_type.clone(),
+                    name: record.name.clone(),
+                    first_seen_at: Some(record.first_seen_at),
+                    online: record.online,
+                    last_seen_at: Some(record.last_seen_at),
+                });
+                changed = true;
+            }
+        }
+        for old in all.iter_mut().filter(|d| d.server_id == server_id) {
+            if !records.iter().any(|record| record.device_id == old.device_id) && old.online {
+                old.online = false;
+                changed = true;
+            }
+        }
+        Ok(changed)
+    }) { eprintln!("[Devices] Failed to persist server registry snapshot: {e}"); }
+}
+
+pub fn updated(app: &AppHandle, server_id: &str, record: &crate::homecloud_ws::RegisteredDevice) {
+    reconcile_snapshot(app, server_id, std::slice::from_ref(record));
 }
 
 pub fn disconnected(app: &AppHandle, server_id: &str) {
