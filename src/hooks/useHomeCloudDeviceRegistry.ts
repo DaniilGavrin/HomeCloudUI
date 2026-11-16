@@ -6,6 +6,8 @@ export type RegisteredDevice = {
   server_id: string;
   device_id: string;
   client_type: string;
+  name: string;
+  first_seen_at: number | null;
   online: boolean;
   last_seen_at: number | null;
 };
@@ -41,6 +43,10 @@ export function useHomeCloudDeviceRegistry() {
     await invoke('homecloud_device_forget', { serverId: device.server_id, deviceId: device.device_id });
   }, []);
 
+  const rename = useCallback(async (device: Pick<RegisteredDevice, 'server_id' | 'device_id'>, name: string) => {
+    await invoke('homecloud_device_rename', { serverId: device.server_id, deviceId: device.device_id, name });
+  }, []);
+
   const refresh = useCallback(async (serverId: string) => {
     await invoke('homecloud_device_refresh', { serverId });
   }, []);
@@ -49,5 +55,5 @@ export function useHomeCloudDeviceRegistry() {
     return invoke<string>('homecloud_device_send', { serverId: device.server_id, deviceId: device.device_id, payload });
   }, []);
 
-  return { snapshot, error, forget, refresh, send };
+  return { snapshot, error, forget, refresh, rename, send };
 }
