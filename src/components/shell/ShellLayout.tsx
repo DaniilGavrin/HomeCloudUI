@@ -21,6 +21,12 @@ export function ShellLayout() {
   );
 
   useEffect(() => {
+    if (activeId !== 'home' && activeId !== 'settings' && !sections[activeId as keyof typeof sections]) {
+      setActiveId('home');
+    }
+  }, [activeId, sections]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       setTime(new Date());
     }, 1000);
