@@ -65,6 +65,7 @@ pub struct ServerPool {
     refreshes: Mutex<HashMap<String, mpsc::Sender<()>>>,
     device_refreshes: Mutex<HashMap<String, mpsc::Sender<()>>>,
     deliveries: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceDelivery>>>,
+    renames: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceRenameRequest>>>,
     primary_changes: watch::Sender<u64>,
 }
 
@@ -204,7 +205,7 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let manager = ServerPool {
         file, inner: Mutex::new(PoolSnapshot { servers: entries.into_iter().map(PoolNode::new).collect(), revision: 0 }),
         tasks: Mutex::new(HashMap::new()), refreshes: Mutex::new(HashMap::new()),
-        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), primary_changes: tx,
+        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), primary_changes: tx,
     };
     app.manage(manager);
     Ok(())
@@ -292,6 +293,7 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
     p.refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::storage::disconnected(&app, &id);
     if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
     publish(&app);
@@ -310,6 +312,18 @@ pub fn refresh_devices(app: &AppHandle, id: &str) -> Result<(), String> {
     let sender = p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned();
     sender.ok_or("Этот сервер сейчас не подключён")?
         .try_send(()).map_err(|e| e.to_string())
+}
+
+
+pub async fn rename_device(app: &AppHandle, server_id: &str, device_id: String, name: String) -> Result<(), String> {
+    let sender = app.state::<ServerPool>().renames.lock().unwrap_or_else(|e| e.into_inner())
+        .get(server_id).cloned().ok_or("Этот сервер сейчас не подключён")?;
+    let (reply, receive) = oneshot::channel();
+    sender.send(crate::homecloud_ws::DeviceRenameRequest { device_id, name, reply }).await
+        .map_err(|_| "Сессия сервера закрылась")?;
+    tokio::time::timeout(Duration::from_secs(10), receive).await
+        .map_err(|_| "Тайм-аут переименования устройства")?
+        .map_err(|_| "Соединение прервалось до подтверждения переименования")?
 }
 
 pub async fn send_to_device(app: &AppHandle, server_id: &str, device_id: String, payload: Value) -> Result<String, String> {
@@ -346,6 +360,7 @@ fn start_secondary(app: AppHandle, id: String) {
     p.refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::media_rooms::disconnected(&app, &id);
     let entry = {
         let state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -391,6 +406,7 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
         app.state::<ServerPool>().refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
+        app.state::<ServerPool>().renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         crate::storage::disconnected(&app, &entry.id);
         crate::device_registry::disconnected(&app, &entry.id);
         let detail = if attempted.is_empty() {
@@ -420,7 +436,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     }
     // Subscribe before clients.list, so updates during the initial snapshot
     // are not lost. This is the SAME secondary WebSocket used for telemetry.
-    for (suffix, topic) in [("connected", "clients.connected"), ("disconnected", "clients.disconnected"),
+    for (suffix, topic) in [("connected", "clients.connected"), ("disconnected", "clients.disconnected"), ("devices-updated", "devices.updated"),
         ("media-changed", "media.room.changed"), ("media-closed", "media.room.closed")] {
         let msg = json!({"v":1,"id":format!("hc-pool-sub-{}-{suffix}", entry.id),"type":"subscribe","topic":topic});
         socket.send(Message::Text(msg.to_string().into())).await.map_err(|e| format!("subscribe failed: {e}"))?;
@@ -429,8 +445,12 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     app.state::<ServerPool>().device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).insert(entry.id.clone(), device_tx);
     let (delivery_tx, mut delivery_rx) = mpsc::channel::<crate::homecloud_ws::DeviceDelivery>(16);
     app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).insert(entry.id.clone(), delivery_tx);
+    let (rename_tx, mut rename_rx) = mpsc::channel::<crate::homecloud_ws::DeviceRenameRequest>(8);
+    app.state::<ServerPool>().renames.lock().unwrap_or_else(|e| e.into_inner()).insert(entry.id.clone(), rename_tx);
     let mut pending_deliveries: HashMap<String, oneshot::Sender<Result<String,String>>> = HashMap::new();
     let mut delivery_counter = 0u64;
+    let mut pending_renames: HashMap<String, oneshot::Sender<Result<(), String>>> = HashMap::new();
+    let mut rename_counter = 0u64;
     let mut list_counter = 0u64;
     let mut pending_list: Option<(String, tokio::time::Instant)> = None;
     let mut queued_list = true;
@@ -462,6 +482,18 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             refresh = device_rx.recv() => {
                 if refresh.is_none() { return Err("session ended: device refresh channel closed".into()); }
                 queued_list = true;
+            }
+
+            rename = rename_rx.recv() => {
+                let Some(rename) = rename else { return Err("session ended: device rename channel closed".into()); };
+                rename_counter = rename_counter.wrapping_add(1);
+                let id = format!("hc-pool-device-rename-{}-{rename_counter}", entry.id);
+                let packet = json!({"v":1,"id":id,"type":"command","action":"devices.rename","data":{"device_id":rename.device_id,"name":rename.name}});
+                if let Err(error) = socket.send(Message::Text(packet.to_string().into())).await {
+                    let _ = rename.reply.send(Err(error.to_string()));
+                    return Err(format!("session ended: device rename send error: {error}"));
+                }
+                pending_renames.insert(id, rename.reply);
             }
             storage_command = storage_rx.recv() => {
                 let Some(command) = storage_command else { return Err("session ended: storage channel closed".into()); };
@@ -531,6 +563,11 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 };
                 let Ok(payload) = serde_json::from_str::<Value>(raw.as_str()) else { continue; };
                 crate::media_rooms::on_event(app, &entry.id, &payload);
+
+                if let Some(record) = crate::homecloud_ws::parse_registered_device_event(&payload) {
+                    crate::device_registry::updated(app, &entry.id, &record);
+                    continue;
+                }
                 if let Some((connected, device)) = crate::homecloud_ws::parse_device_event(&payload) {
                     if pending_list.is_some() {
                         if deferred_events.len() < 2048 { deferred_events.push((connected, device)); }
@@ -541,6 +578,17 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     continue;
                 }
                 let id = payload.get("id").and_then(Value::as_str).unwrap_or("");
+
+                if let Some(reply) = pending_renames.remove(id) {
+                    let result = if payload.get("type").and_then(Value::as_str) == Some("result")
+                        && payload.get("action").and_then(Value::as_str) == Some("devices.rename") {
+                        Ok(())
+                    } else {
+                        Err(payload.get("error").and_then(Value::as_str).unwrap_or("Не удалось переименовать устройство").to_owned())
+                    };
+                    let _ = reply.send(result);
+                    continue;
+                }
                 if let Some(reply) = pending_storage.remove(id) {
                     let result = if payload.get("type").and_then(Value::as_str) == Some("result") {
                         Ok(payload.get("data").cloned().unwrap_or(Value::Null))
@@ -562,14 +610,12 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 if let Some((list_id, _)) = &pending_list {
                     if id == list_id {
                         if payload.get("type").and_then(Value::as_str) == Some("result")
-                            && payload.get("action").and_then(Value::as_str) == Some("clients.list") {
-                            if let Ok(mut devices) = serde_json::from_value::<Vec<crate::homecloud_ws::ConnectedDevice>>(payload.get("data").cloned().unwrap_or(Value::Null)) {
+                            && payload.get("action").and_then(Value::as_str) == Some("devices.list") {
+                            if let Ok(records) = serde_json::from_value::<Vec<crate::homecloud_ws::RegisteredDevice>>(payload.get("data").cloned().unwrap_or(Value::Null)) {
+                                crate::device_registry::reconcile_snapshot(app, &entry.id, &records);
                                 for (connected, device) in deferred_events.drain(..) {
-                                    devices.retain(|item| item.device_id != device.device_id);
-                                    if connected { devices.push(device); }
+                                    crate::device_registry::event(app, &entry.id, &device.device_id, &device.client_type, connected);
                                 }
-                                let active: Vec<(String, String)> = devices.into_iter().map(|d| (d.device_id, d.client_type)).collect();
-                                crate::device_registry::reconcile(app, &entry.id, &active);
                             } else { deferred_events.clear(); }
                         } else { deferred_events.clear(); }
                         pending_list = None;
@@ -607,7 +653,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
         if queued_list && pending_list.is_none() {
             list_counter = list_counter.wrapping_add(1);
             let id = format!("hc-pool-list-{list_counter}");
-            socket.send(Message::Text(json!({"v":1,"id":id,"type":"command","action":"clients.list"}).to_string().into()))
+            socket.send(Message::Text(json!({"v":1,"id":id,"type":"command","action":"devices.list"}).to_string().into()))
                 .await.map_err(|e| format!("session ended: {e}"))?;
             pending_list = Some((id, tokio::time::Instant::now()));
             queued_list = false;
