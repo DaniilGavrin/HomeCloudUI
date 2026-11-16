@@ -295,8 +295,8 @@ where
     let request = json!({ "v": 1, "id": id, "type": "command", "action": "devices.list" });
     tokio::time::timeout(PONG_TIMEOUT, socket.send(Message::Text(request.to_string().into())))
         .await
-        .map_err(|_| "clients.list write timed out".to_owned())?
-        .map_err(|e| format!("clients.list write failed: {e}"))?;
+        .map_err(|_| "devices.list write timed out".to_owned())?
+        .map_err(|e| format!("devices.list write failed: {e}"))?;
     Ok(id)
 }
 
@@ -601,6 +601,7 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
 
                         if let Some(record) = parse_registered_device_event(&message) {
                             crate::device_registry::updated(app, "primary", &record);
+                            refresh_queued = true;
                             continue;
                         }
 
