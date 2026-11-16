@@ -117,7 +117,7 @@ test('both Servers overview and Settings retain confirmed server removal', () =>
   assert.match(overview, /role="alertdialog"/);
   assert.match(overview, /setConfirmId\(server\.id\)/);
   assert.match(overview, /await pool\.remove\(deleting\.id\)/);
-  assert.match(overview, /Сам HomeCloudBackend не будет остановлен или удалён/);
+  assert.match(overview, /Сам сервер продолжит работать — удалится только его подключение из списка/);
   assert.match(settings, /setScreen\('delete'\)/);
   assert.match(settings, /await pool\.remove\(deleting\.id\)/);
   assert.match(poolHook, /invoke<PoolSnapshot>\('homecloud_pool_delete'/);

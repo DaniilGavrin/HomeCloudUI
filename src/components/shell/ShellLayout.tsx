@@ -84,10 +84,7 @@ export function ShellLayout() {
         <main className="homecloud-main">
           <header className="homecloud-glass homecloud-topbar">
             <div className="min-w-0">
-              <div className="text-[13px] uppercase tracking-[0.22em] text-cyan-200/70">
-                {deviceMode}
-              </div>
-              <div className="truncate text-[22px] font-semibold text-white">
+                            <div className="truncate text-[22px] font-semibold text-white">
                 {activeItem.label}
               </div>
             </div>
@@ -96,10 +93,10 @@ export function ShellLayout() {
               <div
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 backdrop-blur-xl"
                 title={connection.phase === 'online'
-                  ? `HomeCloudBackend подключён · RTT: ${connection.latency_ms ?? '—'} мс`
+                  ? `Сервер подключён · Задержка: ${connection.latency_ms ?? '—'} мс`
                   : connection.phase === 'connecting'
-                    ? 'Подключение к HomeCloudBackend'
-                    : 'Нет соединения с HomeCloudBackend'}
+                    ? 'Подключение к серверу'
+                    : 'Нет соединения с сервером'}
               >
                 <span className={[
                   'h-2 w-2 shrink-0 rounded-full',
@@ -150,13 +147,8 @@ export function ShellLayout() {
                 <SettingsPage />
               ) : (
                 <div className="homecloud-glass homecloud-card h-full min-h-[320px]">
-                  <div className="homecloud-card__eyebrow">Workspace</div>
-                  <div className="homecloud-card__title">{activeItem.label}</div>
-                  <div className="homecloud-card__text">
-                    Это основная рабочая область раздела «{activeItem.label}».
-                    Дальше сюда подключим реальные данные HomeCloudBackend.
-                  </div>
-                </div>
+                                    <div className="homecloud-card__title">{activeItem.label}</div>
+                                  </div>
               )}
             </motion.div>
           </section>

@@ -52,8 +52,8 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
       setCommandError(false);
       const outcome = String(result.command_status ?? result.status ?? 'accepted');
       setNotice(action === 'stop'
-        ? 'Backend закрыл медиакомнату и отправил закрытие Gateway и TV. При потере связи с TV физическое завершение подтвердится только после восстановления соединения.'
-        : `Команда «${action}» принята Backend (${outcome}). Ожидаем подтверждённое состояние TV.`);
+        ? 'Запрос на остановку отправлен. Если телевизор временно недоступен, результат подтвердится после восстановления связи.'
+        : `Запрос отправлен. Ожидаем подтверждение телевизора (${outcome}).`);
     } catch (cause) {
       setCommandError(true);
       setNotice(`Не удалось выполнить «${action}»: ${String(cause)}`);
@@ -68,7 +68,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
     try {
       await refreshMediaRooms(device.server_id);
       setCommandError(false);
-      setNotice('Запрос обновления медиакомнат отправлен.');
+      setNotice('Запрос на обновление состояния отправлен.');
     } catch (cause) {
       setCommandError(true);
       setNotice(`Не удалось запросить комнаты: ${String(cause)}`);
@@ -95,7 +95,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
           </svg>
         </span>
         <div>
-          <span className="hc-tv-device__eyebrow">HomeCloud · TV Device</span>
+          
           <h3>Телевизор / медиаплеер</h3>
           <p>{backendName}</p>
         </div>
@@ -107,11 +107,11 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
       <div className="hc-tv-device__facts">
         <div>
           <span>Подключение</span>
-          <strong>{device.online ? 'WebSocket-клиент подключён' : 'Соединение отсутствует'}</strong>
+          <strong>{device.online ? 'Подключено' : 'Соединение отсутствует'}</strong>
         </div>
         <div>
-          <span>Состояние медиакомнат</span>
-          <strong>{snapshot.phase === 'ready' ? 'Синхронизировано с Backend' : snapshot.phase === 'loading' ? 'Синхронизация…' : snapshot.phase === 'offline' ? 'Backend Offline' : 'Ошибка синхронизации'}</strong>
+          <span>Состояние воспроизведения</span>
+          <strong>{snapshot.phase === 'ready' ? 'Актуально' : snapshot.phase === 'loading' ? 'Синхронизация…' : snapshot.phase === 'offline' ? 'Нет соединения с сервером' : 'Ошибка синхронизации'}</strong>
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
       {snapshot.phase === 'ready' && !room && (
         <div className="hc-tv-device__empty" role="status">
           <strong>Активной медиакомнаты нет</strong>
-          <p>Комнаты создаёт Backend. Для запуска файла из HC Storage Service открой «Проводник», выбери медиафайл, затем «Воспроизвести на TV». Управление текущей комнатой остаётся здесь.</p>
+          <p>Чтобы запустить файл, открой «Проводник», выбери медиафайл и нажми «Воспроизвести на TV». Управление воспроизведением доступно здесь.</p>
         </div>
       )}
 
@@ -140,9 +140,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
         <div className="hc-tv-remote" aria-label="Пульт медиакомнаты">
           <div className="hc-tv-remote__title">
             <div>
-              <span>КОМНАТА · {room.room_id}</span>
-              <h4>{room.playback_state}</h4>
-              <p>Комната: {room.room_state} · TV attach: {room.tv_attach}</p>
+              <h4>{room.playback_state === 'PLAYING' ? 'Воспроизведение' : room.playback_state === 'PAUSED' ? 'Пауза' : room.playback_state === 'BUFFERING' ? 'Загрузка' : room.playback_state === 'ENDED' ? 'Завершено' : 'Ожидание'}</h4>
             </div>
             <span className="hc-tv-remote__position" aria-label="Позиция воспроизведения">{clock(room.position_ms)}</span>
           </div>
@@ -150,7 +148,7 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
             <button type="button" disabled={!canSeek || commandBusy} onClick={() => seek(-10000)} title="Назад 10 секунд">−10 с</button>
             <button type="button" className="hc-tv-remote__play" disabled={!ready || commandBusy} onClick={() => void send(playAction)}>{playLabel}</button>
             <button type="button" disabled={!canSeek || commandBusy} onClick={() => seek(10000)} title="Вперёд 10 секунд">+10 с</button>
-            <button type="button" className="hc-tv-remote__stop" disabled={snapshot.phase !== 'ready' || commandBusy} onClick={() => { if (window.confirm('Полностью остановить медиакомнату, поток Gateway и воспроизведение на телевизоре?')) void send('stop'); }}>Полный стоп</button>
+            <button type="button" className="hc-tv-remote__stop" disabled={snapshot.phase !== 'ready' || commandBusy} onClick={() => { if (window.confirm('Остановить воспроизведение на телевизоре?')) void send('stop'); }}>Остановить</button>
           </div>
           <div className="hc-tv-remote__volume">
             <label htmlFor="hc-tv-volume">Громкость <strong>{volumeDraft}%</strong></label>
@@ -161,17 +159,12 @@ export function TvDevicePanel({ device, backendName, busy, onRefresh, onOpenExpl
               {room.muted ? 'Включить звук' : 'Без звука'}
             </button>
           </div>
-          <p className="hc-tv-remote__status" role="status">
-            {room.control_status ? `Последняя команда: ${room.control_action ?? '—'} · ${room.control_status}${room.control_error_code ? ` · ${room.control_error_code}` : ''}` : 'Команд пока не было'}
-          </p>
-          {room.seek_target_ms != null && <p className="hc-tv-remote__status">Запрошенная перемотка: {clock(room.seek_target_ms)}. Текущая позиция TV: {clock(room.position_ms)}.</p>}
         </div>
       )}
 
       {notice && <p role="status" className={commandError ? 'hc-tv-device__error' : 'hc-tv-device__notice'}>{notice}</p>}
       <p className="hc-tv-device__hint">
-        Команды отправляются через управляющий WebSocket Backend. Принятие команды не доказывает её выполнение.
-        PLAYING/PAUSED и позиция отображаются из отчётов TV в медиакомнате; передача данных идёт через Media Gateway.
+        Состояние воспроизведения и позиция обновляются автоматически.
       </p>
     </section>
   );

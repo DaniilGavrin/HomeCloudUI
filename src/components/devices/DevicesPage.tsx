@@ -37,7 +37,7 @@ const lastSeen = (seconds: number | null) => seconds === null ? 'Нет данн
 const keyFor = (device: RegisteredDevice) => JSON.stringify([device.server_id, device.device_id]);
 
 export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) {
-  const { snapshot, error, forget, refresh, send } = useHomeCloudDeviceRegistry();
+  const { snapshot, error, forget, refresh } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const [serverId, setServerId] = useState('all');
   const [search, setSearch] = useState('');
@@ -45,14 +45,13 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
   const [status, setStatus] = useState<StatusFilter>('all');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
-  const [payloadText, setPayloadText] = useState('{\n  "action": "media.pause"\n}');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeError, setNoticeError] = useState(false);
   const reduced = Boolean(useReducedMotion());
 
   const serverNames = useMemo(() => new Map(pool.servers.map(s => [s.id, s.name])), [pool.servers]);
-  const serverLabel = (id: string) => serverNames.get(id) ?? (id === 'primary' ? 'HomeCloudBackend' : id);
+  const serverLabel = (id: string) => serverNames.get(id) ?? (id === 'primary' ? 'Основной сервер' : id);
   const activeCount = snapshot.devices.filter(d => d.online).length;
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -88,7 +87,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
     try {
       await refresh(device.server_id);
       setNoticeError(false);
-      setNotice(`Запрос списка устройств отправлен на «${serverLabel(device.server_id)}». Статус обновится по ответу Backend.`);
+      setNotice(`Запрос списка устройств отправлен на «${serverLabel(device.server_id)}». Статус обновится автоматически.`);
     } catch (cause) {
       setNoticeError(true);
       setNotice(`Не удалось обновить устройства: ${String(cause)}`);
@@ -109,17 +108,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
     finally { setBusy(false); }
   };
 
-  const onSend = async () => {
-    if (!selected?.online) return;
-    setBusy(true); setNotice(null);
-    try {
-      const data: unknown = JSON.parse(payloadText);
-      if (data === null || Array.isArray(data) || typeof data !== 'object') throw Error('Нужен JSON-объект, например {"action":"media.pause"}');
-      const result = await send(selected, data as Record<string, unknown>);
-      setNoticeError(false); setNotice(result + '. Выполнение на устройстве не подтверждено.');
-    } catch (cause) { setNoticeError(true); setNotice(String(cause)); }
-    finally { setBusy(false); }
-  };
+
 
   return (
     <section className="hc-devices-page homecloud-glass" aria-label="Устройства HomeCloud">
@@ -136,8 +125,8 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
               <p className="hc-devices-subtitle">{TYPE_LABEL[kindOf(selected.client_type)]}</p>
               <div className="hc-devices-meta">
                 <div><span>Сервер</span><strong>{serverLabel(selected.server_id)}</strong></div>
-                <div><span>Device ID</span><strong>{selected.device_id}</strong></div>
-                <div><span>Тип клиента</span><strong>{selected.client_type}</strong></div>
+                <div><span>Идентификатор</span><strong>{selected.device_id}</strong></div>
+                <div><span>Тип устройства</span><strong>{selected.client_type}</strong></div>
                 <div><span>Последний раз в сети</span><strong>{lastSeen(selected.last_seen_at)}</strong></div>
               </div>
               {selectedIsTv && (
@@ -149,15 +138,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
                   onOpenExplorer={onOpenExplorer}
                 />
               )}
-              {selected.online && !selectedIsTv ? (
-                <div className="hc-devices-command homecloud-glass">
-                  <h3>Отправить команду устройству</h3>
-                  <p>JSON отправляется через <code>clients.send</code> именно на сервер «{serverLabel(selected.server_id)}». Действие выполнится только если клиент умеет обрабатывать такую команду.</p>
-                  <label htmlFor="hc-device-payload">JSON-сообщение</label>
-                  <textarea id="hc-device-payload" spellCheck={false} value={payloadText} onChange={e => setPayloadText(e.target.value)} rows={5}/>
-                  <button type="button" className="hc-devices-refresh" disabled={busy} onClick={() => void onSend()}>Отправить JSON</button>
-                </div>
-              ) : !selected.online ? (
+              {!selected.online ? (
                 <div className="hc-devices-command homecloud-glass">
                   <h3>Устройство отключено</h3>
                   <p>Последняя известная информация сохранена локально. Команды недоступны до переподключения.</p>
@@ -176,7 +157,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
         ) : (
           <motion.div key="list" className="hc-devices-list" initial={{opacity:0,x:reduced?0:-12}} animate={{opacity:1,x:0}} exit={{opacity:0,x:reduced?0:-12}} transition={{duration:reduced ? 0.08 : 0.25}}>
             <div className="hc-devices-header">
-              <div><div className="hc-devices-eyebrow">HomeCloud · Multi-server Devices</div><h2>Устройства</h2><p>Все серверы · активные и ранее подключавшиеся клиенты</p></div>
+              <div><div className="hc-devices-eyebrow">УСТРОЙСТВА</div><h2>Устройства</h2><p>Активные и ранее подключавшиеся устройства</p></div>
               <div className="hc-devices-header__actions">
                 <span className="hc-devices-count" aria-live="polite"><span className="hc-devices-count__number">{activeCount}</span><span>в сети · {snapshot.devices.length} всего</span></span>
                 <motion.button className="hc-devices-refresh" type="button" onClick={() => void onRefresh()} disabled={busy} whileTap={reduced?undefined:{scale:.96}}>↻ Обновить</motion.button>
@@ -184,7 +165,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
             </div>
             <div className="hc-devices-controls">
               <div className="hc-devices-controls__row">
-                <label className="hc-devices-search"><span className="sr-only">Поиск устройств</span><input value={search} onChange={e=>setSearch(e.target.value)} type="search" placeholder="Поиск по ID, типу или серверу..."/></label>
+                <label className="hc-devices-search"><span className="sr-only">Поиск устройств</span><input value={search} onChange={e=>setSearch(e.target.value)} type="search" placeholder="Поиск по устройству или серверу..."/></label>
                 <label className="hc-devices-server"><span className="sr-only">Сервер</span>
                   <select value={serverId} onChange={e=>setServerId(e.target.value)}><option value="all">Все серверы</option>{pool.servers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
                 </label>
@@ -198,19 +179,19 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
             </div>
             {(error || notice) && <div className={`hc-devices-notice ${error || noticeError ? 'hc-devices-notice--error' : ''}`} role="status">{error || notice}</div>}
             <div className="hc-devices-scroll">
-              {visible.length === 0 ? <div className="hc-devices-empty"><DeviceIcon kind="other"/><strong>{snapshot.devices.length===0?'Устройства ещё не обнаружены':'Ничего не найдено'}</strong><span>{snapshot.devices.length===0?'Подключи клиента к любому серверу из пула — он появится автоматически.':'Попробуй другой сервер или фильтр.'}</span></div> :
+              {visible.length === 0 ? <div className="hc-devices-empty"><DeviceIcon kind="other"/><strong>{snapshot.devices.length===0?'Устройства ещё не обнаружены':'Ничего не найдено'}</strong><span>{snapshot.devices.length===0?'Подключи устройство к серверу HomeCloud — оно появится автоматически.':'Попробуй другой сервер или фильтр.'}</span></div> :
                 <div className="hc-devices-grid"><AnimatePresence initial={false} mode="popLayout">
                   {visible.map(device=><motion.button type="button" key={keyFor(device)} layout={!reduced} className={`hc-device-card homecloud-glass ${device.online?'':'hc-device-card--offline'} ${kindOf(device.client_type)==='tv'?'hc-device-card--tv':''}`} title={`${device.device_id} · ${serverLabel(device.server_id)}`} initial={{opacity:0,y:reduced?0:12}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:reduced?1:.96}} transition={{duration:reduced ? 0.08 : 0.22}} whileHover={reduced?undefined:{y:-3}} onClick={()=>{setSelectedKey(keyFor(device));setConfirmKey(null);setNotice(null);}}>
                     <span className="hc-device-card__top"><span className={`hc-device-icon hc-device-icon--${kindOf(device.client_type)}`}><DeviceIcon kind={kindOf(device.client_type)}/></span><span className={device.online?'hc-device-online':'hc-device-online hc-device-online--offline'}><i/>{device.online?'Online':'Offline'}</span></span>
                     <span className="hc-device-name">{labelFor(device.device_id)}</span>
                     <span className="hc-device-kind">{TYPE_LABEL[kindOf(device.client_type)]} <span>· {device.client_type}</span></span>
-                    {kindOf(device.client_type) === 'tv' && <span className="hc-device-card__tv-tag">TV Player · открыть карточку</span>}
+                    {kindOf(device.client_type) === 'tv' && <span className="hc-device-card__tv-tag">Управление TV Player</span>}
                     <span className="hc-device-card__server">⌂ {serverLabel(device.server_id)}</span>
                     <span className="hc-device-card__footer"><span>{device.online?'Подключён':'Последний раз в сети'}</span><span>{lastSeen(device.last_seen_at)}</span></span>
                   </motion.button>)}
                 </AnimatePresence></div>}
             </div>
-            <footer className="hc-devices-footer">Онлайн определяется по WebSocket · Офлайн-записи сохранены на этом устройстве · Удалять можно только Offline</footer>
+            <footer className="hc-devices-footer">Показаны активные и ранее подключавшиеся устройства. Удалить можно только отключённые устройства.</footer>
           </motion.div>
         )}
       </AnimatePresence>

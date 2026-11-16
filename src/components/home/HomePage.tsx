@@ -57,8 +57,8 @@ function clientLabel(device: RegisteredDevice): string {
 
 const SHORTCUTS: { id: string; icon: HomeIconName; title: string; description: string }[] = [
   { id: 'devices', icon: 'devices', title: 'Устройства', description: 'Активные подключения' },
-  { id: 'explorer', icon: 'storage', title: 'Проводник', description: 'Файлы HC Storage Service' },
-  { id: 'servers', icon: 'server', title: 'Серверы', description: 'Сервисы HomeCloud' },
+  { id: 'explorer', icon: 'storage', title: 'Проводник', description: 'Файлы и папки' },
+  { id: 'servers', icon: 'server', title: 'Серверы', description: 'Состояние серверов' },
 ];
 
 function LatencyGraph({ values }: { values: number[] }) {
@@ -121,9 +121,9 @@ export function HomePage({ connection, now, onNavigate }: Props) {
   const phaseLabel = connection.phase === 'online' ? 'Подключён'
     : connection.phase === 'connecting' ? 'Подключение…' : 'Нет соединения';
   const phaseDescription = connection.phase === 'online'
-    ? 'Соединение с HomeCloudBackend установлено'
+    ? 'Соединение с сервером установлено'
     : connection.phase === 'connecting'
-      ? 'Ожидаем ответа HomeCloudBackend'
+      ? 'Ожидаем ответа сервера'
       : 'Ожидаем восстановления связи с сервером';
 
   const enter = (delay: number) => ({
@@ -153,13 +153,13 @@ export function HomePage({ connection, now, onNavigate }: Props) {
 
         <motion.div className="hc-home-section-label" {...enter(0.06)}>
           <div><span className="hc-home-section-index">01</span><h2>Прямо сейчас</h2></div>
-          <span className="hc-home-caption">Данные из HomeCloudBackend</span>
+          <span className="hc-home-caption">Актуальные показатели</span>
         </motion.div>
 
         <div className="hc-home-stats">
           <motion.article className="hc-home-stat homecloud-glass" {...enter(0.1)}>
             <div className="hc-home-stat__top"><span className="hc-home-stat__icon"><HomeIcon name="cloud" /></span><span className={`hc-home-state hc-home-state--${connection.phase}`}><i />{connection.phase === 'online' ? 'ONLINE' : connection.phase === 'connecting' ? 'CONNECTING' : 'OFFLINE'}</span></div>
-            <span className="hc-home-stat__label">HomeCloudBackend</span>
+            <span className="hc-home-stat__label">Сервер HomeCloud</span>
             <strong className="hc-home-stat__value hc-home-stat__value--text">{phaseLabel}</strong>
             <span className="hc-home-stat__detail">{phaseDescription}</span>
           </motion.article>
@@ -168,14 +168,14 @@ export function HomePage({ connection, now, onNavigate }: Props) {
             <div className="hc-home-stat__top"><span className="hc-home-stat__icon hc-home-stat__icon--violet"><HomeIcon name="devices" /></span><span className="hc-home-stat__side">{count !== null ? 'LIVE' : '—'}</span></div>
             <span className="hc-home-stat__label">Активные устройства</span>
             <strong className="hc-home-stat__value hc-home-number" aria-live="polite">{count ?? '—'}<span>{count === null ? '' : 'в сети'}</span></strong>
-            <span className="hc-home-stat__detail">Активные клиенты всех серверов</span>
+            <span className="hc-home-stat__detail">Устройства, подключённые к системе</span>
           </motion.article>
 
           <motion.article className="hc-home-stat homecloud-glass" {...enter(0.2)}>
-            <div className="hc-home-stat__top"><span className="hc-home-stat__icon hc-home-stat__icon--green"><HomeIcon name="activity" /></span><span className="hc-home-stat__side">PING / PONG · 1 С</span></div>
+            <div className="hc-home-stat__top"><span className="hc-home-stat__icon hc-home-stat__icon--green"><HomeIcon name="activity" /></span><span className="hc-home-stat__side">ЗАДЕРЖКА</span></div>
             <span className="hc-home-stat__label">Задержка соединения</span>
             <strong className="hc-home-stat__value hc-home-number" aria-live="off">{connected && connection.latency_ms !== null ? connection.latency_ms : '—'}<span>{connected && connection.latency_ms !== null ? 'мс' : ''}</span></strong>
-            <span className="hc-home-stat__detail">Измерение по ответам Go Backend</span>
+            <span className="hc-home-stat__detail">Время отклика сервера</span>
           </motion.article>
         </div>
 
@@ -187,7 +187,7 @@ export function HomePage({ connection, now, onNavigate }: Props) {
         <div className="hc-home-details-grid">
           <motion.section className="hc-home-panel hc-home-device-panel homecloud-glass" {...enter(0.27)} aria-label="Подключённые устройства">
             <div className="hc-home-panel__heading">
-              <div><span className="hc-home-overline">CONNECTION MANAGER</span><h3>Подключённые устройства</h3></div>
+              <div><span className="hc-home-overline">УСТРОЙСТВА</span><h3>Подключённые устройства</h3></div>
               <button className="hc-home-icon-action" type="button" aria-label="Обновить список устройств" title="Обновить список устройств" onClick={() => void refreshAll()} disabled={pool.servers.length === 0}><HomeIcon name="refresh" size={18} /></button>
             </div>
             <div className="hc-home-devices-list" aria-live="polite">
@@ -210,11 +210,10 @@ export function HomePage({ connection, now, onNavigate }: Props) {
           </motion.section>
 
           <motion.section className="hc-home-panel hc-home-network-panel homecloud-glass" {...enter(0.3)} aria-label="Мониторинг соединения">
-            <div className="hc-home-panel__heading"><div><span className="hc-home-overline">NETWORK HEALTH</span><h3>Качество соединения</h3></div><span className={`hc-home-live-indicator ${connected ? '' : 'hc-home-live-indicator--offline'}`}><i />{connected ? 'LIVE' : 'OFFLINE'}</span></div>
+            <div className="hc-home-panel__heading"><div><span className="hc-home-overline">СЕТЬ</span><h3>Качество соединения</h3></div><span className={`hc-home-live-indicator ${connected ? '' : 'hc-home-live-indicator--offline'}`}><i />{connected ? 'LIVE' : 'OFFLINE'}</span></div>
             <div className="hc-home-network-value"><strong>{connected && averagePing !== null ? averagePing : '—'}</strong><span>{connected && averagePing !== null ? 'мс в среднем' : 'Нет измерений'}</span></div>
             <LatencyGraph values={latencySamples} />
-            <div className="hc-home-network-footer"><span>История Ping / Pong</span><span>{latencySamples.length} из 40 измерений</span></div>
-            <div className="hc-home-network-footnote">Измеряется Rust Connection Manager. График обновляется без повторного подключения к WebSocket.</div>
+            <div className="hc-home-network-footer"><span>История задержки</span><span>{latencySamples.length} из 40 измерений</span></div>
           </motion.section>
         </div>
 
@@ -239,7 +238,6 @@ export function HomePage({ connection, now, onNavigate }: Props) {
             </motion.button>
           ))}
         </div>
-        <p className="hc-home-endnote"><HomeIcon name="check" size={15} /> Показатели берутся из реального соединения; неподключённые устройства не сохраняются в списке.</p>
       </div>
     </div>
   );

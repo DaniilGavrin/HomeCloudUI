@@ -95,7 +95,7 @@ function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, a
     <div className="hc-server-details__header">
       <div className="hc-server-details__identity">
         <div className="hc-server-icon"><HostIcon /></div>
-        <div><div className="hc-servers-eyebrow">HomeCloudBackend · System Status</div><h2>{name}</h2>
+        <div><div className="hc-servers-eyebrow">Состояние сервера</div><h2>{name}</h2>
           <p>{sys?.hostname || 'Сервер'} · {addresses} · Данные на {time(data.collected_at)}</p>
           <span className={['hc-server-online', phase === 'offline' ? 'hc-server-online--offline' : phase === 'loading' || phase === 'connecting' || phase === 'error' ? 'hc-server-online--pending' : ''].filter(Boolean).join(' ')} role="status">
             <i /> {phase === 'offline' ? 'Offline' : phase === 'loading' || phase === 'connecting' ? 'Подключение' : phase === 'error' ? 'Ошибка телеметрии' : 'Online'}
@@ -147,7 +147,7 @@ function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, a
           </dl>
           {data.load_average && <div className="hc-server-submetrics"><span>Load average</span><strong>{numeric(data.load_average.one_minute, 2)} / {numeric(data.load_average.five_minutes, 2)} / {numeric(data.load_average.fifteen_minutes, 2)}</strong><small>1 / 5 / 15 мин</small></div>}
         </Section>
-        <Section title="Процесс HomeCloudBackend" description="Go Runtime" id="hc-server-process">
+        <Section title="Процесс HomeCloudBackend" description="Процесс сервера" id="hc-server-process">
           <dl className="hc-server-fields">
             <Field label="Состояние" value={data.status}/><Field label="Версия Go" value={backend?.go_version}/>
             <Field label="PID" value={backend?.pid}/><Field label="WebSocket-клиенты" value={backend?.connections}/>
@@ -204,8 +204,7 @@ function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, a
           {errors.length === 0 ? <p className="hc-server-muted">Ошибки сбора не сообщались</p> : <div className="hc-server-sublist">{errors.map(([key, message]) => <div className="hc-server-subitem" key={key}><strong>{key}</strong><p className="hc-server-warning">{message}</p></div>)}</div>}
         </Section>
       </div>
-      <details className="hc-server-expand hc-server-raw"><summary>Полный исходный JSON от system.status</summary><pre>{JSON.stringify(data, null, 2)}</pre></details>
-      <div className="hc-server-details__footer">Данные непосредственно с узла HomeCloudBackend · обновление каждые 15 секунд</div>
+      <div className="hc-server-details__footer">Данные обновляются каждые 15 секунд</div>
     </div>
   </motion.div>;
 }
@@ -362,9 +361,9 @@ export function ServersPage() {
               onClick={() => { setAdding(false); setActionError(null); }}>
               ← Назад к серверам
             </button>
-            <div className="hc-servers-eyebrow">HomeCloud · Server Pool</div>
+            <div className="hc-servers-eyebrow">Серверы HomeCloud</div>
             <h2>Добавить сервер</h2>
-            <p>Добавление узла в общий пул по IPv4 или IPv6. Порт HomeCloudBackend — 8080.</p>
+            <p>Добавление узла в общий пул по IPv4 или IPv6. Порт сервера — 8080.</p>
           </div>
           <form className="hc-server-add-form homecloud-glass" onSubmit={event => void submitNewServer(event)}>
             <label>Название сервера
@@ -399,14 +398,14 @@ export function ServersPage() {
           exit={{ opacity: 0, x: reduced ? 0 : -12 }}
           transition={{ duration: reduced ? .08 : .2 }}>
           <header className="hc-server-add-page__header">
-            <div className="hc-servers-eyebrow">HomeCloud · Server Pool</div>
+            <div className="hc-servers-eyebrow">Серверы HomeCloud</div>
             <h2>Удаление сервера</h2>
           </header>
           <div className="hc-server-delete-page__confirm homecloud-glass" role="alertdialog"
             aria-labelledby="hc-delete-server-title" aria-describedby="hc-delete-server-description">
             <h3 id="hc-delete-server-title">Удалить «{deleting.name}»?</h3>
             <p className="hc-server-delete-page__address">{addressLabel(deleting)}</p>
-            <p id="hc-delete-server-description">Подключение будет остановлено, а запись исчезнет из списка серверов и настроек. Сам HomeCloudBackend не будет остановлен или удалён.</p>
+            <p id="hc-delete-server-description">Подключение будет остановлено, а запись исчезнет из списка серверов и настроек. Сам сервер продолжит работать — удалится только его подключение из списка.</p>
             {actionError && <p className="hc-servers-message hc-servers-message--warning" role="alert">{actionError}</p>}
             <div className="hc-server-delete-page__actions">
               <button type="button" className="hc-server-action" autoFocus disabled={removing}
@@ -434,7 +433,7 @@ export function ServersPage() {
               <div className="hc-server-details__identity">
                 <span className="hc-server-icon"><HostIcon /></span>
                 <div>
-                  <div className="hc-servers-eyebrow">HomeCloud · Server</div>
+                  <div className="hc-servers-eyebrow">Сервер HomeCloud</div>
                   <h2>{selected.name}</h2>
                   <p>{addressLabel(selected)}</p>
                   {status(selected)}
@@ -462,7 +461,7 @@ export function ServersPage() {
           transition={{ duration: reduced ? .08 : .2 }}>
           <header className="hc-servers-header">
             <div>
-              <div className="hc-servers-eyebrow">Infrastructure / Nodes</div>
+              <div className="hc-servers-eyebrow"> </div>
               <h2>Серверы HomeCloud</h2>
               <p>Мониторинг узлов, ресурсы и доступность всей распределённой системы.</p>
             </div>
@@ -505,7 +504,7 @@ export function ServersPage() {
           <div className="hc-servers-list">
             {servers.map((server, index) => {
               const isOnline = server.phase === 'ready' || server.phase === 'loading';
-              const os = server.data?.system?.platform || server.data?.system?.os_family || server.data?.system?.goos || 'HomeCloudBackend';
+              const os = server.data?.system?.platform || server.data?.system?.os_family || server.data?.system?.goos || 'HomeCloud';
               const data = server.data;
               return <motion.article key={server.id}
                 className={`hc-server-card homecloud-glass hc-server-card--accent-${index % 3}`}
