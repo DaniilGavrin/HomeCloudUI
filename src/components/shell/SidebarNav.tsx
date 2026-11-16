@@ -21,14 +21,14 @@ type SidebarNavProps = {
 export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
 
   return (
-    <aside className="homecloud-glass homecloud-sidebar w-[68px] shrink-0" aria-label="HomeCloud">
+    <aside className="homecloud-glass homecloud-sidebar w-16 shrink-0" aria-label="HomeCloud">
       <div className="flex h-full flex-col">
-        <div className="flex justify-center px-2 pb-4 pt-5">
+        <div className="flex shrink-0 justify-center px-2 pb-3 pt-3">
           <div className="homecloud-brand__orb h-9 w-9 shrink-0" aria-hidden="true" />
         </div>
 
         <nav
-          className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1.5 pb-3"
+          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-1.5 pb-3"
           aria-label="Основная навигация"
         >
           {items.map((item, index) => {
