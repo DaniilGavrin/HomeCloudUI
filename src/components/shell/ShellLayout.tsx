@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { SidebarNav } from './SidebarNav';
 import { navigationItems } from '../../data/navigation';
+import { useSectionPreferences } from '../../hooks/useSectionPreferences';
 import { useHomeCloudConnection } from '../../hooks/useHomeCloudConnection';
 import { DevicesPage } from '../devices/DevicesPage';
 import { HomePage } from '../home/HomePage';
@@ -13,6 +14,11 @@ export function ShellLayout() {
   const [activeId, setActiveId] = useState('home');
   const [time, setTime] = useState(() => new Date());
   const connection = useHomeCloudConnection();
+  const { sections, setEnabled } = useSectionPreferences();
+  const visibleNavigationItems = useMemo(
+    () => navigationItems.filter((item) => item.id === 'home' || item.id === 'settings' || sections[item.id as keyof typeof sections]),
+    [sections],
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -46,7 +52,7 @@ export function ShellLayout() {
 
       <div className="homecloud-shell__content">
         <SidebarNav
-          items={navigationItems}
+          items={visibleNavigationItems}
           activeId={activeId}
           onChange={setActiveId}
         />
@@ -106,7 +112,7 @@ export function ShellLayout() {
               className="h-full"
             >
               {activeId === 'home' ? (
-                <HomePage connection={connection} now={time} onNavigate={setActiveId} />
+                <HomePage connection={connection} now={time} onNavigate={setActiveId} enabledSections={sections} />
               ) : activeId === 'devices' ? (
                 <DevicesPage onOpenExplorer={() => setActiveId('explorer')} />
               ) : activeId === 'explorer' ? (
@@ -114,7 +120,7 @@ export function ShellLayout() {
               ) : activeId === 'servers' ? (
                 <ServersPage />
               ) : activeId === 'settings' ? (
-                <SettingsPage />
+                <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} />
               ) : (
                 <div className="homecloud-glass homecloud-card h-full min-h-[320px]">
                   <div className="homecloud-card__title">{activeItem.label}</div>
