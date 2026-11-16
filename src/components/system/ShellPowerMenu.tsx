@@ -119,7 +119,7 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
               <strong>Перезапустить интерфейс</strong>
               <small>Сервер и подключённые устройства продолжат работу</small>
             </span>
-            <ShellIcon name="arrow" className="hc-power-chevron" />
+            <ArrowRight size={17} strokeWidth={1.7} className="hc-power-chevron" aria-hidden="true" />
           </motion.button>
 
           <div className="hc-power-separator" />
@@ -133,12 +133,12 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
             transition={{ duration: reducedMotion ? 0.08 : 0.26, delay: reducedMotion ? 0 : 0.22 }}
             {...actionMotion}
           >
-            <span className="hc-power-action-icon"><ShellIcon name="power" /></span>
+            <span className="hc-power-action-icon"><Power size={22} strokeWidth={1.7} aria-hidden="true" /></span>
             <span className="hc-power-action-text">
               <strong>Выключить питание</strong>
               <small>Закрыть приложение HomeCloud</small>
             </span>
-            <ShellIcon name="arrow" className="hc-power-chevron" />
+            <ArrowRight size={17} strokeWidth={1.7} className="hc-power-chevron" aria-hidden="true" />
           </motion.button>
         </div>
         {error && (
