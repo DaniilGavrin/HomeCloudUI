@@ -73,7 +73,6 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
           <div className="hc-power-symbol"><ShellIcon name="power" /></div>
           <div className="hc-power-heading">
             <h2>Питание</h2>
-            <p>Управление оболочкой HomeCloud</p>
           </div>
           <motion.button
             type="button"
@@ -117,8 +116,8 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
           >
             <span className="hc-power-action-icon"><ShellIcon name="restart" /></span>
             <span className="hc-power-action-text">
-              <strong>Перезагрузить оболочку</strong>
-              <small>Перезагрузить интерфейс, не отключая сервер</small>
+              <strong>Перезапустить интерфейс</strong>
+              <small>Сервер и подключённые устройства продолжат работу</small>
             </span>
             <ShellIcon name="arrow" className="hc-power-chevron" />
           </motion.button>
