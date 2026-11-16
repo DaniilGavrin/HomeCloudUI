@@ -37,6 +37,23 @@ pub struct ConnectedDevice {
     pub client_type: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RegisteredDevice {
+    pub device_id: String,
+    pub client_type: String,
+    #[serde(default)]
+    pub name: String,
+    pub first_seen_at: u64,
+    pub last_seen_at: u64,
+    pub online: bool,
+}
+
+pub struct DeviceRenameRequest {
+    pub device_id: String,
+    pub name: String,
+    pub reply: oneshot::Sender<Result<(), String>>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct DeviceSnapshot {
     // "offline", "loading", "ready", "error"
@@ -68,6 +85,7 @@ pub struct ConnectionManager {
     server: Mutex<ServerSnapshot>,
     server_refresh: Mutex<Option<mpsc::Sender<()>>>,
     delivery: Mutex<Option<mpsc::Sender<DeviceDelivery>>>,
+    rename: Mutex<Option<mpsc::Sender<DeviceRenameRequest>>>,
 
 }
 
@@ -94,6 +112,7 @@ impl Default for ConnectionManager {
             }),
             server_refresh: Mutex::new(None),
             delivery: Mutex::new(None),
+            rename: Mutex::new(None),
         }
     }
 }
@@ -121,6 +140,18 @@ pub fn refresh_devices(manager: &ConnectionManager) -> Result<(), String> {
     let channel = manager.refresh.lock().unwrap_or_else(|e| e.into_inner()).clone();
     channel.ok_or("Нет подключения к основному серверу")?
         .try_send(()).map_err(|e| e.to_string())
+}
+
+
+pub async fn rename_device(app: &AppHandle, device_id: String, name: String) -> Result<(), String> {
+    let sender = app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        .ok_or("Нет подключения к основному серверу")?;
+    let (reply, receive) = oneshot::channel();
+    sender.send(DeviceRenameRequest { device_id, name, reply }).await
+        .map_err(|_| "Соединение с сервером закрыто")?;
+    tokio::time::timeout(Duration::from_secs(10), receive).await
+        .map_err(|_| "Тайм-аут переименования устройства")?
+        .map_err(|_| "Соединение прервалось до подтверждения переименования")?
 }
 
 pub async fn send_to_device(app: &AppHandle, device_id: String, payload: Value) -> Result<String, String> {
@@ -247,13 +278,21 @@ pub(crate) fn parse_device_event(message: &Value) -> Option<(bool, ConnectedDevi
     Some((connected, device))
 }
 
+
+pub(crate) fn parse_registered_device_event(message: &Value) -> Option<RegisteredDevice> {
+    if message.get("type")?.as_str()? != "event" || message.get("topic")?.as_str()? != "devices.updated" {
+        return None;
+    }
+    serde_json::from_value::<RegisteredDevice>(message.pointer("/data/payload")?.clone()).ok()
+}
+
 async fn send_device_list<S>(socket: &mut S, request_counter: &mut u64) -> Result<String, String>
 where
     S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
     *request_counter = request_counter.wrapping_add(1);
     let id = format!("homecloud-devices-list-{}", *request_counter);
-    let request = json!({ "v": 1, "id": id, "type": "command", "action": "clients.list" });
+    let request = json!({ "v": 1, "id": id, "type": "command", "action": "devices.list" });
     tokio::time::timeout(PONG_TIMEOUT, socket.send(Message::Text(request.to_string().into())))
         .await
         .map_err(|_| "clients.list write timed out".to_owned())?
@@ -301,6 +340,7 @@ pub fn start(app: AppHandle) {
                         crate::storage::disconnected(&app, "primary");
                         crate::media_rooms::disconnected(&app, "primary");
                         *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                        *app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         publish_devices(&app, "offline", Vec::new(), None);
                         publish_status(&app, "offline", None);
                     }
@@ -316,6 +356,7 @@ pub fn start(app: AppHandle) {
             *app.state::<ConnectionManager>().refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().server_refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            *app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()) = None;
             publish_server(&app, "offline", None, None);
             publish_devices(&app, "offline", Vec::new(), None);
             publish_status(&app, "offline", None);
@@ -370,6 +411,7 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
     for (id, topic) in [
         ("homecloud-sub-connected", "clients.connected"),
         ("homecloud-sub-disconnected", "clients.disconnected"),
+        ("homecloud-sub-devices-updated", "devices.updated"),
         ("homecloud-sub-media-changed", "media.room.changed"),
         ("homecloud-sub-media-closed", "media.room.closed"),
     ] {
@@ -386,6 +428,8 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
 
     let (delivery_tx, mut delivery_rx) = mpsc::channel::<DeviceDelivery>(16);
     *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = Some(delivery_tx);
+    let (rename_tx, mut rename_rx) = mpsc::channel::<DeviceRenameRequest>(8);
+    *app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()) = Some(rename_tx);
     let (storage_tx, mut storage_rx) = mpsc::channel::<crate::storage::StorageRequest>(16);
     crate::storage::connected(app, "primary", storage_tx.clone());
     crate::media_rooms::connected(app, "primary");
@@ -393,6 +437,8 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
     let mut storage_counter = 0u64;
     let mut pending_deliveries: HashMap<String, oneshot::Sender<Result<String, String>>> = HashMap::new();
     let mut delivery_counter = 0u64;
+    let mut pending_renames: HashMap<String, oneshot::Sender<Result<(), String>>> = HashMap::new();
+    let mut rename_counter = 0u64;
 
     let mut request_counter = 0u64;
     let first_id = send_device_list(&mut socket, &mut request_counter).await?;
@@ -498,6 +544,18 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                     list_pending = Some((id, tokio::time::Instant::now()));
                 }
             }
+
+            rename = rename_rx.recv() => {
+                let Some(rename) = rename else { return Err("device rename channel closed".into()); };
+                rename_counter = rename_counter.wrapping_add(1);
+                let id = format!("homecloud-device-rename-{rename_counter}");
+                let request = json!({"v":1,"id":id,"type":"command","action":"devices.rename","data":{"device_id":rename.device_id,"name":rename.name}});
+                if let Err(error) = socket.send(Message::Text(request.to_string().into())).await {
+                    let _ = rename.reply.send(Err(error.to_string()));
+                    return Err(format!("device rename send failed: {error}"));
+                }
+                pending_renames.insert(id, rename.reply);
+            }
             storage_command = storage_rx.recv() => {
                 let Some(command) = storage_command else { return Err("storage channel closed".into()); };
                 storage_counter = storage_counter.wrapping_add(1);
@@ -540,6 +598,12 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                         }
 
                         crate::media_rooms::on_event(app, "primary", &message);
+
+                        if let Some(record) = parse_registered_device_event(&message) {
+                            crate::device_registry::updated(app, "primary", &record);
+                            continue;
+                        }
+
                         if let Some((connected, device)) = parse_device_event(&message) {
                             if list_pending.is_some() {
                                 // Never allow a slightly older list snapshot to overwrite newer events.
@@ -561,6 +625,18 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                         }
 
                         let response_id = message.get("id").and_then(Value::as_str).unwrap_or("");
+
+                        if let Some(reply) = pending_renames.remove(response_id) {
+                            let result = if message.get("type").and_then(Value::as_str) == Some("result")
+                                && message.get("action").and_then(Value::as_str) == Some("devices.rename") {
+                                Ok(())
+                            } else {
+                                Err(message.get("error").and_then(Value::as_str).unwrap_or("Не удалось переименовать устройство").to_owned())
+                            };
+                            let _ = reply.send(result);
+                            continue;
+                        }
+
                         if let Some(reply) = pending_storage.remove(response_id) {
                             let result = if message.get("type").and_then(Value::as_str) == Some("result") {
                                 Ok(message.get("data").cloned().unwrap_or(Value::Null))
@@ -608,10 +684,12 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                             if response_id == id {
                                 let valid_result = message.get("v").and_then(Value::as_i64) == Some(1)
                                     && message.get("type").and_then(Value::as_str) == Some("result")
-                                    && message.get("action").and_then(Value::as_str) == Some("clients.list");
+                                    && message.get("action").and_then(Value::as_str) == Some("devices.list");
                                 if valid_result {
-                                    match serde_json::from_value::<Vec<ConnectedDevice>>(message.get("data").cloned().unwrap_or(Value::Null)) {
-                                        Ok(mut devices) => {
+                                    match serde_json::from_value::<Vec<RegisteredDevice>>(message.get("data").cloned().unwrap_or(Value::Null)) {
+                                        Ok(records) => {
+                                            crate::device_registry::reconcile_snapshot(app, "primary", &records);
+                                            let mut devices: Vec<ConnectedDevice> = records.iter().filter(|d| d.online).map(|d| ConnectedDevice { device_id: d.device_id.clone(), client_type: d.client_type.clone() }).collect();
                                             for (connected, device) in deferred_events.drain(..) {
                                                 apply_device_change(&mut devices, connected, device);
                                             }
