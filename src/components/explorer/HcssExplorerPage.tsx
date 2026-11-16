@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Archive, Code2, File, FileImage, FileText, Folder, FolderInput, Music2, Video, X } from 'lucide-react';
+import { Archive, ArrowRight, Code2, File, FileImage, FileText, Folder, FolderInput, HardDrive, Music2, Video, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -687,7 +687,7 @@ export function HcssExplorerPage() {
 
   return <section ref={explorerRef} className="hc-explorer" aria-label="Проводник HomeCloud">
     <aside className="hc-explorer-sidebar" aria-label="Места">
-      <div className="hc-explorer-brand"><span className="hc-explorer-brand__mark">▤</span>
+      <div className="hc-explorer-brand"><span className="hc-explorer-brand__mark"><HardDrive size={21} strokeWidth={1.7} aria-hidden="true" /></span>
         <div><strong>Проводник</strong></div></div>
       <div className="hc-explorer-sidebar__section">
         <span className="hc-explorer-sidebar__label">Сервер</span>
@@ -711,7 +711,7 @@ export function HcssExplorerPage() {
         {roots.map(r=><button key={rootKey(r)} type="button"
           className={rootId===rootKey(r)?'is-active':''}
           disabled={busy} onClick={()=>changeRoot(rootKey(r))}>
-          <span>▣</span><em>{r.name||r.id}</em><i>{r.kind}</i>
+          <HardDrive size={16} strokeWidth={1.7} aria-hidden="true" /><em>{r.name||r.id}</em><i>{r.kind}</i>
         </button>)}
         {root&&<button type="button" data-hc-drop-path="" onClick={()=>navigate('')}
           className={!folder?'is-active':''} disabled={busy}>
@@ -874,10 +874,10 @@ export function HcssExplorerPage() {
     </div>}
 
     {notice&&!modal&&<div className="hc-explorer-toast" role="status">
-      <span>{notice}</span><button type="button" aria-label="Закрыть" onClick={()=>setNotice('')}>×</button>
+      <span>{notice}</span><button type="button" aria-label="Закрыть" onClick={()=>setNotice('')}><X size={16} strokeWidth={1.8} aria-hidden="true" /></button>
     </div>}
     {error&&browseStatus!=='error'&&!modal&&<div className="hc-explorer-toast hc-explorer-toast--error" role="alert">
-      <span>{error}</span><button type="button" aria-label="Закрыть" onClick={()=>setError('')}>×</button>
+      <span>{error}</span><button type="button" aria-label="Закрыть" onClick={()=>setError('')}><X size={16} strokeWidth={1.8} aria-hidden="true" /></button>
     </div>}
     {busy&&progress&&<div className="hc-explorer-progress" role="status">
       {progress.role==='upload'?'Загрузка':progress.role==='copy'?'Копирование':'Скачивание'} · {formatBytes(progress.completed_bytes)}
@@ -894,7 +894,7 @@ export function HcssExplorerPage() {
           modal.type==='delete'?'Удалить выбранное':
           modal.type==='destination'?(modal.mode==='copy'?'Копировать в папку':'Переместить в папку'):
           modal.type==='tv'?'Воспроизвести на телевизоре':'История операций'}</h3>
-          <button type="button" aria-label="Закрыть окно" disabled={busy} onClick={()=>setModal(null)}>×</button></header>
+          <button type="button" aria-label="Закрыть окно" disabled={busy} onClick={()=>setModal(null)}><X size={16} strokeWidth={1.8} aria-hidden="true" /></button></header>
         {(modal.type==='create-folder'||modal.type==='create-file'||modal.type==='rename')&&
           <label className="hc-explorer-dialog__field">Имя
             <input autoFocus maxLength={180} value={name} onChange={e=>setName(e.target.value)}
@@ -925,7 +925,7 @@ export function HcssExplorerPage() {
           <div className="hc-explorer-destination__folders">
             {destLoading?<p>Загружаем каталоги…</p>:destItems.map(item=><button type="button"
               key={item.path} onClick={()=>setDestFolder(item.path)}>
-              <span>▤</span>{item.name}<span>›</span></button>)}
+              <Folder size={15} strokeWidth={1.7} aria-hidden="true" />{item.name}<ArrowRight size={14} strokeWidth={1.7} aria-hidden="true" /></button>)}
             {destCursor&&<button type="button" onClick={()=>void loadMore(true)}>Показать ещё</button>}
             {!destLoading&&!destItems.length&&<p>Вложенных каталогов нет — можно выбрать текущий.</p>}
           </div>
