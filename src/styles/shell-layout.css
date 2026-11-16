@@ -41,9 +41,40 @@
 }
 
 .homecloud-sidebar {
+    position: relative;
     height: 100%;
-    border-radius: 28px;
-    overflow: hidden;
+    border-radius: 22px;
+    overflow: visible;
+}
+
+.homecloud-sidebar__hint {
+    position: absolute;
+    z-index: 20;
+    top: 18px;
+    left: calc(100% + 12px);
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    max-width: 220px;
+    padding: 9px 14px;
+    border: 1px solid rgba(148, 220, 255, 0.2);
+    border-radius: 12px;
+    background: rgba(8, 15, 28, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.homecloud-sidebar__hint--visible {
+    opacity: 1;
+    transform: translateX(0);
 }
 
 .homecloud-brand {
@@ -82,12 +113,13 @@
 
 .homecloud-nav-item {
     width: 100%;
-    min-height: 70px;
+    min-height: 54px;
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 12px 14px;
-    border-radius: 22px;
+    justify-content: center;
+    gap: 0;
+    padding: 6px;
+    border-radius: 17px;
     border: 1px solid transparent;
     background: rgba(255, 255, 255, 0.025);
     transition:
@@ -115,15 +147,13 @@
 
 .homecloud-nav-item__icon {
     flex-shrink: 0;
-    width: 42px;
-    height: 42px;
-    border-radius: 16px;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    font-size: 15px;
-    font-weight: 700;
     background:
             linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -197,21 +227,25 @@
     }
 }
 
-/* Narrow touch displays: preserve the left sidebar and make the top bar fit. */
-.homecloud-nav-item:focus-visible { outline: 2px solid #9cecff; outline-offset: -2px; }
-@media (max-width: 900px) {
-  .homecloud-shell__content { gap: 11px; padding: 11px; }
-  .homecloud-sidebar { border-radius: 20px; }
-  .homecloud-topbar { padding: 8px 14px; gap: 10px; border-radius: 20px; }
-  .hc-shell-topbar__right { gap: 10px; }
+.homecloud-nav-item:focus-visible {
+    outline: 2px solid #9cecff;
+    outline-offset: -2px;
 }
+
+@media (max-width: 900px) {
+    .homecloud-shell__content { gap: 11px; padding: 11px; }
+    .homecloud-sidebar { border-radius: 20px; }
+    .homecloud-topbar { padding: 8px 14px; gap: 10px; border-radius: 20px; }
+    .hc-shell-topbar__right { gap: 10px; }
+}
+
 @media (max-width: 630px) {
-  .homecloud-shell__content { gap: 8px; padding: 8px; }
-  .homecloud-topbar { padding: 8px 10px; min-height: 60px; }
-  .homecloud-topbar .text-\[22px\] { font-size: 16px; }
-  .homecloud-topbar .text-\[30px\] { font-size: 19px; }
-  .hc-shell-topbar__clock .text-\[13px\] { display: none; }
-  .hc-shell-topbar__right { gap: 7px; }
-  .hc-shell-topbar__right > div:first-child { padding: 6px 8px; gap: 5px; }
-  .hc-shell-topbar__right > div:first-child span { font-size: 11px; }
+    .homecloud-shell__content { gap: 8px; padding: 8px; }
+    .homecloud-topbar { padding: 8px 10px; min-height: 60px; }
+    .homecloud-topbar .text-\\[22px\\] { font-size: 16px; }
+    .homecloud-topbar .text-\\[30px\\] { font-size: 19px; }
+    .hc-shell-topbar__clock .text-\\[13px\\] { display: none; }
+    .hc-shell-topbar__right { gap: 7px; }
+    .hc-shell-topbar__right > div:first-child { padding: 6px 8px; gap: 5px; }
+    .hc-shell-topbar__right > div:first-child span { font-size: 11px; }
 }
