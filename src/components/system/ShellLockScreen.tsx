@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ShellIcon } from './ShellIcon';
+import { ArrowRight, Cloud, Lock, Unlock } from 'lucide-react';
 
 type Props = { onUnlock: () => void };
 
@@ -53,7 +53,7 @@ export function ShellLockScreen({ onUnlock }: Props) {
       />
       <div className="hc-lock-content">
         <motion.div className="hc-lock-brand" {...reveal(0.08, -12)}>
-          <ShellIcon name="cloud" /> <span>HomeCloud</span>
+          <Cloud size={22} strokeWidth={1.7} aria-hidden="true" /> <span>HomeCloud</span>
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -71,7 +71,7 @@ export function ShellLockScreen({ onUnlock }: Props) {
         </AnimatePresence>
         <motion.div className="hc-lock-date" {...reveal(0.22, 16)}>{date}</motion.div>
         <motion.div className="hc-lock-status" {...reveal(0.29, 12)}>
-          <ShellIcon name="lock" /> Интерфейс заблокирован
+          <Lock size={17} strokeWidth={1.7} aria-hidden="true" /> Интерфейс заблокирован
         </motion.div>
         <motion.button
           className="hc-lock-unlock"
@@ -84,8 +84,8 @@ export function ShellLockScreen({ onUnlock }: Props) {
           whileHover={reducedMotion ? undefined : { y: -3, scale: 1.035 }}
           whileTap={reducedMotion ? undefined : { scale: 0.965 }}
         >
-          <ShellIcon name="unlock" /> Разблокировать
-          <ShellIcon name="arrow" className="hc-lock-unlock-arrow" />
+          <Unlock size={18} strokeWidth={1.7} aria-hidden="true" /> Разблокировать
+          <ArrowRight size={17} strokeWidth={1.7} className="hc-lock-unlock-arrow" aria-hidden="true" />
         </motion.button>
       </div>
     </motion.section>
