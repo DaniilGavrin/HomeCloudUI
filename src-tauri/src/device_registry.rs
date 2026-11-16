@@ -239,15 +239,23 @@ pub fn forget_server(app: &AppHandle, server_id: &str) -> Result<(), String> {
     })
 }
 
+pub fn removed(app: &AppHandle, server_id: &str, device_id: &str) {
+    if let Err(e) = edit(app, |all| {
+        let old = all.len();
+        all.retain(|d| !(d.server_id == server_id && d.device_id == device_id));
+        Ok(old != all.len())
+    }) { eprintln!("[Devices] Failed to remove forgotten device: {e}"); }
+}
+
 #[tauri::command]
-pub fn homecloud_device_forget(app: AppHandle, server_id: String, device_id: String) -> Result<(), String> {
-    edit(&app, |all| {
-        let position = all.iter().position(|d| d.server_id == server_id && d.device_id == device_id)
-            .ok_or("Устройство не найдено")?;
-        if all[position].online { return Err("Нельзя удалить устройство, пока оно подключено".into()); }
-        all.remove(position);
-        Ok(true)
-    })
+pub async fn homecloud_device_forget(app: AppHandle, server_id: String, device_id: String) -> Result<(), String> {
+    if server_id == "primary" {
+        crate::homecloud_ws::forget_device(&app, device_id).await?;
+    } else {
+        crate::server_pool::forget_device(&app, &server_id, device_id.clone()).await?;
+    }
+    removed(&app, &server_id, &device_id);
+    Ok(())
 }
 
 #[tauri::command]
