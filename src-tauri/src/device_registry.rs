@@ -251,6 +251,15 @@ pub fn homecloud_device_forget(app: AppHandle, server_id: String, device_id: Str
 }
 
 #[tauri::command]
+pub async fn homecloud_device_rename(app: AppHandle, server_id: String, device_id: String, name: String) -> Result<(), String> {
+    if server_id == "primary" {
+        crate::homecloud_ws::rename_device(&app, device_id, name).await
+    } else {
+        crate::server_pool::rename_device(&app, &server_id, device_id, name).await
+    }
+}
+
+#[tauri::command]
 pub fn homecloud_device_refresh(app: AppHandle, server_id: String) -> Result<(), String> {
     if server_id == "primary" {
         let manager = app.state::<crate::homecloud_ws::ConnectionManager>();
