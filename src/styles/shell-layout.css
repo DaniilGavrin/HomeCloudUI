@@ -242,9 +242,9 @@
 @media (max-width: 630px) {
     .homecloud-shell__content { gap: 8px; padding: 8px; }
     .homecloud-topbar { padding: 8px 10px; min-height: 60px; }
-    .homecloud-topbar .text-\\[22px\\] { font-size: 16px; }
-    .homecloud-topbar .text-\\[30px\\] { font-size: 19px; }
-    .hc-shell-topbar__clock .text-\\[13px\\] { display: none; }
+    .homecloud-topbar .text-\[22px\] { font-size: 16px; }
+    .homecloud-topbar .text-\[30px\] { font-size: 19px; }
+    .hc-shell-topbar__clock .text-\[13px\] { display: none; }
     .hc-shell-topbar__right { gap: 7px; }
     .hc-shell-topbar__right > div:first-child { padding: 6px 8px; gap: 5px; }
     .hc-shell-topbar__right > div:first-child span { font-size: 11px; }
