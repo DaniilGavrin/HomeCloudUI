@@ -7,12 +7,11 @@ export type SectionPreferences = Record<SectionId, boolean>;
 const STORAGE_KEY = 'homecloud:section-preferences:v1';
 const STORAGE_VERSION = 1;
 
-const SECTION_IDS = navigationItems
-  .filter((item) => item.id !== 'home' && item.id !== 'settings')
-  .map((item) => item.id) as SectionId[];
+const SECTION_ITEMS = navigationItems.filter((item) => item.id !== 'home' && item.id !== 'settings');
+const SECTION_IDS = SECTION_ITEMS.map((item) => item.id) as SectionId[];
 
 const DEFAULT_PREFERENCES = Object.fromEntries(
-  SECTION_IDS.map((id) => [id, true]),
+  SECTION_ITEMS.map((item) => [item.id, item.defaultEnabled ?? true]),
 ) as SectionPreferences;
 
 function normalizePreferences(value: unknown): SectionPreferences {
