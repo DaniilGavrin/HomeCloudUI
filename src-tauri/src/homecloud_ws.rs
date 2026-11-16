@@ -601,7 +601,12 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
 
                         if let Some(record) = parse_registered_device_event(&message) {
                             crate::device_registry::updated(app, "primary", &record);
-                            refresh_queued = true;
+                            if list_pending.is_some() {
+                                refresh_queued = true;
+                            } else {
+                                let id = send_device_list(&mut socket, &mut request_counter).await?;
+                                list_pending = Some((id, tokio::time::Instant::now()));
+                            }
                             continue;
                         }
 
@@ -699,7 +704,7 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                                         }
                                         Err(error) => {
                                             deferred_events.clear();
-                                            publish_devices(app, "error", Vec::new(), Some(format!("Неверный ответ clients.list: {error}")));
+                                            publish_devices(app, "error", Vec::new(), Some(format!("Неверный ответ devices.list: {error}")));
                                         }
                                     }
                                 } else {
