@@ -250,7 +250,7 @@ pub fn removed(app: &AppHandle, server_id: &str, device_id: &str) {
 #[tauri::command]
 pub async fn homecloud_device_forget(app: AppHandle, server_id: String, device_id: String) -> Result<(), String> {
     if server_id == "primary" {
-        crate::homecloud_ws::forget_device(&app, device_id).await?;
+        crate::homecloud_ws::forget_device(&app, device_id.clone()).await?;
     } else {
         crate::server_pool::forget_device(&app, &server_id, device_id.clone()).await?;
     }
