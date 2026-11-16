@@ -73,14 +73,8 @@
     line-height: 1.2;
     white-space: nowrap;
     pointer-events: none;
-    opacity: 0;
-    transform: translateY(-50%) translateX(-4px);
-    transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.homecloud-sidebar__hint {
     opacity: 1;
-    transform: translateY(-50%) translateX(0);
+    transform: translateY(-50%);
 }
 
 .homecloud-brand {
