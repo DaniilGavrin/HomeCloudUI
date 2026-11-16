@@ -54,6 +54,11 @@ pub struct DeviceRenameRequest {
     pub reply: oneshot::Sender<Result<(), String>>,
 }
 
+pub struct DeviceForgetRequest {
+    pub device_id: String,
+    pub reply: oneshot::Sender<Result<(), String>>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct DeviceSnapshot {
     // "offline", "loading", "ready", "error"
@@ -86,6 +91,7 @@ pub struct ConnectionManager {
     server_refresh: Mutex<Option<mpsc::Sender<()>>>,
     delivery: Mutex<Option<mpsc::Sender<DeviceDelivery>>>,
     rename: Mutex<Option<mpsc::Sender<DeviceRenameRequest>>>,
+    forget: Mutex<Option<mpsc::Sender<DeviceForgetRequest>>>,
 
 }
 
@@ -113,6 +119,7 @@ impl Default for ConnectionManager {
             server_refresh: Mutex::new(None),
             delivery: Mutex::new(None),
             rename: Mutex::new(None),
+            forget: Mutex::new(None),
         }
     }
 }
@@ -152,6 +159,18 @@ pub async fn rename_device(app: &AppHandle, device_id: String, name: String) -> 
     tokio::time::timeout(Duration::from_secs(10), receive).await
         .map_err(|_| "Тайм-аут переименования устройства")?
         .map_err(|_| "Соединение прервалось до подтверждения переименования")?
+}
+
+
+pub async fn forget_device(app: &AppHandle, device_id: String) -> Result<(), String> {
+    let sender = app.state::<ConnectionManager>().forget.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        .ok_or("Нет подключения к основному серверу")?;
+    let (reply, receive) = oneshot::channel();
+    sender.send(DeviceForgetRequest { device_id, reply }).await
+        .map_err(|_| "Соединение с сервером закрыто")?;
+    tokio::time::timeout(Duration::from_secs(10), receive).await
+        .map_err(|_| "Тайм-аут удаления устройства")?
+        .map_err(|_| "Соединение прервалось до подтверждения удаления")?
 }
 
 pub async fn send_to_device(app: &AppHandle, device_id: String, payload: Value) -> Result<String, String> {
@@ -279,6 +298,16 @@ pub(crate) fn parse_device_event(message: &Value) -> Option<(bool, ConnectedDevi
 }
 
 
+
+pub(crate) fn parse_removed_device_event(message: &Value) -> Option<String> {
+    if message.get("type")?.as_str()? != "event" || message.get("topic")?.as_str()? != "devices.removed" {
+        return None;
+    }
+    let id = message.pointer("/data/payload/device_id")?.as_str()?;
+    if id.is_empty() { return None; }
+    Some(id.to_owned())
+}
+
 pub(crate) fn parse_registered_device_event(message: &Value) -> Option<RegisteredDevice> {
     if message.get("type")?.as_str()? != "event" || message.get("topic")?.as_str()? != "devices.updated" {
         return None;
@@ -341,6 +370,7 @@ pub fn start(app: AppHandle) {
                         crate::media_rooms::disconnected(&app, "primary");
                         *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         *app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                        *app.state::<ConnectionManager>().forget.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         publish_devices(&app, "offline", Vec::new(), None);
                         publish_status(&app, "offline", None);
                     }
@@ -357,6 +387,7 @@ pub fn start(app: AppHandle) {
             *app.state::<ConnectionManager>().server_refresh.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = None;
             *app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            *app.state::<ConnectionManager>().forget.lock().unwrap_or_else(|e| e.into_inner()) = None;
             publish_server(&app, "offline", None, None);
             publish_devices(&app, "offline", Vec::new(), None);
             publish_status(&app, "offline", None);
@@ -430,6 +461,8 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
     *app.state::<ConnectionManager>().delivery.lock().unwrap_or_else(|e| e.into_inner()) = Some(delivery_tx);
     let (rename_tx, mut rename_rx) = mpsc::channel::<DeviceRenameRequest>(8);
     *app.state::<ConnectionManager>().rename.lock().unwrap_or_else(|e| e.into_inner()) = Some(rename_tx);
+    let (forget_tx, mut forget_rx) = mpsc::channel::<DeviceForgetRequest>(8);
+    *app.state::<ConnectionManager>().forget.lock().unwrap_or_else(|e| e.into_inner()) = Some(forget_tx);
     let (storage_tx, mut storage_rx) = mpsc::channel::<crate::storage::StorageRequest>(16);
     crate::storage::connected(app, "primary", storage_tx.clone());
     crate::media_rooms::connected(app, "primary");
@@ -439,6 +472,8 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
     let mut delivery_counter = 0u64;
     let mut pending_renames: HashMap<String, oneshot::Sender<Result<(), String>>> = HashMap::new();
     let mut rename_counter = 0u64;
+    let mut pending_forgets: HashMap<String, oneshot::Sender<Result<(), String>>> = HashMap::new();
+    let mut forget_counter = 0u64;
 
     let mut request_counter = 0u64;
     let first_id = send_device_list(&mut socket, &mut request_counter).await?;
@@ -556,6 +591,18 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                 }
                 pending_renames.insert(id, rename.reply);
             }
+
+            forget = forget_rx.recv() => {
+                let Some(forget) = forget else { return Err("device forget channel closed".into()); };
+                forget_counter = forget_counter.wrapping_add(1);
+                let id = format!("homecloud-device-forget-{forget_counter}");
+                let request = json!({"v":1,"id":id,"type":"command","action":"devices.forget","data":{"device_id":forget.device_id}});
+                if let Err(error) = socket.send(Message::Text(request.to_string().into())).await {
+                    let _ = forget.reply.send(Err(error.to_string()));
+                    return Err(format!("device forget send failed: {error}"));
+                }
+                pending_forgets.insert(id, forget.reply);
+            }
             storage_command = storage_rx.recv() => {
                 let Some(command) = storage_command else { return Err("storage channel closed".into()); };
                 storage_counter = storage_counter.wrapping_add(1);
@@ -599,6 +646,12 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
 
                         crate::media_rooms::on_event(app, "primary", &message);
 
+
+                        if let Some(device_id) = parse_removed_device_event(&message) {
+                            crate::device_registry::removed(app, "primary", &device_id);
+                            continue;
+                        }
+
                         if let Some(record) = parse_registered_device_event(&message) {
                             crate::device_registry::updated(app, "primary", &record);
                             if list_pending.is_some() {
@@ -631,6 +684,18 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
                         }
 
                         let response_id = message.get("id").and_then(Value::as_str).unwrap_or("");
+
+
+                        if let Some(reply) = pending_forgets.remove(response_id) {
+                            let result = if message.get("type").and_then(Value::as_str) == Some("result")
+                                && message.get("action").and_then(Value::as_str) == Some("devices.forget") {
+                                Ok(())
+                            } else {
+                                Err(message.get("error").and_then(Value::as_str).unwrap_or("Не удалось удалить устройство").to_owned())
+                            };
+                            let _ = reply.send(result);
+                            continue;
+                        }
 
                         if let Some(reply) = pending_renames.remove(response_id) {
                             let result = if message.get("type").and_then(Value::as_str) == Some("result")
