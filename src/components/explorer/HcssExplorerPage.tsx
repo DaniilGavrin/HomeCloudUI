@@ -164,7 +164,7 @@ export function HcssExplorerPage() {
   const dragPermissionsRef=useRef({write:writable,read:readable});
   dragPermissionsRef.current={write:writable,read:readable};
   const deletePermissionHint=root&&!root.allow_delete
-    ? 'Удаление запрещено настройками этого root HC Storage Service (allow_delete: false).'
+    ? 'Удаление недоступно для выбранного каталога.'
     : '';
   const shown=useMemo(()=>sorted(items.filter(x=>pathIsDirectChild(folder,x)),sort,showHidden,query),
     [items,sort,showHidden,query,folder]);
@@ -210,7 +210,7 @@ export function HcssExplorerPage() {
     }).then(result=>{
       if(!active)return;
       if(result.path!==folder||result.root?.kind!==root.kind||
-        result.root?.id!==root.id||!Array.isArray(result.items))throw Error('HC SS вернул другой каталог');
+        result.root?.id!==root.id||!Array.isArray(result.items))throw Error('Не удалось открыть выбранный каталог');
       setItems(result.items.filter(x=>pathIsDirectChild(folder,x)));
       setCursor(result.next_cursor??'');
       setBrowseStatus('ready');
@@ -320,7 +320,7 @@ export function HcssExplorerPage() {
   }
 
   async function fileAction(operation:Action,path:string,newPath?:string,localFile?:string){
-    if(!root||!agent?.online||!endpoints.length)throw Error('Нет доступного HC Storage Service');
+    if(!root||!agent?.online||!endpoints.length)throw Error('Нет доступного хранилища');
     return invoke<{integrity_retries?:number}>('homecloud_hcss_file_operation',{
       endpoints:[...endpoints],rootKind:root.kind,rootId:root.id,
       operation,path,newPath:newPath??null,localFile:localFile??null,
@@ -357,7 +357,7 @@ export function HcssExplorerPage() {
     if(!writable)return;
     setError('');
     try {
-      const picked=await open({title:'Загрузить файлы в HC Storage Service',multiple:true,directory:false});
+      const picked=await open({title:'Загрузить файлы',multiple:true,directory:false});
       if(!picked)return;
       const files=(Array.isArray(picked)?picked:[picked]).filter((p):p is string=>typeof p==='string');
       if(files.length>100){setError('Максимум 100 файлов за одну операцию');return}
@@ -365,7 +365,7 @@ export function HcssExplorerPage() {
         localFile,path:join(folder,uploadNameFromLocalPath(localFile)),
       }));
       if(entries.some(e=>!canUseName(basename(e.path)))){
-        setError('Выбран файл с недопустимым именем для HC SS');return;
+        setError('Имя файла содержит недопустимые символы');return;
       }
       if(new Set(entries.map(e=>e.path)).size!==entries.length){
         setError('Выбраны разные файлы с одинаковым именем. Загрузи их в разные каталоги.');return;
@@ -380,7 +380,7 @@ export function HcssExplorerPage() {
     const item=allChosen.length===1?allChosen[0]:null;
     if(!readable||!item||item.kind!=='file')return;
     try {
-      const destination=await save({title:'Скачать из HC Storage Service',defaultPath:item.name});
+      const destination=await save({title:'Скачать файл',defaultPath:item.name});
       if(typeof destination!=='string')return;
       await batch('download',[{path:item.path,localFile:destination}]);
     } catch(e) {
@@ -390,7 +390,7 @@ export function HcssExplorerPage() {
 
   async function paste(paths=clipboard?.paths,mode=clipboard?.mode,to=folder){
     if(!writable||!clipboard||clipboard.scope!==scope||!paths||!mode)return;
-    if(mode==='copy'&&!root?.allow_read){setError('HC SS запрещает чтение для копирования');return;}
+    if(mode==='copy'&&!root?.allow_read){setError('Нет разрешения на чтение файлов');return;}
     const entries=paths.map(path=>({path,newPath:join(to,basename(path))}));
     if(entries.some(e=>e.path===e.newPath||to===e.path||to.startsWith(e.path+'/'))){
       setError('Нельзя копировать в тот же путь или переносить каталог внутрь себя');return;
@@ -564,7 +564,7 @@ export function HcssExplorerPage() {
       serverId,storageNodeId:nodeId,rootKind:root.kind,rootId:root.id,path:destFolder,
     }).then(data=>{
       if(!active)return;
-      if(data.path!==destFolder||data.root?.kind!==root.kind||data.root?.id!==root.id)throw Error('HC SS вернул другой каталог');
+      if(data.path!==destFolder||data.root?.kind!==root.kind||data.root?.id!==root.id)throw Error('Не удалось открыть выбранный каталог');
       setDestItems(data.items.filter(x=>x.kind==='folder'&&pathIsDirectChild(destFolder,x)));
       setDestCursor(data.next_cursor??'');
     }).catch(e=>{if(active)setError(String(e))})
@@ -611,9 +611,9 @@ export function HcssExplorerPage() {
   async function playOnTv(){
     const item=selectedForModal[0],tv=tvs.find(d=>d.device_id===tvId);
     if(!item||!tv||!item.file_id?.startsWith('hc1.')||!agent||!root||busy)return;
-    if(!root.allow_read){setError('Нет разрешения HC SS на чтение файла');return}
+    if(!root.allow_read){setError('Нет разрешения на чтение файла');return}
     if(mediaRooms.phase!=='ready'||mediaRooms.server_id!==serverId){
-      setError('Состояние медиакомнат Backend ещё не загружено');return;
+      setError('Состояние воспроизведения ещё не загружено');return;
     }
     if(existingRoom&&!replaceRoom){
       setError('На телевизоре уже есть активная медиакомната. Подтверди её замену.');return;
@@ -624,7 +624,7 @@ export function HcssExplorerPage() {
         serverId,deviceId:tv.device_id,storageNodeId:agent.storage_node_id,
         fileId:item.file_id,network,
       });
-      setNotice(`Backend принял команду воспроизведения · комната ${r.room_id}. Статус подтверждается TV.`);
+      setNotice('Запрос на воспроизведение отправлен. Ожидаем подтверждение телевизора.');
       await refreshMediaRooms(serverId);
       setModal(null);
     }catch(e){setError(String(e))}
@@ -676,10 +676,10 @@ export function HcssExplorerPage() {
   return <section ref={explorerRef} className="hc-explorer" aria-label="Проводник HomeCloud">
     <aside className="hc-explorer-sidebar" aria-label="Места">
       <div className="hc-explorer-brand"><span className="hc-explorer-brand__mark">▤</span>
-        <div><strong>Проводник</strong><span>HomeCloud Navigator</span></div></div>
+        <div><strong>Проводник</strong></div></div>
       <div className="hc-explorer-sidebar__section">
-        <span className="hc-explorer-sidebar__label">Backend</span>
-        <select aria-label="Backend" value={serverId} disabled={busy}
+        <span className="hc-explorer-sidebar__label">Сервер</span>
+        <select aria-label="Сервер" value={serverId} disabled={busy}
           onChange={e=>setServerId(e.target.value)}>
           {!pool.servers.length&&<option value="">Серверы не добавлены</option>}
           {pool.servers.map(s=><option key={s.id} value={s.id}>{s.name} · {s.phase}</option>)}
@@ -687,7 +687,7 @@ export function HcssExplorerPage() {
       </div>
       <div className="hc-explorer-sidebar__section">
         <span className="hc-explorer-sidebar__label">Узлы хранения</span>
-        {loadingNodes&&<small>Обнаружение HC SS…</small>}
+        {loadingNodes&&<small>Поиск хранилищ…</small>}
         {agents.map(a=><button key={a.storage_node_id} type="button"
           disabled={busy||!a.online} onClick={()=>changeNode(a.storage_node_id)}
           className={nodeId===a.storage_node_id?'is-active':''}
@@ -695,7 +695,7 @@ export function HcssExplorerPage() {
           <i>{a.online?'●':'○'}</i></button>)}
       </div>
       <div className="hc-explorer-sidebar__section">
-        <span className="hc-explorer-sidebar__label">Пространства HC SS</span>
+        <span className="hc-explorer-sidebar__label">Каталоги хранения</span>
         {roots.map(r=><button key={rootKey(r)} type="button"
           className={rootId===rootKey(r)?'is-active':''}
           disabled={busy} onClick={()=>changeRoot(rootKey(r))}>
@@ -716,9 +716,9 @@ export function HcssExplorerPage() {
       </div>
       <div className="hc-explorer-sidebar__section hc-explorer-sidebar__section--volumes">
         <span className="hc-explorer-sidebar__label">Соединение</span>
-        <small>{online?'● Backend Online':'○ Backend Offline'}</small>
-        <small>{agent?.online?'● HC SS Online':'○ Нет соединения HC SS'}</small>
-        <small>{endpoints.length?'Файловый канал доступен':'Файловый канал не опубликован'}</small>
+        <small>{online?'● Сервер в сети':'○ Сервер недоступен'}</small>
+        <small>{agent?.online?'● Хранилище в сети':'○ Хранилище недоступно'}</small>
+        <small>{endpoints.length?'Доступ к файлам есть':'Нет доступа к файлам'}</small>
       </div>
     </aside>
 
@@ -776,7 +776,7 @@ export function HcssExplorerPage() {
         </div>
         <div className="hc-explorer-commandbar__group hc-explorer-commandbar__group--right">
           <button ref={storageInfoButton} type="button" className="hc-explorer-storage-info-trigger"
-            title="Состояние узлов, дисков и разрешений HC Storage Service"
+            title="Состояние хранилищ, дисков и доступных операций"
             onClick={()=>{setMenu(null);setStorageInfoOpen(true)}}>
             ⓘ Хранилища
           </button>
@@ -799,7 +799,7 @@ export function HcssExplorerPage() {
       </div>
       <div className={`hc-explorer-center${dragTarget===folder?' is-drop-target':''}`}
         data-hc-drop-path={root?folder:undefined}>
-        {!root?<div className="hc-explorer-empty">Выбери доступный HC Storage Service и разрешённый каталог</div>:
+        {!root?<div className="hc-explorer-empty">Выбери хранилище и каталог</div>:
           browseStatus==='loading'?<div className="hc-explorer-empty">Открываем каталог…</div>:
           browseStatus==='error'?<div className="hc-explorer-empty" role="alert">{error}</div>:<>
           {shown.length===0?<div className="hc-explorer-empty">{query?'Совпадений не найдено':'Каталог пуст'}</div>:
@@ -890,9 +890,9 @@ export function HcssExplorerPage() {
           </label>}
         {modal.type==='delete'&&<>
           <p>Удалить {modal.paths.length} объект(ов)?
-            Действие необратимо. Каталоги HC SS удаляются только пустыми.</p>
+            Действие необратимо. Можно удалять только пустые каталоги.</p>
           {deletePermissionHint&&<p role="alert" className="hc-explorer-dialog__error">
-            {deletePermissionHint} Изменить разрешение может только администратор HC SS.
+            {deletePermissionHint} Изменить это разрешение может только администратор хранилища.
           </p>}
         </>}
         {modal.type==='properties'&&selectedForModal.map(item=><dl className="hc-explorer-properties" key={item.path}>
@@ -901,7 +901,7 @@ export function HcssExplorerPage() {
           <dt>Путь в хранилище</dt><dd>{item.path}</dd>
           <dt>Размер</dt><dd>{item.kind==='folder'?'Каталог':formatBytes(item.size_bytes)}</dd>
           <dt>Изменён</dt><dd>{formatModified(item.modified_unix_nano)}</dd>
-          <dt>HC SS File ID</dt><dd>{item.file_id??'Не предоставлен'}</dd>
+          <dt>Идентификатор файла</dt><dd>{item.file_id??'Не предоставлен'}</dd>
           <dt>Узел</dt><dd>{nodeId}</dd>
           <dt>Корень</dt><dd>{rootLabel}</dd>
         </dl>)}
@@ -935,8 +935,7 @@ export function HcssExplorerPage() {
             <input type="checkbox" checked={replaceRoom} onChange={e=>setReplaceRoom(e.target.checked)}/>
             <span>На этом TV уже есть медиакомната. Заменить текущее воспроизведение?</span>
           </label>}
-          {mediaRooms.phase!=='ready'&&<small>Ожидание состояния медиакомнат от Backend…</small>}
-          <small>Запуск выполняет Backend. Локального видеоплеера в HomeCloudUI нет.</small>
+          {mediaRooms.phase!=='ready'&&<small>Загружаем состояние воспроизведения…</small>}
         </div>}
         {error&&<p className="hc-explorer-dialog__error" role="alert">{error}</p>}
         <footer>
