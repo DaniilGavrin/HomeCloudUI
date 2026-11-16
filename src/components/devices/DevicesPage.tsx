@@ -87,7 +87,7 @@ export function DevicesPage({ onOpenExplorer }: { onOpenExplorer: () => void }) 
     try {
       await refresh(device.server_id);
       setNoticeError(false);
-      setNotice(`Запрос списка устройств отправлен на «${serverLabel(device.server_id)}». Статус обновится по ответу Backend.`);
+      setNotice(`Запрос списка устройств отправлен на «${serverLabel(device.server_id)}». Статус обновится автоматически.`);
     } catch (cause) {
       setNoticeError(true);
       setNotice(`Не удалось обновить устройства: ${String(cause)}`);
