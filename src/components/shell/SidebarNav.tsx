@@ -1,5 +1,8 @@
 import { motion } from 'motion/react';
-import { Cpu, FolderOpen, House, Server, Settings, Workflow } from 'lucide-react';
+import {
+  Bell, Camera, CloudSun, Cpu, Droplets, Flame, FolderOpen, House,
+  MonitorCog, Server, Settings, ShieldCheck, Thermometer, Workflow, Zap,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { NavItem } from '../../data/navigation';
 
@@ -7,8 +10,17 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   home: House,
   devices: Cpu,
   explorer: FolderOpen,
+  security: ShieldCheck,
+  cameras: Camera,
+  energy: Zap,
+  heating: Thermometer,
+  water: Droplets,
+  gas: Flame,
+  environment: CloudSun,
+  notifications: Bell,
   servers: Server,
   automation: Workflow,
+  system: MonitorCog,
   settings: Settings,
 };
 
@@ -19,7 +31,6 @@ type SidebarNavProps = {
 };
 
 export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
-
   return (
     <aside className="homecloud-glass homecloud-sidebar w-16 shrink-0" aria-label="HomeCloud">
       <div className="flex h-full flex-col">
@@ -28,7 +39,7 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
         </div>
 
         <nav
-          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-1.5 pb-3"
+          className="hc-sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto px-1.5 pb-3"
           aria-label="Основная навигация"
         >
           {items.map((item, index) => {

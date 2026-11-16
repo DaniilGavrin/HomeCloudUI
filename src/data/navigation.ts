@@ -3,6 +3,7 @@ export type NavItem = {
     label: string;
     shortLabel: string;
     description: string;
+    defaultEnabled?: boolean;
 };
 
 export const navigationItems: NavItem[] = [
@@ -25,6 +26,62 @@ export const navigationItems: NavItem[] = [
         description: 'Файлы и каталоги HC Storage Service',
     },
     {
+        id: 'security',
+        label: 'Безопасность',
+        shortLabel: 'Безопасность',
+        description: 'Безопасность и защита дома',
+        defaultEnabled: false,
+    },
+    {
+        id: 'cameras',
+        label: 'Камеры',
+        shortLabel: 'Камеры',
+        description: 'Камеры видеонаблюдения',
+        defaultEnabled: false,
+    },
+    {
+        id: 'energy',
+        label: 'Электроэнергия',
+        shortLabel: 'Энергия',
+        description: 'Электроснабжение и энергопотребление',
+        defaultEnabled: false,
+    },
+    {
+        id: 'heating',
+        label: 'Отопление',
+        shortLabel: 'Отопление',
+        description: 'Система отопления дома',
+        defaultEnabled: false,
+    },
+    {
+        id: 'water',
+        label: 'Водоснабжение',
+        shortLabel: 'Вода',
+        description: 'Водоснабжение и контроль воды',
+        defaultEnabled: false,
+    },
+    {
+        id: 'gas',
+        label: 'Газоснабжение',
+        shortLabel: 'Газ',
+        description: 'Газоснабжение и контроль газа',
+        defaultEnabled: false,
+    },
+    {
+        id: 'environment',
+        label: 'Погода и окружающая среда',
+        shortLabel: 'Погода',
+        description: 'Погода и параметры окружающей среды',
+        defaultEnabled: false,
+    },
+    {
+        id: 'notifications',
+        label: 'Центр уведомлений',
+        shortLabel: 'Уведомления',
+        description: 'События и уведомления HomeCloud',
+        defaultEnabled: false,
+    },
+    {
         id: 'servers',
         label: 'Серверы',
         shortLabel: 'Серверы',
@@ -35,6 +92,13 @@ export const navigationItems: NavItem[] = [
         label: 'Автоматизация',
         shortLabel: 'Сценарии',
         description: 'Сценарии, события и автоматические действия',
+    },
+    {
+        id: 'system',
+        label: 'Система',
+        shortLabel: 'Система',
+        description: 'Состояние и параметры системы HomeCloud',
+        defaultEnabled: false,
     },
     {
         id: 'settings',
