@@ -649,6 +649,12 @@ async fn connect_and_listen(app: &AppHandle, url: &str, device_id: &str) -> Resu
 
                         if let Some(device_id) = parse_removed_device_event(&message) {
                             crate::device_registry::removed(app, "primary", &device_id);
+                            if list_pending.is_some() {
+                                refresh_queued = true;
+                            } else {
+                                let id = send_device_list(&mut socket, &mut request_counter).await?;
+                                list_pending = Some((id, tokio::time::Instant::now()));
+                            }
                             continue;
                         }
 
