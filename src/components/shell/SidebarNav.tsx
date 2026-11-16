@@ -21,7 +21,6 @@ type SidebarNavProps = {
 
 export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
   const [hintedItemId, setHintedItemId] = useState<string | null>(null);
-  const hintedItem = items.find((item) => item.id === hintedItemId);
 
   return (
     <aside className="homecloud-glass homecloud-sidebar w-[68px] shrink-0" aria-label="HomeCloud">
