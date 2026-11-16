@@ -2,20 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool, type PoolServer, type ServerPoolInput } from '../../hooks/useHomeCloudPool';
+import { ArrowRight, ArrowLeft, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import '../../styles/settings.css';
 
 type Screen = 'home' | 'pool' | 'form' | 'delete';
 const EMPTY: ServerPoolInput = { name: '', ipv4: '', ipv6: '' };
 
-function Icon({ type }: { type: 'server' | 'plus' | 'back' | 'edit' | 'delete' | 'refresh' | 'arrow' }) {
-  const paths: Record<string, string> = {
-    server: 'M4 4h16v7H4zM4 14h16v7H4zM8 7.5h.01M8 17.5h.01',
-    plus: 'M12 5v14M5 12h14', back: 'M15 18l-6-6 6-6', edit: 'M12 20h9M4 16v4h4L19 9l-4-4L4 16z',
-    delete: 'M4 7h16M10 11v7M14 11v7M6 7l1 14h10l1-14M9 7V4h6v3',
-    refresh: 'M20 11a8 8 0 0 0-14-5L3 9m0-5v5h5M4 13a8 8 0 0 0 14 5l3-3m0 5v-5h-5',
-    arrow: 'M5 12h14m-6-6 6 6-6 6',
-  };
-  return <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[type]}/></svg>;
+const SETTINGS_ICONS: Record<'server' | 'plus' | 'back' | 'edit' | 'delete' | 'refresh' | 'arrow', LucideIcon> = {
+  server: Server,
+  plus: Plus,
+  back: ArrowLeft,
+  edit: Pencil,
+  delete: Trash2,
+  refresh: RefreshCw,
+  arrow: ArrowRight,
+};
+
+function Icon({ type }: { type: keyof typeof SETTINGS_ICONS }) {
+  const Component = SETTINGS_ICONS[type];
+  return <Component size={19} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 export function SettingsPage() {
