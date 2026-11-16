@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Archive, Code2, File, FileImage, FileText, Folder, FolderInput, Music2, Video, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
@@ -59,8 +61,15 @@ function category(item:HcssDirectoryItem):Category {
   if (/\.(pdf|doc|docx|odt|txt|xls|xlsx)$/.test(name)) return 'document';
   return 'other';
 }
-const glyph:Record<Category,string> = {
-  folder:'▤',audio:'♫',video:'▶',image:'▧',archive:'▣',document:'▤',code:'{ }',other:'◇',
+const CATEGORY_ICONS: Record<Category, LucideIcon> = {
+  folder: Folder,
+  audio: Music2,
+  video: Video,
+  image: FileImage,
+  archive: Archive,
+  document: FileText,
+  code: Code2,
+  other: File,
 };
 const categoryName:Record<Category,string> = {
   folder:'Папка',audio:'Аудио',video:'Видео',image:'Изображение',
@@ -79,7 +88,10 @@ function sorted(items:HcssDirectoryItem[],sort:Sort,hidden:boolean,query:string)
 }
 function icon(item:HcssDirectoryItem,size:'lg'|'sm'='sm') {
   const cat=category(item);
-  return <span className={`hc-explorer-icon hc-explorer-icon--${cat} hc-explorer-icon--${size}`} aria-hidden="true">{glyph[cat]}</span>;
+  const Icon=CATEGORY_ICONS[cat];
+  return <span className={`hc-explorer-icon hc-explorer-icon--${cat} hc-explorer-icon--${size}`} aria-hidden="true">
+    <Icon size={size==='lg'?30:19} strokeWidth={1.7} />
+  </span>;
 }
 
 export function HcssExplorerPage() {
@@ -712,7 +724,7 @@ export function HcssExplorerPage() {
           <button type="button" data-hc-drop-path={p} onClick={()=>navigate(p)} disabled={busy}
             className={`${folder===p?'is-active':''}${dragTarget===p?' is-drop-target':''}`}><span>☆</span><em>{basename(p)}</em></button>
           <button type="button" title="Убрать" aria-label={`Убрать ${p} из избранного`}
-            onClick={()=>setFavorite(p)}>×</button></div>)}
+            onClick={()=>setFavorite(p)}><X size={16} strokeWidth={1.8} aria-hidden="true" /></button></div>)}
       </div>
       <div className="hc-explorer-sidebar__section hc-explorer-sidebar__section--volumes">
         <span className="hc-explorer-sidebar__label">Соединение</span>
@@ -828,7 +840,7 @@ export function HcssExplorerPage() {
     {dragOverlay&&<div ref={dragGhostRef}
       className={`hc-explorer-drag-ghost ${dragOverlay.destination!==null?'is-allowed':'is-denied'}`}
       style={{left:dragOverlay.x,top:dragOverlay.y}} aria-hidden="true">
-      <span className="hc-explorer-drag-ghost__icon">{dragOverlay.destination!==null?'▤':'×'}</span>
+      <span className="hc-explorer-drag-ghost__icon">{dragOverlay.destination!==null?<FolderInput size={18} />:<X size={18} />}</span>
       <span className="hc-explorer-drag-ghost__body">
         <strong>{dragOverlay.label}{dragOverlay.count>1?` (+${dragOverlay.count-1})`:''}</strong>
         <small>{dragOverlay.destination===null?'Нельзя переместить сюда':
