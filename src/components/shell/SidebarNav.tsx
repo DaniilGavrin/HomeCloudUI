@@ -31,7 +31,7 @@ export function SidebarNav({
             {!compact && (
               <div className="min-w-0">
                 <div className="homecloud-brand__title">HomeCloud</div>
-                <div className="homecloud-brand__subtitle">Shell</div>
+                
               </div>
             )}
           </div>
