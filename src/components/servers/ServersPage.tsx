@@ -363,7 +363,7 @@ export function ServersPage() {
             </button>
             <div className="hc-servers-eyebrow">Серверы HomeCloud</div>
             <h2>Добавить сервер</h2>
-            <p>Добавление узла в общий пул по IPv4 или IPv6. Порт HomeCloudBackend — 8080.</p>
+            <p>Добавление узла в общий пул по IPv4 или IPv6. Порт сервера — 8080.</p>
           </div>
           <form className="hc-server-add-form homecloud-glass" onSubmit={event => void submitNewServer(event)}>
             <label>Название сервера
@@ -405,7 +405,7 @@ export function ServersPage() {
             aria-labelledby="hc-delete-server-title" aria-describedby="hc-delete-server-description">
             <h3 id="hc-delete-server-title">Удалить «{deleting.name}»?</h3>
             <p className="hc-server-delete-page__address">{addressLabel(deleting)}</p>
-            <p id="hc-delete-server-description">Подключение будет остановлено, а запись исчезнет из списка серверов и настроек. Сам HomeCloudBackend не будет остановлен или удалён.</p>
+            <p id="hc-delete-server-description">Подключение будет остановлено, а запись исчезнет из списка серверов и настроек. Сам сервер продолжит работать — удалится только его подключение из списка.</p>
             {actionError && <p className="hc-servers-message hc-servers-message--warning" role="alert">{actionError}</p>}
             <div className="hc-server-delete-page__actions">
               <button type="button" className="hc-server-action" autoFocus disabled={removing}
@@ -504,7 +504,7 @@ export function ServersPage() {
           <div className="hc-servers-list">
             {servers.map((server, index) => {
               const isOnline = server.phase === 'ready' || server.phase === 'loading';
-              const os = server.data?.system?.platform || server.data?.system?.os_family || server.data?.system?.goos || 'HomeCloudBackend';
+              const os = server.data?.system?.platform || server.data?.system?.os_family || server.data?.system?.goos || 'HomeCloud';
               const data = server.data;
               return <motion.article key={server.id}
                 className={`hc-server-card homecloud-glass hc-server-card--accent-${index % 3}`}
