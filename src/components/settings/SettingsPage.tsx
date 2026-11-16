@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool, type PoolServer, type ServerPoolInput } from '../../hooks/useHomeCloudPool';
 import { ArrowRight, ArrowLeft, LayoutGrid, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
 import type { SectionId, SectionPreferences } from '../../hooks/useSectionPreferences';
+import { navigationItems } from '../../data/navigation';
 import type { LucideIcon } from 'lucide-react';
 import '../../styles/settings.css';
 
@@ -97,12 +98,7 @@ export function SettingsPage({ sections, onSetSectionEnabled }: { sections: Sect
         </> : screen === 'sections' ? <>
           <header className="hc-settings__header"><div className="hc-settings__heading"><button className="hc-settings__back" onClick={back} aria-label="Назад к настройкам"><Icon type="back" /></button><div><span className="hc-settings__eyebrow">Настройки · Интерфейс</span><h2>Разделы</h2><p>Выбери, какие разделы показывать в HomeCloud</p></div></div></header>
           <div className="hc-settings__sections-list">
-            {([
-              { id: 'devices', label: 'Устройства' },
-              { id: 'explorer', label: 'Проводник' },
-              { id: 'servers', label: 'Серверы' },
-              { id: 'automation', label: 'Автоматизация' },
-            ] as const).map((item) => (
+            {navigationItems.filter((item) => item.id !== 'home' && item.id !== 'settings').map((item) => (
               <label key={item.id} className="hc-settings__section-row">
                 <span>{item.label}</span>
                 <input type="checkbox" role="switch" checked={sections[item.id]} onChange={(event) => onSetSectionEnabled(item.id, event.target.checked)} />
