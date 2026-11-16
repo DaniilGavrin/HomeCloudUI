@@ -99,6 +99,7 @@ export function HomePage({ connection, now, onNavigate, enabledSections }: Props
   const { snapshot, refresh, error: refreshError } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const reduced = Boolean(useReducedMotion());
+  const visibleShortcuts = SHORTCUTS.filter((shortcut) => enabledSections[shortcut.id as keyof SectionPreferences]);
   const [latencySamples, setLatencySamples] = useState<number[]>([]);
   const lastMeasuredRevision = useRef(-1);
   const connected = connection.phase === 'online';
@@ -224,12 +225,13 @@ export function HomePage({ connection, now, onNavigate, enabledSections }: Props
           </motion.section>
         </div>
 
-        <motion.div className="hc-home-section-label hc-home-section-label--second" {...enter(0.32)}>
-          <div><span className="hc-home-section-index">03</span><h2>Быстрый доступ</h2></div>
-          <span className="hc-home-caption">Разделы HomeCloud</span>
-        </motion.div>
-        <div className="hc-home-shortcuts">
-          {SHORTCUTS.filter((shortcut) => enabledSections[shortcut.id as keyof SectionPreferences]).map((shortcut, index) => (
+        {visibleShortcuts.length > 0 && <>
+          <motion.div className="hc-home-section-label hc-home-section-label--second" {...enter(0.32)}>
+            <div><span className="hc-home-section-index">03</span><h2>Быстрый доступ</h2></div>
+            <span className="hc-home-caption">Разделы HomeCloud</span>
+          </motion.div>
+          <div className="hc-home-shortcuts">
+          {visibleShortcuts.map((shortcut, index) => (
             <motion.button
               key={shortcut.id}
               type="button"
@@ -244,7 +246,8 @@ export function HomePage({ connection, now, onNavigate, enabledSections }: Props
               <span className="hc-home-shortcut__arrow"><HomeIcon name="arrow" size={18} /></span>
             </motion.button>
           ))}
-        </div>
+          </div>
+        </>}
       </div>
     </div>
   );
