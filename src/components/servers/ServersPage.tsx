@@ -442,7 +442,7 @@ export function ServersPage() {
                   onClick={() => void refresh(selected.id).catch(error => setActionError(String(error)))}>
                   <RefreshIcon /> Обновить
                 </button>
-                <button type="button" className="hc-server-close" onClick={closeDetails} aria-label="Назад к списку серверов">×</button>
+                <button type="button" className="hc-server-close" onClick={closeDetails} aria-label="Назад к списку серверов"><X size={18} strokeWidth={1.8} aria-hidden="true" /></button>
               </div>
             </div>
             <p className="hc-servers-message" role="status">
