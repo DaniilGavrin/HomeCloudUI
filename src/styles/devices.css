@@ -281,3 +281,14 @@
 @media(prefers-reduced-motion:reduce) {
   .hc-tv-remote__controls button,.hc-tv-remote__volume button { transition:none; }
 }
+
+
+/* Server-managed device naming. */
+.hc-devices-rename { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 14px; }
+.hc-devices-rename__input {
+  flex:1 1 220px; min-width:0; min-height:42px; padding:9px 12px;
+  border:1px solid rgba(184,208,255,.26); border-radius:12px;
+  color:#f4f9ff; background:rgba(255,255,255,.055); font:inherit;
+}
+.hc-devices-rename__input:focus-visible { outline:2px solid #a2edff; outline-offset:2px; }
+.hc-devices-rename__trigger { margin:8px 0 12px; }
