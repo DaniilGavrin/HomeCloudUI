@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import type { Transition } from 'motion/react';
-import { ShellIcon } from './ShellIcon';
+import { ArrowRight, Lock, Power, RotateCcw, X } from 'lucide-react';
 
 type Props = {
   onDismiss: () => void;
@@ -70,7 +70,7 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: reducedMotion ? 0.1 : 0.25, delay: reducedMotion ? 0 : 0.07 }}
         >
-          <div className="hc-power-symbol"><ShellIcon name="power" /></div>
+          <div className="hc-power-symbol"><Power size={22} strokeWidth={1.7} aria-hidden="true" /></div>
           <div className="hc-power-heading">
             <h2>Питание</h2>
           </div>
@@ -82,7 +82,7 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
             whileHover={reducedMotion ? undefined : { rotate: 90, scale: 1.12 }}
             whileTap={reducedMotion ? undefined : { scale: 0.9 }}
           >
-            <ShellIcon name="close" />
+            <X size={19} strokeWidth={1.7} aria-hidden="true" />
           </motion.button>
         </motion.header>
 
@@ -97,12 +97,12 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
             transition={{ duration: reducedMotion ? 0.08 : 0.26, delay: reducedMotion ? 0 : 0.12 }}
             {...actionMotion}
           >
-            <span className="hc-power-action-icon"><ShellIcon name="lock" /></span>
+            <span className="hc-power-action-icon"><Lock size={19} strokeWidth={1.7} aria-hidden="true" /></span>
             <span className="hc-power-action-text">
               <strong>Заблокировать</strong>
               <small>Экран блокировки HomeCloud</small>
             </span>
-            <ShellIcon name="arrow" className="hc-power-chevron" />
+            <ArrowRight size={17} strokeWidth={1.7} className="hc-power-chevron" aria-hidden="true" />
           </motion.button>
 
           <motion.button
@@ -114,7 +114,7 @@ export function ShellPowerMenu({ onDismiss, onLock, onRestart, onPowerOff, error
             transition={{ duration: reducedMotion ? 0.08 : 0.26, delay: reducedMotion ? 0 : 0.17 }}
             {...actionMotion}
           >
-            <span className="hc-power-action-icon"><ShellIcon name="restart" /></span>
+            <span className="hc-power-action-icon"><RotateCcw size={19} strokeWidth={1.7} aria-hidden="true" /></span>
             <span className="hc-power-action-text">
               <strong>Перезапустить интерфейс</strong>
               <small>Сервер и подключённые устройства продолжат работу</small>
