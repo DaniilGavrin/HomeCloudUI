@@ -195,7 +195,26 @@ pub fn reconcile_snapshot(app: &AppHandle, server_id: &str, records: &[crate::ho
 }
 
 pub fn updated(app: &AppHandle, server_id: &str, record: &crate::homecloud_ws::RegisteredDevice) {
-    reconcile_snapshot(app, server_id, std::slice::from_ref(record));
+    if let Err(e) = edit(app, |all| {
+        if let Some(old) = all.iter_mut().find(|d| d.server_id == server_id && d.device_id == record.device_id) {
+            old.client_type = record.client_type.clone();
+            old.name = record.name.clone();
+            old.first_seen_at = Some(record.first_seen_at);
+            old.last_seen_at = Some(record.last_seen_at);
+            old.online = record.online;
+        } else {
+            all.push(DeviceRecord {
+                server_id: server_id.to_owned(),
+                device_id: record.device_id.clone(),
+                client_type: record.client_type.clone(),
+                name: record.name.clone(),
+                first_seen_at: Some(record.first_seen_at),
+                online: record.online,
+                last_seen_at: Some(record.last_seen_at),
+            });
+        }
+        Ok(true)
+    }) { eprintln!("[Devices] Failed to persist device update: {e}"); }
 }
 
 pub fn disconnected(app: &AppHandle, server_id: &str) {
