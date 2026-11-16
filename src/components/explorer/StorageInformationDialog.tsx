@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { X } from 'lucide-react';
 import { type HcssAgent, filesystemVolumes, formatBytes } from '../storage/hcssModel';
 import { capacityOf, inventoryTotals } from './storageInventory';
 import '../../styles/storage-info.css';
@@ -144,7 +145,7 @@ export function StorageInformationDialog({
             {busy ? 'Обновление…' : '↻ Обновить'}
           </button>
           <button ref={closeRef} type="button" className="hc-si-close"
-            aria-label="Закрыть информацию о хранилищах" onClick={onClose}>×</button>
+            aria-label="Закрыть информацию о хранилищах" onClick={onClose}><X size={18} strokeWidth={1.8} aria-hidden="true" /></button>
         </div>
       </header>
 
