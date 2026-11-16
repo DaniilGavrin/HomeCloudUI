@@ -24,10 +24,10 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
   const hintedItem = items.find((item) => item.id === hintedItemId);
 
   return (
-    <aside className="homecloud-glass homecloud-sidebar w-[68px] shrink-0">
+    <aside className="homecloud-glass homecloud-sidebar w-[68px] shrink-0" aria-label="HomeCloud">
       <div className="flex h-full flex-col">
         <div className="flex justify-center px-2 pb-4 pt-5">
-          <div className="homecloud-brand__orb h-9 w-9 shrink-0" aria-label="HomeCloud" />
+          <div className="homecloud-brand__orb h-9 w-9 shrink-0" aria-hidden="true" />
         </div>
 
         <div
