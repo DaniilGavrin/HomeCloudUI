@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Cpu, FolderOpen, House, Server, Settings, Workflow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -20,7 +19,6 @@ type SidebarNavProps = {
 };
 
 export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
-  const [hintedItemId, setHintedItemId] = useState<string | null>(null);
 
   return (
     <aside className="homecloud-glass homecloud-sidebar w-[68px] shrink-0" aria-label="HomeCloud">
@@ -41,20 +39,9 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
               <motion.button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  onChange(item.id);
-                  setHintedItemId(item.id);
-                }}
-                onPointerEnter={() => setHintedItemId(item.id)}
-                onPointerLeave={(event) => {
-                  // Touch has no hover state: keep the last tapped section visible.
-                  if (event.pointerType !== 'touch') {
-                    setHintedItemId(null);
-                  }
-                }}
-                onFocus={() => setHintedItemId(item.id)}
-                onBlur={() => setHintedItemId(null)}
+                onClick={() => onChange(item.id)}
                 aria-label={item.label}
+                title={item.label}
                 aria-current={active ? 'page' : undefined}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -70,11 +57,6 @@ export function SidebarNav({ items, activeId, onChange }: SidebarNavProps) {
                 <span className="homecloud-nav-item__icon" aria-hidden="true">
                   <Icon size={20} strokeWidth={1.8} />
                 </span>
-                {hintedItemId === item.id && (
-                  <span className="homecloud-sidebar__hint" role="tooltip">
-                    {item.label}
-                  </span>
-                )}
               </motion.button>
             );
           })}
