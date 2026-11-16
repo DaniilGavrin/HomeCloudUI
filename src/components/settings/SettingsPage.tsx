@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool, type PoolServer, type ServerPoolInput } from '../../hooks/useHomeCloudPool';
-import { ArrowRight, ArrowLeft, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, LayoutGrid, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import type { SectionId, SectionPreferences } from '../../hooks/useSectionPreferences';
 import type { LucideIcon } from 'lucide-react';
 import '../../styles/settings.css';
 
-type Screen = 'home' | 'pool' | 'form' | 'delete';
+type Screen = 'home' | 'pool' | 'sections' | 'form' | 'delete';
 const EMPTY: ServerPoolInput = { name: '', ipv4: '', ipv6: '' };
 
-const SETTINGS_ICONS: Record<'server' | 'plus' | 'back' | 'edit' | 'delete' | 'refresh' | 'arrow', LucideIcon> = {
+const SETTINGS_ICONS: Record<'server' | 'sections' | 'plus' | 'back' | 'edit' | 'delete' | 'refresh' | 'arrow', LucideIcon> = {
   server: Server,
+  sections: LayoutGrid,
   plus: Plus,
   back: ArrowLeft,
   edit: Pencil,
@@ -24,7 +26,7 @@ function Icon({ type }: { type: keyof typeof SETTINGS_ICONS }) {
   return <Component size={19} strokeWidth={1.7} aria-hidden="true" />;
 }
 
-export function SettingsPage() {
+export function SettingsPage({ sections, onSetSectionEnabled }: { sections: SectionPreferences; onSetSectionEnabled: (id: SectionId, enabled: boolean) => void }) {
   const pool = useHomeCloudPool();
   const [screen, setScreen] = useState<Screen>('home');
   const [editing, setEditing] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function SettingsPage() {
     if (busy) return;
     setActionError(null);
     if (screen === 'home') return;
-    setScreen(screen === 'pool' ? 'home' : 'pool');
+    setScreen(screen === 'pool' || screen === 'sections' ? 'home' : 'pool');
   };
   useEffect(() => {
     if (screen === 'home') return;
@@ -49,7 +51,7 @@ export function SettingsPage() {
       if (ev.key !== 'Escape' && ev.key !== 'Backspace') return;
       if (ev.target instanceof HTMLElement && ev.target.closest('input, textarea, [contenteditable="true"]')) return;
       ev.preventDefault();
-      if (!busy) setScreen(s => s === 'pool' ? 'home' : 'pool');
+      if (!busy) setScreen(s => s === 'pool' || s === 'sections' ? 'home' : 'pool');
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -88,6 +90,24 @@ export function SettingsPage() {
             <button type="button" className="hc-settings__tile homecloud-glass" onClick={() => setScreen('pool')} ref={returnFocus}>
               <span className="hc-settings__tile-icon"><Icon type="server" /></span><span><strong>Пул серверов</strong><small>Подключённые серверы · {pool.snapshot.servers.length} в пуле</small></span><Icon type="arrow" />
             </button>
+            <button type="button" className="hc-settings__tile homecloud-glass" onClick={() => setScreen('sections')}>
+              <span className="hc-settings__tile-icon"><Icon type="sections" /></span><span><strong>Разделы</strong><small>Управление видимостью разделов HomeCloud</small></span><Icon type="arrow" />
+            </button>
+          </div>
+        </> : screen === 'sections' ? <>
+          <header className="hc-settings__header"><div className="hc-settings__heading"><button className="hc-settings__back" onClick={back} aria-label="Назад к настройкам"><Icon type="back" /></button><div><span className="hc-settings__eyebrow">Настройки · Интерфейс</span><h2>Разделы</h2><p>Выбери, какие разделы показывать в HomeCloud</p></div></div></header>
+          <div className="hc-settings__sections-list">
+            {([
+              { id: 'devices', label: 'Устройства' },
+              { id: 'explorer', label: 'Проводник' },
+              { id: 'servers', label: 'Серверы' },
+              { id: 'automation', label: 'Автоматизация' },
+            ] as const).map((item) => (
+              <label key={item.id} className="hc-settings__section-row">
+                <span>{item.label}</span>
+                <input type="checkbox" role="switch" checked={sections[item.id]} onChange={(event) => onSetSectionEnabled(item.id, event.target.checked)} />
+              </label>
+            ))}
           </div>
         </> : screen === 'pool' ? <>
           <header className="hc-settings__header"><div className="hc-settings__heading"><button className="hc-settings__back" onClick={back} aria-label="Назад к настройкам"><Icon type="back" /></button><div><span className="hc-settings__eyebrow">Настройки · Connections</span><h2>Пул серверов</h2><p>Добавляй серверы по IPv4 или IPv6. Порт фиксирован: 8080.</p></div></div>
