@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { ServerStatusData } from '../../hooks/useHomeCloudServer';
+import { Plus, RefreshCw, Server, X } from 'lucide-react';
 import { useHomeCloudPool, type PoolServer } from '../../hooks/useHomeCloudPool';
 import '../../styles/servers.css';
 
@@ -34,15 +35,12 @@ function time(value: string | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU');
 }
 function HostIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="3.5" y="3" width="17" height="8" rx="2"/><rect x="3.5" y="13" width="17" height="8" rx="2"/>
-    <circle cx="7.5" cy="7" r=".7" fill="currentColor"/><circle cx="7.5" cy="17" r=".7" fill="currentColor"/>
-    <path d="M12 7h5M12 17h5"/>
-  </svg>;
+  return <Server size={22} strokeWidth={1.7} aria-hidden="true" />;
 }
 function RefreshIcon() {
-  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-5L3 9m0-5v5h5M4 13a8 8 0 0 0 14 5l3-3m0 5v-5h-5"/></svg>;
+  return <RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />;
 }
+
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return <div className="hc-server-field"><span>{label}</span><strong>{asText(value)}</strong></div>;
 }
@@ -104,7 +102,7 @@ function Details({ data, onClose, onRefresh, canRefresh, reduced, phase, name, a
       </div>
       <div className="hc-server-details__actions">
         <button type="button" className="hc-server-action" disabled={!canRefresh} onClick={onRefresh}><RefreshIcon /> Обновить</button>
-        <button ref={closeRef} type="button" className="hc-server-close" onClick={onClose} aria-label="Назад к списку серверов" title="Назад к списку серверов (Esc)">×</button>
+        <button ref={closeRef} type="button" className="hc-server-close" onClick={onClose} aria-label="Назад к списку серверов" title="Назад к списку серверов (Esc)"><X size={18} strokeWidth={1.8} aria-hidden="true" /></button>
       </div>
     </div>
     {phase !== 'ready' && <p className="hc-servers-message hc-servers-message--warning" role="status">
@@ -444,7 +442,7 @@ export function ServersPage() {
                   onClick={() => void refresh(selected.id).catch(error => setActionError(String(error)))}>
                   <RefreshIcon /> Обновить
                 </button>
-                <button type="button" className="hc-server-close" onClick={closeDetails} aria-label="Назад к списку серверов">×</button>
+                <button type="button" className="hc-server-close" onClick={closeDetails} aria-label="Назад к списку серверов"><X size={18} strokeWidth={1.8} aria-hidden="true" /></button>
               </div>
             </div>
             <p className="hc-servers-message" role="status">
@@ -493,7 +491,7 @@ export function ServersPage() {
           <div className="hc-servers-subheading">
             <h3>Все серверы</h3>
             <button type="button" className="hc-servers-add-link" onClick={() => { setActionError(null); setAdding(true); }}>
-              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              <Plus size={18} strokeWidth={2} aria-hidden="true" />
               Добавить сервер
             </button>
           </div>

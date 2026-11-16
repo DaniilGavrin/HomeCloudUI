@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import {
+  Activity, ArrowRight, Check, Cloud, Cpu, HardDrive, Monitor,
+  Music2, Plus, RefreshCw, Server, Smartphone, Tv,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudDeviceRegistry, type RegisteredDevice } from '../../hooks/useHomeCloudDeviceRegistry';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
@@ -14,24 +18,25 @@ type Props = {
   onNavigate: (section: string) => void;
 };
 
+const HOME_ICONS: Record<HomeIconName, LucideIcon> = {
+  cloud: Cloud,
+  devices: Cpu,
+  activity: Activity,
+  arrow: ArrowRight,
+  refresh: RefreshCw,
+  storage: HardDrive,
+  media: Music2,
+  server: Server,
+  monitor: Monitor,
+  phone: Smartphone,
+  tv: Tv,
+  other: Plus,
+  check: Check,
+};
+
 function HomeIcon({ name, size = 22 }: { name: HomeIconName; size?: number }) {
-  const base = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  const paths: Record<HomeIconName, ReactNode> = {
-    cloud: <path d="M7 19h10a5 5 0 0 0 .5-10A7 7 0 0 0 4 11a4 4 0 0 0 3 8Z" />,
-    devices: <><rect x="2.5" y="4" width="15" height="12" rx="2"/><path d="M7 20h6m-3-4v4"/><rect x="16" y="10" width="5.5" height="11" rx="1.5"/></>,
-    activity: <path d="M2 12h4l3-7 5 14 3-7h5" />,
-    arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
-    refresh: <><path d="M20 11a8 8 0 0 0-14-5L3 9m0-5v5h5"/><path d="M4 13a8 8 0 0 0 14 5l3-3m0 5v-5h-5"/></>,
-    storage: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></>,
-    media: <><rect x="3" y="4" width="18" height="15" rx="2"/><path d="m10 8 5 3.5-5 3.5zM9 22h6"/></>,
-    server: <><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></>,
-    monitor: <><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 22h8m-4-4v4"/></>,
-    phone: <><rect x="6.5" y="2" width="11" height="20" rx="2"/><path d="M11 18h2"/></>,
-    tv: <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M9 22h6m-3-3v3"/></>,
-    other: <><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6m-3-3v6"/></>,
-    check: <path d="m5 12 4 4L19 6" />,
-  };
-  return <svg {...base} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
+  const Icon = HOME_ICONS[name];
+  return <Icon size={size} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 function greeting(hour: number): string {

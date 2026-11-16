@@ -9,44 +9,17 @@ import { ServersPage } from '../servers/ServersPage';
 import { SettingsPage } from '../settings/SettingsPage';
 import { HcssExplorerPage } from '../explorer/HcssExplorerPage';
 
-type DeviceMode = 'desktop' | 'touch' | 'tv';
-
-function detectDeviceMode(): DeviceMode {
-  const width = window.innerWidth;
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
-
-  if (width >= 1400 && coarse) {
-    return 'tv';
-  }
-
-  if (coarse) {
-    return 'touch';
-  }
-
-  return 'desktop';
-}
-
 export function ShellLayout() {
   const [activeId, setActiveId] = useState('home');
-  const [deviceMode, setDeviceMode] = useState<DeviceMode>(detectDeviceMode);
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [time, setTime] = useState(() => new Date());
   const connection = useHomeCloudConnection();
 
   useEffect(() => {
-    const onResize = () => {
-      setDeviceMode(detectDeviceMode());
-      setViewportWidth(window.innerWidth);
-    };
-
-    window.addEventListener('resize', onResize);
-
     const timer = window.setInterval(() => {
       setTime(new Date());
     }, 1000);
 
     return () => {
-      window.removeEventListener('resize', onResize);
       window.clearInterval(timer);
     };
   }, []);
@@ -56,8 +29,6 @@ export function ShellLayout() {
     [activeId],
   );
 
-  // The sidebar stays on the left on all devices; narrow screens use an icon rail.
-  const compactSidebar = deviceMode === 'tv' || viewportWidth <= 900;
   const timeText = time.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
@@ -78,13 +49,12 @@ export function ShellLayout() {
           items={navigationItems}
           activeId={activeId}
           onChange={setActiveId}
-          compact={compactSidebar}
         />
 
         <main className="homecloud-main">
           <header className="homecloud-glass homecloud-topbar">
             <div className="min-w-0">
-                            <div className="truncate text-[22px] font-semibold text-white">
+              <div className="truncate text-[22px] font-semibold text-white">
                 {activeItem.label}
               </div>
             </div>
@@ -147,8 +117,8 @@ export function ShellLayout() {
                 <SettingsPage />
               ) : (
                 <div className="homecloud-glass homecloud-card h-full min-h-[320px]">
-                                    <div className="homecloud-card__title">{activeItem.label}</div>
-                                  </div>
+                  <div className="homecloud-card__title">{activeItem.label}</div>
+                </div>
               )}
             </motion.div>
           </section>
