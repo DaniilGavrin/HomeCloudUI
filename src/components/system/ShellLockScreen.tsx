@@ -339,7 +339,15 @@ export function ShellLockScreen({
                     <strong>Доступ разрешён</strong>
                   </motion.div>
                 ) : (
-                  <motion.div key="entry" className="hc-lock-entry-body" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <motion.div
+                    key="entry"
+                    className="hc-lock-entry-body"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.78, rotateX: 72, y: -18, filter: 'blur(7px)' }}
+                    transition={{ duration: reducedMotion ? 0.08 : 0.38, ease: 'easeInOut' }}
+                    style={{ transformPerspective: 900, transformOrigin: 'center center' }}
+                  >
                     <div className={`hc-pin-tiles hc-pin-tiles--large ${phase === 'rejected' ? 'is-rejected' : ''}`} role="group" aria-label={`Введено ${pin.length} из ${pinLength ?? 0} цифр`}>
                       {Array.from({ length: pinLength ?? 0 }, (_, index) => (
                         <motion.span
