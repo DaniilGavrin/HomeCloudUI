@@ -9,22 +9,19 @@ use std::{
     io::Write,
     path::PathBuf,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{SystemTime, UNIX_EPOCH},
 };
-
-#[derive(Default)]
-struct VerifyAttempts {
-    failures: u8,
-    blocked_until: Option<Instant>,
-}
-
-static SECURITY_LOCK: Mutex<()> = Mutex::new(());
-static VERIFY_ATTEMPTS: Mutex<VerifyAttempts> = Mutex::new(VerifyAttempts { failures: 0, blocked_until: None });
 use tauri::{AppHandle, Manager};
 
 const MIN_PIN_LENGTH: usize = 4;
 const MAX_PIN_LENGTH: usize = 12;
+const MAX_PIN_ATTEMPTS: u8 = 3;
+const LOCKOUT_SECONDS: u64 = 10 * 60;
 const CONFIG_FILE: &str = "shell-security.json";
+const ATTEMPTS_FILE: &str = "shell-security-attempts.json";
+
+static SECURITY_LOCK: Mutex<()> = Mutex::new(());
+static VERIFY_ATTEMPTS_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,10 +30,19 @@ struct SecurityConfig {
     password_hash: String,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerifyAttempts {
+    failures: u8,
+    blocked_until_unix: Option<u64>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct SecurityStatus {
     enabled: bool,
     pin_length: Option<u8>,
+    attempts_remaining: u8,
+    lockout_remaining_secs: u64,
 }
 
 fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -45,9 +51,64 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(directory.join(CONFIG_FILE))
 }
 
+fn attempts_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let directory = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    Ok(directory.join(ATTEMPTS_FILE))
+}
+
+fn now_unix_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn read_attempts(app: &AppHandle) -> Result<VerifyAttempts, String> {
+    match fs::read(attempts_path(app)?) {
+        Ok(bytes) => {
+            let attempts: VerifyAttempts = serde_json::from_slice(&bytes)
+                .map_err(|error| format!("Не удалось прочитать состояние защиты PIN: {error}"))?;
+            if attempts.failures > MAX_PIN_ATTEMPTS {
+                return Err("Некорректное состояние защиты PIN".into());
+            }
+            Ok(attempts)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(VerifyAttempts::default()),
+        Err(error) => Err(format!("Не удалось прочитать состояние защиты PIN: {error}")),
+    }
+}
+
+fn write_attempts(app: &AppHandle, attempts: &VerifyAttempts) -> Result<(), String> {
+    let bytes = serde_json::to_vec(attempts).map_err(|error| error.to_string())?;
+    let mut options = OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(attempts_path(app)?).map_err(|error| error.to_string())?;
+    file.write_all(&bytes).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())
+}
+
+fn reset_attempts(app: &AppHandle) -> Result<(), String> {
+    let _guard = VERIFY_ATTEMPTS_LOCK
+        .lock()
+        .map_err(|_| "Не удалось получить блокировку состояния PIN")?;
+    write_attempts(app, &VerifyAttempts::default())
+}
+
+fn current_lockout(attempts: &VerifyAttempts) -> u64 {
+    attempts
+        .blocked_until_unix
+        .unwrap_or_default()
+        .saturating_sub(now_unix_secs())
+}
+
 fn read_config(app: &AppHandle) -> Result<Option<SecurityConfig>, String> {
-    let path = config_path(app)?;
-    match fs::read(path) {
+    match fs::read(config_path(app)?) {
         Ok(bytes) => {
             let config: SecurityConfig = serde_json::from_slice(&bytes)
                 .map_err(|error| format!("Не удалось прочитать настройки безопасности: {error}"))?;
@@ -57,7 +118,7 @@ fn read_config(app: &AppHandle) -> Result<Option<SecurityConfig>, String> {
             PasswordHash::new(&config.password_hash)
                 .map_err(|error| format!("Некорректный хеш PIN: {error}"))?;
             Ok(Some(config))
-        },
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(format!("Не удалось прочитать настройки безопасности: {error}")),
     }
@@ -86,8 +147,7 @@ fn write_config(app: &AppHandle, config: &SecurityConfig) -> Result<(), String> 
             .map_err(|error| error.to_string())?;
     }
 
-    fs::rename(&temporary, &path).map_err(|error| error.to_string())?;
-    Ok(())
+    fs::rename(&temporary, &path).map_err(|error| error.to_string())
 }
 
 fn validate_pin(pin: &str, expected_length: Option<u8>) -> Result<(), String> {
@@ -118,32 +178,30 @@ fn make_config(pin: &str) -> Result<SecurityConfig, String> {
     })
 }
 
-fn verify_pin_with_limit(config: &SecurityConfig, pin: &str) -> Result<bool, String> {
-    let mut attempts = VERIFY_ATTEMPTS
+fn verify_pin_with_limit(app: &AppHandle, config: &SecurityConfig, pin: &str) -> Result<bool, String> {
+    let _guard = VERIFY_ATTEMPTS_LOCK
         .lock()
         .map_err(|_| "Не удалось получить блокировку проверки PIN")?;
+    let mut attempts = read_attempts(app)?;
+    let remaining = current_lockout(&attempts);
+    if remaining > 0 {
+        return Err(format!("Слишком много попыток. Повторите через {remaining} сек."));
+    }
 
-    if let Some(until) = attempts.blocked_until {
-        let now = Instant::now();
-        if now < until {
-            let remaining = (until - now).as_secs().max(1);
-            return Err(format!("Слишком много попыток. Повторите через {remaining} сек."));
-        }
-        attempts.blocked_until = None;
-        attempts.failures = 0;
+    if attempts.blocked_until_unix.is_some() {
+        attempts = VerifyAttempts::default();
     }
 
     if pin_matches(config, pin) {
-        attempts.failures = 0;
-        attempts.blocked_until = None;
+        write_attempts(app, &VerifyAttempts::default())?;
         return Ok(true);
     }
 
     attempts.failures = attempts.failures.saturating_add(1);
-    if attempts.failures >= 5 {
-        attempts.failures = 0;
-        attempts.blocked_until = Some(Instant::now() + Duration::from_secs(30));
+    if attempts.failures >= MAX_PIN_ATTEMPTS {
+        attempts.blocked_until_unix = Some(now_unix_secs().saturating_add(LOCKOUT_SECONDS));
     }
+    write_attempts(app, &attempts)?;
     Ok(false)
 }
 
@@ -160,15 +218,25 @@ fn pin_matches(config: &SecurityConfig, pin: &str) -> bool {
 #[tauri::command]
 pub fn shell_security_status(app: AppHandle) -> Result<SecurityStatus, String> {
     let config = read_config(&app)?;
-    Ok(match config {
-        Some(config) => SecurityStatus {
-            enabled: true,
-            pin_length: Some(config.pin_length),
+    let _guard = VERIFY_ATTEMPTS_LOCK
+        .lock()
+        .map_err(|_| "Не удалось получить блокировку состояния PIN")?;
+    let mut attempts = read_attempts(&app)?;
+    let lockout_remaining_secs = current_lockout(&attempts);
+    if attempts.blocked_until_unix.is_some() && lockout_remaining_secs == 0 {
+        attempts = VerifyAttempts::default();
+        write_attempts(&app, &attempts)?;
+    }
+
+    Ok(SecurityStatus {
+        enabled: config.is_some(),
+        pin_length: config.map(|value| value.pin_length),
+        attempts_remaining: if lockout_remaining_secs > 0 {
+            0
+        } else {
+            MAX_PIN_ATTEMPTS.saturating_sub(attempts.failures)
         },
-        None => SecurityStatus {
-            enabled: false,
-            pin_length: None,
-        },
+        lockout_remaining_secs,
     })
 }
 
@@ -179,7 +247,8 @@ pub fn shell_security_set_pin(app: AppHandle, pin: String, pin_length: u8) -> Re
     if read_config(&app)?.is_some() {
         return Err("PIN уже установлен".into());
     }
-    write_config(&app, &make_config(&pin)?)
+    write_config(&app, &make_config(&pin)?)?;
+    reset_attempts(&app)
 }
 
 #[tauri::command]
@@ -187,7 +256,7 @@ pub fn shell_security_verify_pin(app: AppHandle, pin: String) -> Result<bool, St
     let Some(config) = read_config(&app)? else {
         return Ok(false);
     };
-    verify_pin_with_limit(&config, &pin)
+    verify_pin_with_limit(&app, &config, &pin)
 }
 
 #[tauri::command]
@@ -202,10 +271,11 @@ pub fn shell_security_change_pin(
     let Some(config) = read_config(&app)? else {
         return Err("PIN ещё не установлен".into());
     };
-    if !verify_pin_with_limit(&config, &current_pin)? {
+    if !verify_pin_with_limit(&app, &config, &current_pin)? {
         return Err("Текущий PIN введён неверно".into());
     }
-    write_config(&app, &make_config(&new_pin)?)
+    write_config(&app, &make_config(&new_pin)?)?;
+    reset_attempts(&app)
 }
 
 #[tauri::command]
@@ -214,9 +284,9 @@ pub fn shell_security_remove_pin(app: AppHandle, current_pin: String) -> Result<
     let Some(config) = read_config(&app)? else {
         return Err("PIN ещё не установлен".into());
     };
-    if !pin_matches(&config, &current_pin) {
+    if !verify_pin_with_limit(&app, &config, &current_pin)? {
         return Err("Текущий PIN введён неверно".into());
     }
-    let path = config_path(&app)?;
-    fs::remove_file(path).map_err(|error| error.to_string())
+    fs::remove_file(config_path(&app)?).map_err(|error| error.to_string())?;
+    reset_attempts(&app)
 }
