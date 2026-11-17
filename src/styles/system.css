@@ -80,3 +80,11 @@
 @media(max-width:1100px){.hc-system-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.hc-system-nodebar>small:nth-last-child(2){display:none}}
 @media(max-width:760px){.hc-system-header{align-items:flex-start;flex-direction:column}.hc-system-controls{width:100%}.hc-system-controls label{flex:1}.hc-system-controls select{width:100%;min-width:0}.hc-system-grid{grid-template-columns:1fr}.hc-system-nodebar{flex-wrap:wrap}.hc-system-nodebar>small:last-child{margin-left:0}.hc-system-tabs button{padding:9px 10px}.hc-system-tabs button span{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.hc-system-tabs button,.hc-system-bar__track i{transition:none}.hc-system-spin{animation:none}}
+
+.hc-system-metric-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.hc-system-metric-group{min-width:0;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.018)}
+.hc-system-metric-group h4{margin-bottom:5px;color:#aeeaf5;font-size:11px;font-weight:650}
+.hc-system-metric-group .hc-system-row{font-size:9px;gap:8px}
+.hc-system-metric-group .hc-system-row>b{font-size:10px}
+@media(max-width:1100px){.hc-system-metric-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:630px){.hc-system-metric-groups{grid-template-columns:1fr}}
