@@ -3,6 +3,20 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { ServerStatusData } from './useHomeCloudServer';
 
+export type MetricSample = {
+  node_id: string;
+  name: string;
+  labels?: Record<string, string>;
+  value: number;
+  unit?: string;
+  timestamp: string;
+};
+export type MetricsSnapshot = {
+  samples?: MetricSample[];
+  stats?: Record<string, number>;
+  server_time?: string;
+  collected_at?: string;
+};
 export type PoolServer = {
   id: string;
   name: string;
@@ -12,6 +26,7 @@ export type PoolServer = {
   phase: 'offline' | 'connecting' | 'ready' | 'error';
   latency_ms: number | null;
   data: ServerStatusData | null;
+  metrics: MetricsSnapshot | null;
   error: string | null;
 };
 export type PoolSnapshot = { servers: PoolServer[]; revision: number };
