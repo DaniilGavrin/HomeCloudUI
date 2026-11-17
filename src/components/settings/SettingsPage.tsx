@@ -43,7 +43,6 @@ export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: {
 
   useEffect(() => {
     onTitleChange?.(screenTitle[screen]);
-    return () => onTitleChange?.('Настройки');
   }, [screen, editing, onTitleChange]);
 
   const back = () => {
