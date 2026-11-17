@@ -256,3 +256,22 @@
 .hc-sidebar-nav-scroll::-webkit-scrollbar {
     display: none;
 }
+
+
+.hc-shell-topbar__system-actions { display: flex; align-items: center; gap: 8px; }
+.hc-shell-topbar__system-button { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border: 1px solid rgba(214,239,255,.17); border-radius: 13px; color: #dff7ff; background: rgba(255,255,255,.045); cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 140ms ease; }
+.hc-shell-topbar__system-button:hover { border-color: rgba(132,225,255,.4); background: rgba(103,209,255,.12); }
+.hc-shell-topbar__system-button:active { transform: scale(.96); }
+.hc-shell-topbar__system-button--power { color: #ffd0d8; border-color: rgba(255,165,181,.18); }
+.hc-shell-topbar__system-button--power:hover { border-color: rgba(255,165,181,.4); background: rgba(255,116,146,.1); }
+.hc-shell-topbar__system-button:focus-visible { outline: 2px solid #9cecff; outline-offset: 3px; }
+@media (max-width: 900px) {
+  .hc-shell-topbar__system-actions { gap: 6px; }
+  .hc-shell-topbar__system-button { flex-basis: 38px; width: 38px; height: 38px; }
+}
+@media (max-width: 630px) {
+  .hc-shell-topbar__system-button { flex-basis: 34px; width: 34px; height: 34px; border-radius: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc-shell-topbar__system-button { transition: none; }
+}
