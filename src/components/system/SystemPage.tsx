@@ -127,7 +127,7 @@ export function SystemPage() {
     setHistoryLoading(true); setHistoryError(null);
     void invoke<History>('homecloud_metrics_query', {
       serverId: selected.id, nodeId: activeMetric.node_id, metric: activeMetric.name,
-      from: from.toISOString(), to: to.toISOString(), resolutionMs: range.resolution, limit: 5000,
+      from: from.toISOString(), to: to.toISOString(), resolutionMs: range.resolution, limit: 12000,
     }).then(result => { if (live) setPoints(Array.isArray(result.points) ? result.points : []); })
       .catch(error => { if (live) { setPoints([]); setHistoryError(String(error)); } })
       .finally(() => { if (live) setHistoryLoading(false); });
