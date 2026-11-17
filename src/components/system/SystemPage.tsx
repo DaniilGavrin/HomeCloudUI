@@ -7,7 +7,7 @@ import { useHomeCloudPool, type MetricSample, type MetricsSnapshot } from '../..
 import '../../styles/system.css';
 
 type Tab = 'overview' | 'cpu' | 'memory' | 'disks' | 'network' | 'processes' | 'services' | 'diagnostics';
-type Point = { timestamp?: string | number; value?: number };
+type Point = { timestamp?: string | number; value?: number; labels?: Record<string, string> };
 type History = { points?: Point[] };
 const tabs: Array<{ id: Tab; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Обзор', icon: Activity }, { id: 'cpu', label: 'Процессор', icon: Cpu },
@@ -47,11 +47,54 @@ function Bar({ label, value, detail }: { label: string; value?: number; detail?:
   return <div className="hc-system-bar"><div><span>{label}</span><b>{valid ? fmt(value) + '%' : 'Нет данных'}</b></div><div className="hc-system-bar__track"><i style={{ width: (valid ? Math.max(0, Math.min(100, value)) : 0) + '%' }} /></div>{detail && <small>{detail}</small>}</div>;
 }
 function Chart({ points, unit }: { points: Point[]; unit?: string }) {
-  const values = points.map(p => p.value).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const groups = new Map<string, { label: string; points: Point[] }>();
+  for (const point of points) {
+    if (typeof point.value !== 'number' || !Number.isFinite(point.value)) continue;
+    const label = point.labels && Object.keys(point.labels).length
+      ? Object.entries(point.labels).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => key + '=' + value).join(' · ')
+      : 'Общее';
+    const group = groups.get(label) ?? { label, points: [] };
+    group.points.push(point);
+    groups.set(label, group);
+  }
+  const series = [...groups.values()]
+    .map(group => ({ ...group, points: group.points.sort((a, b) => {
+      const ta = typeof a.timestamp === 'number' ? a.timestamp : Date.parse(a.timestamp || '');
+      const tb = typeof b.timestamp === 'number' ? b.timestamp : Date.parse(b.timestamp || '');
+      return (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0);
+    }) }))
+    .filter(group => group.points.length >= 2)
+    .slice(0, 8);
+  const values = series.flatMap(group => group.points.map(point => point.value as number));
   if (values.length < 2) return <p className="hc-system-muted">Недостаточно исторических точек для графика.</p>;
   const min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
-  const path = values.map((v, i) => (i ? 'L' : 'M') + ' ' + (8 + i / (values.length - 1) * 984).toFixed(1) + ' ' + (12 + (1 - (v - min) / span) * 176).toFixed(1)).join(' ');
-  return <div className="hc-system-chart"><div><strong>{fmt(values[values.length - 1])}{unit || ''}</strong><span>Последнее · минимум {fmt(min)} · максимум {fmt(max)}</span></div><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="История метрики"><path d="M8 56 H992 M8 100 H992 M8 144 H992" className="hc-system-chart__grid"/><path d={path} className="hc-system-chart__line"/></svg></div>;
+  const timestamps = series.flatMap(group => group.points.map((point, index) => {
+    const raw = point.timestamp;
+    const parsed = typeof raw === 'number' ? raw : Date.parse(raw || '');
+    return Number.isFinite(parsed) ? parsed : index;
+  }));
+  const minTime = Math.min(...timestamps), timeSpan = Math.max(...timestamps) - minTime || 1;
+  const colors = ['#5bd8ed', '#a99bff', '#74dfa8', '#f3bf72', '#ef91b1', '#8cb9ff', '#c5d879', '#d0a4ef'];
+  const paths = series.map((group, index) => {
+    const path = group.points.map((point, pointIndex) => {
+      const raw = point.timestamp;
+      const parsed = typeof raw === 'number' ? raw : Date.parse(raw || '');
+      const time = Number.isFinite(parsed) ? parsed : pointIndex;
+      const x = 8 + (time - minTime) / timeSpan * 984;
+      const y = 12 + (1 - ((point.value as number) - min) / span) * 176;
+      return (pointIndex ? 'L' : 'M') + ' ' + x.toFixed(1) + ' ' + y.toFixed(1);
+    }).join(' ');
+    return { label: group.label, path, color: colors[index] };
+  });
+  const latest = series[0].points[series[0].points.length - 1].value;
+  return <div className="hc-system-chart">
+    <div><strong>{fmt(latest)}{unit || ''}</strong><span>Последнее значение · минимум {fmt(min)} · максимум {fmt(max)}</span></div>
+    <div className="hc-system-chart__legend">{paths.map((item, index) => <span key={index}><i style={{ background: item.color }}/>{item.label}</span>)}</div>
+    <svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="История метрики">
+      <path d="M8 56 H992 M8 100 H992 M8 144 H992" className="hc-system-chart__grid"/>
+      {paths.map((item, index) => <path key={index} d={item.path} className="hc-system-chart__line" style={{ stroke: item.color }}/>)}
+    </svg>
+  </div>;
 }
 
 function MetricGroup({ title, prefix, samples }: { title: string; prefix: string; samples: MetricSample[] }) {
