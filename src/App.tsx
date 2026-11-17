@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, MotionConfig } from 'motion/react';
 import { ShellLockScreen } from './components/system/ShellLockScreen';
 import { ShellPowerMenu } from './components/system/ShellPowerMenu';
@@ -9,6 +10,8 @@ import './App.css';
 import './styles/shell.css';
 
 const LOCK_KEY = 'homecloud:shell-locked';
+
+type SecurityStatus = { enabled: boolean; pin_length: number | null };
 
 function wasLocked(): boolean {
   try {
@@ -22,6 +25,16 @@ function App() {
   const [locked, setLocked] = useState(wasLocked);
   const [powerOpen, setPowerOpen] = useState(false);
   const [powerError, setPowerError] = useState<string | null>(null);
+  const [security, setSecurity] = useState<SecurityStatus | null>(null);
+
+  useEffect(() => {
+    void invoke<SecurityStatus>('shell_security_status')
+      .then(setSecurity)
+      .catch(() => setSecurity({ enabled: false, pin_length: null }));
+  }, []);
+
+  const verifyPin = useCallback((pin: string) =>
+    invoke<boolean>('shell_security_verify_pin', { pin }), []);
 
   const lockShell = useCallback(() => {
     try {
@@ -99,7 +112,7 @@ function App() {
       <MotionConfig reducedMotion="user">
         <main className="homecloud-screen h-screen w-screen">
           {/* Основной рабочий стол HomeCloud */}
-          <ShellLayout />
+          <ShellLayout onLock={lockShell} onOpenPower={() => { setPowerError(null); setPowerOpen(true); }} />
 
           {/* Меню питания поверх рабочего стола */}
           <AnimatePresence initial={false}>
@@ -123,6 +136,9 @@ function App() {
             {locked && (
                 <ShellLockScreen
                     key="homecloud-lock"
+                    securityReady={security !== null}
+                    pinLength={security?.enabled ? security.pin_length : null}
+                    onVerify={verifyPin}
                     onUnlock={unlockShell}
                 />
             )}
