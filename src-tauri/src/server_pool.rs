@@ -43,13 +43,12 @@ pub struct PoolNode {
     pub phase: String, // offline, connecting, ready, error
     pub latency_ms: Option<u64>,
     pub data: Option<Value>,
-    pub metrics: Option<Value>,
     pub error: Option<String>,
 }
 
 impl PoolNode {
     fn new(entry: ServerEntry) -> Self {
-        Self { entry, phase: "offline".into(), latency_ms: None, data: None, metrics: None, error: None }
+        Self { entry, phase: "offline".into(), latency_ms: None, data: None, error: None }
     }
 }
 
@@ -79,6 +78,7 @@ pub struct ServerPool {
     renames: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceRenameRequest>>>,
     forgets: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceForgetRequest>>>,
     metric_queries: Mutex<HashMap<String, mpsc::Sender<MetricsQueryRequest>>>,
+    metrics: Mutex<HashMap<String, Value>>,
     primary_changes: watch::Sender<u64>,
 }
 
@@ -218,7 +218,7 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let manager = ServerPool {
         file, inner: Mutex::new(PoolSnapshot { servers: entries.into_iter().map(PoolNode::new).collect(), revision: 0 }),
         tasks: Mutex::new(HashMap::new()), refreshes: Mutex::new(HashMap::new()),
-        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), forgets: Mutex::new(HashMap::new()), metric_queries: Mutex::new(HashMap::new()), primary_changes: tx,
+        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), forgets: Mutex::new(HashMap::new()), metric_queries: Mutex::new(HashMap::new()), metrics: Mutex::new(HashMap::new()), primary_changes: tx,
     };
     app.manage(manager);
     Ok(())
@@ -278,7 +278,7 @@ pub fn homecloud_pool_update(app: AppHandle, id: String, input: ServerInput) -> 
         next[index].entry.name = name;
         next[index].entry.ipv4 = ipv4;
         next[index].entry.ipv6 = ipv6;
-        if changed { next[index].phase = "connecting".into(); next[index].latency_ms = None; next[index].data = None; next[index].metrics = None; next[index].error = None; }
+        if changed { next[index].phase = "connecting".into(); next[index].latency_ms = None; next[index].data = None; next[index].error = None; }
         save(&p.file, &next)?;
         state.servers = next; state.revision += 1;
         (state.clone(), changed)
