@@ -91,3 +91,5 @@
 
 /* Monitoring uses opaque surfaces instead of repeated backdrop blurs. */
 .hc-system-page .homecloud-glass{backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+
+.hc-system-chart__legend{display:flex;flex-wrap:wrap;gap:6px 13px;margin:6px 0 4px}.hc-system-chart__legend>span{display:inline-flex;align-items:center;gap:5px;color:rgba(225,239,255,.55);font-size:9px}.hc-system-chart__legend i{width:7px;height:7px;border-radius:50%;display:inline-block;flex:0 0 7px}
