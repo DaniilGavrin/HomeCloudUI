@@ -400,7 +400,13 @@ fn update_node_metrics(app: &AppHandle, id: &str, metrics: Value) {
         let p = app.state::<ServerPool>();
         let mut state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(node) = state.servers.iter_mut().find(|n| n.entry.id == id) {
-            node.metrics = Some(metrics);
+            let mut merged = node.metrics.take().unwrap_or_else(|| json!({}));
+            if let (Some(target), Some(update)) = (merged.as_object_mut(), metrics.as_object()) {
+                for (key, value) in update { target.insert(key.clone(), value.clone()); }
+            } else {
+                merged = metrics;
+            }
+            node.metrics = Some(merged);
             state.revision += 1;
             true
         } else { false }
@@ -641,6 +647,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             }
             _ = ping_next.tick() => {
                 pending_deliveries.retain(|_, reply| !reply.is_closed());
+                pending_metric_queries.retain(|_, reply| !reply.is_closed());
                 pending_storage.retain(|_, reply| !reply.is_closed());
                 if let Some((_, time)) = &pending_ping {
                     if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && pending_storage.is_empty() && tokio::time::Instant::now() >= grace {
