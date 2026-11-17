@@ -46,6 +46,7 @@ const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
 
 export function ShellLayout() {
   const [activeId, setActiveId] = useState('home');
+  const [pageTitle, setPageTitle] = useState('Главная');
   const [time, setTime] = useState(() => new Date());
   const connection = useHomeCloudConnection();
   const { sections, setEnabled } = useSectionPreferences();
@@ -75,6 +76,10 @@ export function ShellLayout() {
     [activeId],
   );
 
+  useEffect(() => {
+    setPageTitle(activeItem.label);
+  }, [activeItem.label]);
+
   const timeText = time.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
@@ -101,7 +106,7 @@ export function ShellLayout() {
           <header className="homecloud-glass homecloud-topbar">
             <div className="min-w-0">
               <div className="truncate text-[22px] font-semibold text-white">
-                {activeItem.label}
+                {pageTitle}
               </div>
             </div>
 
@@ -160,7 +165,7 @@ export function ShellLayout() {
               ) : activeId === 'servers' ? (
                 <ServersPage />
               ) : activeId === 'settings' ? (
-                <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} />
+                <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} onTitleChange={setPageTitle} />
               ) : (
                 <SectionPlaceholderPage
                   title={activeItem.label}
