@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Activity, Cpu, Database, HardDrive, MemoryStick, Network, RefreshCw, Server, ShieldCheck, Workflow } from 'lucide-react';
+import { Activity, Cpu, HardDrive, MemoryStick, Network, RefreshCw, Server, ShieldCheck, Workflow } from 'lucide-react';
 import { useHomeCloudPool, type MetricSample } from '../../hooks/useHomeCloudPool';
 import '../../styles/system.css';
 
