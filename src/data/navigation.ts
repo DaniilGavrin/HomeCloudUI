@@ -180,11 +180,6 @@ export const navigationItems: NavItem[] = [
         defaultEnabled: false,
     },
     {
-        id: 'servers',
-        label: 'Серверы',
-        shortLabel: 'Серверы',
-        description: 'HomeCloudBackend и системные службы',
-    },
     {
         id: 'automation',
         label: 'Автоматизация',
@@ -196,7 +191,6 @@ export const navigationItems: NavItem[] = [
         label: 'Система',
         shortLabel: 'Система',
         description: 'Состояние и параметры системы HomeCloud',
-        defaultEnabled: false,
     },
     {
         id: 'settings',
