@@ -54,7 +54,7 @@ function Chart({ points, unit }: { points: Point[]; unit?: string }) {
 }
 
 function MetricGroup({ title, prefix, samples }: { title: string; prefix: string; samples: MetricSample[] }) {
-  const items = samples.filter(item => item.name.startsWith(prefix)).slice(0, 24);
+  const items = samples.filter(item => item.name.startsWith(prefix)).slice(0, 12);
   return <section className="hc-system-metric-group"><h4>{title}</h4>
     {items.length ? items.map((item, index) => <div className="hc-system-row" key={index}>
       <span>{item.name}{item.labels ? ' · ' + Object.entries(item.labels).map(([key, value]) => key + '=' + value).join(', ') : ''}</span>
