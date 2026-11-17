@@ -323,6 +323,12 @@ pub fn homecloud_pool_refresh(app: AppHandle, id: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub fn homecloud_metrics_status(app: AppHandle, server_id: String) -> Option<Value> {
+    app.state::<ServerPool>().metrics.lock()
+        .unwrap_or_else(|e| e.into_inner()).get(&server_id).cloned()
+}
+
+#[tauri::command]
 pub async fn homecloud_metrics_query(
     app: AppHandle,
     server_id: String,
@@ -396,22 +402,24 @@ pub async fn send_to_device(app: &AppHandle, server_id: &str, device_id: String,
 }
 
 fn update_node_metrics(app: &AppHandle, id: &str, metrics: Value) {
-    let changed = {
+    let snapshot = {
         let p = app.state::<ServerPool>();
-        let mut state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(node) = state.servers.iter_mut().find(|n| n.entry.id == id) {
-            let mut merged = node.metrics.take().unwrap_or_else(|| json!({}));
-            if let (Some(target), Some(update)) = (merged.as_object_mut(), metrics.as_object()) {
-                for (key, value) in update { target.insert(key.clone(), value.clone()); }
-            } else {
-                merged = metrics;
-            }
-            node.metrics = Some(merged);
-            state.revision += 1;
-            true
-        } else { false }
+        let mut values = p.metrics.lock().unwrap_or_else(|e| e.into_inner());
+        let mut merged = values.remove(id).unwrap_or_else(|| json!({}));
+        if let (Some(target), Some(update)) = (merged.as_object_mut(), metrics.as_object()) {
+            for (key, value) in update { target.insert(key.clone(), value.clone()); }
+        } else {
+            merged = metrics;
+        }
+        values.insert(id.to_owned(), merged.clone());
+        merged
     };
-    if changed { publish(app); }
+    if let Err(error) = app.emit("homecloud:server-metrics", json!({
+        "server_id": id,
+        "metrics": snapshot
+    })) {
+        eprintln!("[ServerPool] Failed to emit metrics update: {error}");
+    }
 }
 
 fn update_node(app: &AppHandle, id: &str, phase: &str, latency: Option<u64>, data: Option<Value>, error: Option<String>) {
