@@ -105,9 +105,9 @@ export function ShellLayout() {
         <main className="homecloud-main">
           <header className="homecloud-glass homecloud-topbar">
             <div className="min-w-0">
-              <div className="truncate text-[22px] font-semibold text-white">
+              <h1 className="truncate text-[22px] font-semibold text-white">
                 {pageTitle}
-              </div>
+              </h1>
             </div>
 
             <div className="hc-shell-topbar__right flex shrink-0 items-center gap-3 sm:gap-6">
