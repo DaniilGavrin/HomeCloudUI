@@ -43,12 +43,13 @@ pub struct PoolNode {
     pub phase: String, // offline, connecting, ready, error
     pub latency_ms: Option<u64>,
     pub data: Option<Value>,
+    pub metrics: Option<Value>,
     pub error: Option<String>,
 }
 
 impl PoolNode {
     fn new(entry: ServerEntry) -> Self {
-        Self { entry, phase: "offline".into(), latency_ms: None, data: None, error: None }
+        Self { entry, phase: "offline".into(), latency_ms: None, data: None, metrics: None, error: None }
     }
 }
 
