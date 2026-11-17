@@ -180,7 +180,6 @@ export const navigationItems: NavItem[] = [
         defaultEnabled: false,
     },
     {
-    {
         id: 'automation',
         label: 'Автоматизация',
         shortLabel: 'Сценарии',
