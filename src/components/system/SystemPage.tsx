@@ -36,7 +36,8 @@ function uptime(value?: number) {
 }
 function mergeMetrics(previous: MetricsSnapshot | null, incoming: MetricsSnapshot): MetricsSnapshot {
   const merged = new Map<string, MetricSample>();
-  for (const item of previous?.samples ?? []) {
+  const reset = Array.isArray(incoming.samples) && incoming.samples.length === 0;
+  for (const item of reset ? [] : (previous?.samples ?? [])) {
     const labels = Object.entries(item.labels ?? {}).sort(([a], [b]) => a.localeCompare(b));
     merged.set(item.node_id + '|' + item.name + '|' + JSON.stringify(labels), item);
   }
@@ -168,12 +169,12 @@ export function SystemPage() {
     return () => { live = false; unlisten?.(); };
   }, [serverId]);
   useEffect(() => {
-    if (!serverId) return;
+    if (!serverId || selected?.phase !== 'ready') return;
     setMetrics(null);
     setMetricsError(null);
     void invoke('homecloud_metrics_set_group', { serverId, group: tab })
       .catch(error => setMetricsError(String(error)));
-  }, [serverId, tab]);
+  }, [serverId, tab, selected?.phase]);
 
   const data = selected?.data ?? null;
   const samples = metrics?.samples ?? [];
