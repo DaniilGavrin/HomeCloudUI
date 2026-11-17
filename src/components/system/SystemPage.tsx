@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { Activity, Cpu, HardDrive, MemoryStick, Network, RefreshCw, Server, ShieldCheck, Workflow } from 'lucide-react';
-import { useHomeCloudPool, type MetricSample } from '../../hooks/useHomeCloudPool';
+import { useHomeCloudPool, type MetricSample, type MetricsSnapshot } from '../../hooks/useHomeCloudPool';
 import '../../styles/system.css';
 
 type Tab = 'overview' | 'cpu' | 'memory' | 'disks' | 'network' | 'processes' | 'services' | 'diagnostics';
@@ -73,6 +74,8 @@ export function SystemPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!servers.length) { setServerId(''); return; }
@@ -80,8 +83,32 @@ export function SystemPage() {
   }, [servers, serverId]);
 
   const selected = servers.find(s => s.id === serverId) ?? null;
+  useEffect(() => {
+    let live = true;
+    let eventReceived = false;
+    let unlisten: (() => void) | undefined;
+    setMetrics(null);
+    setMetricsError(null);
+    if (!serverId) return;
+    void (async () => {
+      try {
+        unlisten = await listen<{ server_id: string; metrics: MetricsSnapshot }>('homecloud:server-metrics', event => {
+          if (live && event.payload.server_id === serverId) {
+            eventReceived = true;
+            setMetrics(event.payload.metrics);
+          }
+        });
+        if (!live) { unlisten(); return; }
+        const initial = await invoke<MetricsSnapshot | null>('homecloud_metrics_status', { serverId });
+        if (live && !eventReceived) setMetrics(initial);
+      } catch (error) {
+        if (live) setMetricsError(String(error));
+      }
+    })();
+    return () => { live = false; unlisten?.(); };
+  }, [serverId]);
   const data = selected?.data ?? null;
-  const samples = selected?.metrics?.samples ?? [];
+  const samples = metrics?.samples ?? [];
   const activeMetric = useMemo(() => {
     if (tab === 'overview' || tab === 'cpu') return sample(samples, 'cpu.usage_percent');
     if (tab === 'memory') return sample(samples, 'memory.used_percent');
@@ -117,7 +144,7 @@ export function SystemPage() {
   const cpu = data?.cpu, memory = data?.memory, swap = data?.swap;
   const disks = data?.disks?.partitions ?? [], interfaces = data?.network?.interfaces ?? [];
   const temperatures = data?.temperatures ?? [], errors = data?.collection_errors ?? {};
-  const backend = data?.backend, stats = selected?.metrics?.stats ?? {};
+  const backend = data?.backend, stats = metrics?.stats ?? {};
   const rangeControls = <div className="hc-system-ranges">{ranges.map(r => <button key={r.id} className={rangeId === r.id ? 'is-active' : ''} onClick={() => setRangeId(r.id)} type="button">{r.label}</button>)}</div>;
   const historyPanel = <Card title="История метрики" hint={activeMetric?.name || 'Метрика не получена'}>
     <div className="hc-system-history-head">{rangeControls}</div>
