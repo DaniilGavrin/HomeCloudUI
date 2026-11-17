@@ -48,9 +48,9 @@ export function ShellLockScreen({ securityReady, securityError, pinLength, onVer
         }
         setPin('');
         setError('Неверный PIN-код. Попробуйте ещё раз.');
-      }).catch(() => {
+      }).catch((reason: unknown) => {
         setPin('');
-        setError('Не удалось проверить PIN-код. Попробуйте ещё раз.');
+        setError(typeof reason === 'string' ? reason : 'Не удалось проверить PIN-код. Попробуйте ещё раз.');
       }).finally(() => setVerifying(false));
     }
   };
