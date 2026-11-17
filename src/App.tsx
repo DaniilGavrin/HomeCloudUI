@@ -28,11 +28,23 @@ function App() {
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
   const [securityError, setSecurityError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void invoke<SecurityStatus>('shell_security_status')
-      .then(setSecurity)
-      .catch(() => setSecurityError('Не удалось загрузить параметры безопасности.'));
+  const refreshSecurity = useCallback(async () => {
+    try {
+      const status = await invoke<SecurityStatus>('shell_security_status');
+      setSecurity(status);
+      setSecurityError(null);
+    } catch {
+      setSecurity(null);
+      setSecurityError('Не удалось загрузить параметры безопасности.');
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshSecurity();
+    const onSecurityChanged = () => void refreshSecurity();
+    window.addEventListener('homecloud:security-changed', onSecurityChanged);
+    return () => window.removeEventListener('homecloud:security-changed', onSecurityChanged);
+  }, [refreshSecurity]);
 
   const verifyPin = useCallback((pin: string) =>
     invoke<boolean>('shell_security_verify_pin', { pin }), []);
