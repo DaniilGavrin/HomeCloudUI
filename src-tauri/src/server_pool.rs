@@ -286,6 +286,7 @@ pub fn homecloud_pool_update(app: AppHandle, id: String, input: ServerInput) -> 
     publish(&app);
     if address_changed {
         app.state::<ServerPool>().metrics.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+        let _ = app.emit("homecloud:server-metrics", json!({"server_id": id, "metrics": {}}));
         if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
         start_secondary(app, id);
     }
