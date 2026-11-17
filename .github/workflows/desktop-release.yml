@@ -22,10 +22,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
@@ -56,7 +56,7 @@ jobs:
           - language: actions
             build-mode: none
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Rust toolchain
         if: matrix.language == 'rust'
         uses: dtolnay/rust-toolchain@stable
@@ -87,10 +87,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
@@ -99,7 +99,7 @@ jobs:
       # The Tauri AppImage toolchain normally downloads from GitHub Releases
       # during bundling, where transient 504 responses have broken CI.
       - name: Restore cached Tauri packaging tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: src-tauri/target/.tauri
           key: homecloud-ui-tauri-tools-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/Cargo.lock') }}
@@ -240,7 +240,7 @@ jobs:
           cp -- "${debs[@]}" "${appimages[@]}" release-assets/
 
       - name: Upload verified ${{ matrix.platform }} artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: homecloud-ui-${{ matrix.platform }}
           path: release-assets/*
@@ -256,9 +256,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download both platform packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: homecloud-ui-*
           path: release-assets
