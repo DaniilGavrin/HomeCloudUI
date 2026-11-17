@@ -321,6 +321,36 @@ pub fn homecloud_pool_refresh(app: AppHandle, id: String) -> Result<(), String> 
     sender.ok_or("Сервер сейчас не подключён")?.try_send(()).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn homecloud_metrics_query(
+    app: AppHandle,
+    server_id: String,
+    node_id: String,
+    metric: String,
+    from: String,
+    to: String,
+    resolution_ms: u64,
+    limit: usize,
+) -> Result<Value, String> {
+    if server_id.is_empty() || node_id.is_empty() || node_id.len() > 128
+        || metric.is_empty() || metric.len() > 160 || from.is_empty() || to.is_empty() {
+        return Err("Некорректные параметры запроса истории метрик".into());
+    }
+    if !matches!(resolution_ms, 1000 | 10000 | 60000) {
+        return Err("Недопустимое разрешение истории метрик".into());
+    }
+    let sender = app.state::<ServerPool>().metric_queries.lock()
+        .unwrap_or_else(|e| e.into_inner()).get(&server_id).cloned()
+        .ok_or("Сервер сейчас не подключён")?;
+    let (reply, receive) = oneshot::channel();
+    sender.send(MetricsQueryRequest {
+        node_id, metric, from, to, resolution_ms, limit: limit.clamp(1, 20_000), reply,
+    }).await.map_err(|_| "Сессия сервера закрылась")?;
+    tokio::time::timeout(Duration::from_secs(20), receive).await
+        .map_err(|_| "Тайм-аут запроса истории метрик")?
+        .map_err(|_| "Соединение прервалось до ответа истории метрик")?
+}
+
 pub fn refresh_devices(app: &AppHandle, id: &str) -> Result<(), String> {
     let p = app.state::<ServerPool>();
     let sender = p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned();
