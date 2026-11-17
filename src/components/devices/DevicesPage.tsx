@@ -32,12 +32,23 @@ function DeviceIcon({ kind }: { kind: DeviceKind }) {
   return <Icon size={26} strokeWidth={1.7} aria-hidden="true" />;
 }
 
-const labelFor = (id: string) => id.startsWith('homecloud-ui-') || id.startsWith('hc-ui-') ? 'HomeCloud UI' : id;
+const labelFor = (id: string, clientType: string, name?: string) => {
+  if (name?.trim()) return name.trim();
+  if (id.startsWith('homecloud-ui-') || id.startsWith('hc-ui-')) return 'HomeCloud UI';
+  const defaults: Record<string, string> = {
+    storage_service: 'Сервер хранения',
+    media_gateway: 'Медиашлюз',
+    tv: 'TV Player',
+    desktop: 'Компьютер',
+    mobile: 'Мобильное устройство',
+  };
+  return defaults[clientType] ?? id;
+};
 const lastSeen = (seconds: number | null) => seconds === null ? 'Нет данных' : new Date(seconds * 1000).toLocaleString('ru-RU');
 const keyFor = (device: RegisteredDevice) => JSON.stringify([device.server_id, device.device_id]);
 
 export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpenExplorer: () => void; canOpenExplorer?: boolean }) {
-  const { snapshot, error, forget, refresh } = useHomeCloudDeviceRegistry();
+  const { snapshot, error, forget, refresh, rename } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const [serverId, setServerId] = useState('all');
   const [search, setSearch] = useState('');
@@ -48,6 +59,8 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeError, setNoticeError] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const reduced = Boolean(useReducedMotion());
 
   const serverNames = useMemo(() => new Map(pool.servers.map(s => [s.id, s.name])), [pool.servers]);
@@ -59,7 +72,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
       (serverId === 'all' || serverId === d.server_id)
       && (type === 'all' || kindOf(d.client_type) === type)
       && (status === 'all' || (status === 'online' ? d.online : !d.online))
-      && (!q || `${d.device_id} ${d.client_type} ${serverNames.get(d.server_id) ?? d.server_id}`.toLowerCase().includes(q))
+      && (!q || `${d.name} ${d.device_id} ${d.client_type} ${serverNames.get(d.server_id) ?? d.server_id}`.toLowerCase().includes(q))
     ).sort((a, b) => Number(b.online) - Number(a.online) || a.server_id.localeCompare(b.server_id) || a.device_id.localeCompare(b.device_id));
   }, [snapshot.devices, serverId, search, type, status, serverNames]);
   const selected = snapshot.devices.find(d => keyFor(d) === selectedKey) ?? null;
@@ -96,6 +109,18 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
     }
   };
 
+  const onRename = async () => {
+    if (!selected || !nameDraft.trim()) return;
+    setBusy(true); setNotice(null);
+    try {
+      await rename(selected, nameDraft.trim());
+      setEditingName(false);
+      setNoticeError(false);
+      setNotice("Имя устройства сохранено на HomeCloud Backend и синхронизируется с другими клиентами.");
+    } catch (cause) { setNoticeError(true); setNotice(String(cause)); }
+    finally { setBusy(false); }
+  };
+
   const onForget = async (device: RegisteredDevice) => {
     setBusy(true); setNotice(null);
     try {
@@ -103,7 +128,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
       setSelectedKey(null);
       setConfirmKey(null);
       setNoticeError(false);
-      setNotice(`Офлайн-устройство «${device.device_id}» удалено из локального списка.`);
+      setNotice(`Офлайн-устройство «${device.name || labelFor(device.device_id, device.client_type)}» удалено из реестра HomeCloud. При следующем подключении оно появится снова.`);
     } catch (cause) { setNoticeError(true); setNotice(String(cause)); }
     finally { setBusy(false); }
   };
@@ -121,7 +146,16 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
             </div>
             <div className="hc-devices-detail__scroll">
               <div className="hc-devices-eyebrow">Устройства / {serverLabel(selected.server_id)}</div>
-              <h2 className="hc-devices-detail__title">{labelFor(selected.device_id)}</h2>
+              <h2 className="hc-devices-detail__title">{labelFor(selected.device_id, selected.client_type, selected.name)}</h2>
+              {editingName ? (
+                <div className="hc-devices-rename">
+                  <input className="hc-devices-rename__input" value={nameDraft} maxLength={64} autoFocus onChange={e => setNameDraft(e.target.value)} aria-label="Новое имя устройства" />
+                  <button type="button" className="hc-devices-refresh" disabled={busy || !nameDraft.trim()} onClick={() => void onRename()}>Сохранить</button>
+                  <button type="button" className="hc-devices-refresh" disabled={busy} onClick={() => setEditingName(false)}>Отмена</button>
+                </div>
+              ) : (
+                <button type="button" className="hc-devices-refresh hc-devices-rename__trigger" onClick={() => { setNameDraft(selected.name || labelFor(selected.device_id, selected.client_type)); setEditingName(true); setNotice(null); }}>Переименовать</button>
+              )}
               <p className="hc-devices-subtitle">{TYPE_LABEL[kindOf(selected.client_type)]}</p>
               <div className="hc-devices-meta">
                 <div><span>Сервер</span><strong>{serverLabel(selected.server_id)}</strong></div>
@@ -145,7 +179,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
                   <p>Последняя известная информация сохранена локально. Команды недоступны до переподключения.</p>
                   {confirmKey === selectedKey ? (
                     <div className="hc-devices-confirm">
-                      <p>Удалить запись об устройстве? Это не отключает и не удаляет устройство на сервере. При новом подключении оно появится снова.</p>
+                      <p>Удалить запись из реестра HomeCloud? Это не отключает само устройство. При следующем подключении Backend создаст запись заново.</p>
                       <button type="button" className="hc-devices-danger" disabled={busy} onClick={() => void onForget(selected)}>Да, удалить запись</button>
                       <button type="button" className="hc-devices-refresh" onClick={() => setConfirmKey(null)}>Отмена</button>
                     </div>
@@ -184,7 +218,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
                 <div className="hc-devices-grid"><AnimatePresence initial={false} mode="popLayout">
                   {visible.map(device=><motion.button type="button" key={keyFor(device)} layout={!reduced} className={`hc-device-card homecloud-glass ${device.online?'':'hc-device-card--offline'} ${kindOf(device.client_type)==='tv'?'hc-device-card--tv':''}`} title={`${device.device_id} · ${serverLabel(device.server_id)}`} initial={{opacity:0,y:reduced?0:12}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:reduced?1:.96}} transition={{duration:reduced ? 0.08 : 0.22}} whileHover={reduced?undefined:{y:-3}} onClick={()=>{setSelectedKey(keyFor(device));setConfirmKey(null);setNotice(null);}}>
                     <span className="hc-device-card__top"><span className={`hc-device-icon hc-device-icon--${kindOf(device.client_type)}`}><DeviceIcon kind={kindOf(device.client_type)}/></span><span className={device.online?'hc-device-online':'hc-device-online hc-device-online--offline'}><i/>{device.online?'Online':'Offline'}</span></span>
-                    <span className="hc-device-name">{labelFor(device.device_id)}</span>
+                    <span className="hc-device-name">{labelFor(device.device_id, device.client_type, device.name)}</span>
                     <span className="hc-device-kind">{TYPE_LABEL[kindOf(device.client_type)]} <span>· {device.client_type}</span></span>
                     {kindOf(device.client_type) === 'tv' && <span className="hc-device-card__tv-tag">Управление TV Player</span>}
                     <span className="hc-device-card__server">⌂ {serverLabel(device.server_id)}</span>

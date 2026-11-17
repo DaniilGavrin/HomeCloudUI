@@ -11,6 +11,10 @@ pub struct DeviceRecord {
     pub server_id: String,
     pub device_id: String,
     pub client_type: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub first_seen_at: Option<u64>,
     pub online: bool,
     pub last_seen_at: Option<u64>,
 }
@@ -119,7 +123,8 @@ fn apply_device(devices: &mut Vec<DeviceRecord>, server_id: &str, device_id: &st
     } else if online {
         devices.push(DeviceRecord {
             server_id: server_id.to_owned(), device_id: device_id.to_owned(),
-            client_type: client_type.to_owned(), online: true, last_seen_at: Some(now_seconds()),
+            client_type: client_type.to_owned(), name: String::new(), first_seen_at: None,
+            online: true, last_seen_at: Some(now_seconds()),
         });
         true
     } else { false }
@@ -148,6 +153,70 @@ pub fn event(app: &AppHandle, server_id: &str, device_id: &str, client_type: &st
     }
 }
 
+
+pub fn reconcile_snapshot(app: &AppHandle, server_id: &str, records: &[crate::homecloud_ws::RegisteredDevice]) {
+    if let Err(e) = edit(app, |all| {
+        let mut changed = false;
+        for record in records {
+            if record.device_id.is_empty() { continue; }
+            if let Some(old) = all.iter_mut().find(|d| d.server_id == server_id && d.device_id == record.device_id) {
+                let last_seen = Some(record.last_seen_at);
+                if old.client_type != record.client_type || old.name != record.name
+                    || old.online != record.online || old.first_seen_at != Some(record.first_seen_at)
+                    || old.last_seen_at != last_seen {
+                    old.client_type = record.client_type.clone();
+                    old.name = record.name.clone();
+                    old.first_seen_at = Some(record.first_seen_at);
+                    old.last_seen_at = last_seen;
+                    old.online = record.online;
+                    changed = true;
+                }
+            } else {
+                all.push(DeviceRecord {
+                    server_id: server_id.to_owned(),
+                    device_id: record.device_id.clone(),
+                    client_type: record.client_type.clone(),
+                    name: record.name.clone(),
+                    first_seen_at: Some(record.first_seen_at),
+                    online: record.online,
+                    last_seen_at: Some(record.last_seen_at),
+                });
+                changed = true;
+            }
+        }
+        for old in all.iter_mut().filter(|d| d.server_id == server_id) {
+            if !records.iter().any(|record| record.device_id == old.device_id) && old.online {
+                old.online = false;
+                changed = true;
+            }
+        }
+        Ok(changed)
+    }) { eprintln!("[Devices] Failed to persist server registry snapshot: {e}"); }
+}
+
+pub fn updated(app: &AppHandle, server_id: &str, record: &crate::homecloud_ws::RegisteredDevice) {
+    if let Err(e) = edit(app, |all| {
+        if let Some(old) = all.iter_mut().find(|d| d.server_id == server_id && d.device_id == record.device_id) {
+            old.client_type = record.client_type.clone();
+            old.name = record.name.clone();
+            old.first_seen_at = Some(record.first_seen_at);
+            old.last_seen_at = Some(record.last_seen_at);
+            old.online = record.online;
+        } else {
+            all.push(DeviceRecord {
+                server_id: server_id.to_owned(),
+                device_id: record.device_id.clone(),
+                client_type: record.client_type.clone(),
+                name: record.name.clone(),
+                first_seen_at: Some(record.first_seen_at),
+                online: record.online,
+                last_seen_at: Some(record.last_seen_at),
+            });
+        }
+        Ok(true)
+    }) { eprintln!("[Devices] Failed to persist device update: {e}"); }
+}
+
 pub fn disconnected(app: &AppHandle, server_id: &str) {
     if let Err(e) = edit(app, |all| {
         let mut changed = false;
@@ -170,15 +239,32 @@ pub fn forget_server(app: &AppHandle, server_id: &str) -> Result<(), String> {
     })
 }
 
+pub fn removed(app: &AppHandle, server_id: &str, device_id: &str) {
+    if let Err(e) = edit(app, |all| {
+        let old = all.len();
+        all.retain(|d| !(d.server_id == server_id && d.device_id == device_id));
+        Ok(old != all.len())
+    }) { eprintln!("[Devices] Failed to remove forgotten device: {e}"); }
+}
+
 #[tauri::command]
-pub fn homecloud_device_forget(app: AppHandle, server_id: String, device_id: String) -> Result<(), String> {
-    edit(&app, |all| {
-        let position = all.iter().position(|d| d.server_id == server_id && d.device_id == device_id)
-            .ok_or("Устройство не найдено")?;
-        if all[position].online { return Err("Нельзя удалить устройство, пока оно подключено".into()); }
-        all.remove(position);
-        Ok(true)
-    })
+pub async fn homecloud_device_forget(app: AppHandle, server_id: String, device_id: String) -> Result<(), String> {
+    if server_id == "primary" {
+        crate::homecloud_ws::forget_device(&app, device_id.clone()).await?;
+    } else {
+        crate::server_pool::forget_device(&app, &server_id, device_id.clone()).await?;
+    }
+    removed(&app, &server_id, &device_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn homecloud_device_rename(app: AppHandle, server_id: String, device_id: String, name: String) -> Result<(), String> {
+    if server_id == "primary" {
+        crate::homecloud_ws::rename_device(&app, device_id, name).await
+    } else {
+        crate::server_pool::rename_device(&app, &server_id, device_id, name).await
+    }
 }
 
 #[tauri::command]

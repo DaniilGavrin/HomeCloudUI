@@ -34,6 +34,7 @@ pub fn run() {
             server_pool::homecloud_pool_refresh,
             device_registry::homecloud_device_registry_status,
             device_registry::homecloud_device_forget,
+            device_registry::homecloud_device_rename,
             device_registry::homecloud_device_refresh,
             device_registry::homecloud_device_send,
             media_rooms::homecloud_media_status,
