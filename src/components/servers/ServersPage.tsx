@@ -457,7 +457,7 @@ export function ServersPage() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: reduced ? 0 : -12 }}
           transition={{ duration: reduced ? .08 : .2 }}>
-          <p className="hc-servers-header">Мониторинг узлов, ресурсы и доступность всей распределённой системы.</p>
+          <header className="hc-servers-header"><p>Мониторинг узлов, ресурсы и доступность всей распределённой системы.</p></header>
           <div className="hc-servers-summary" aria-label="Сводные показатели серверов">
             <div className="hc-server-summary-card homecloud-glass">
               <span>В пуле</span>
