@@ -409,11 +409,42 @@ fn update_node_metrics(app: &AppHandle, id: &str, metrics: Value) {
         let p = app.state::<ServerPool>();
         let mut values = p.metrics.lock().unwrap_or_else(|e| e.into_inner());
         let mut merged = values.remove(id).unwrap_or_else(|| json!({}));
+
         if let (Some(target), Some(update)) = (merged.as_object_mut(), metrics.as_object()) {
-            for (key, value) in update { target.insert(key.clone(), value.clone()); }
+            for (key, value) in update {
+                if key == "samples" {
+                    let Some(incoming) = value.as_array() else {
+                        target.insert(key.clone(), value.clone());
+                        continue;
+                    };
+                    let current = target.entry(key.clone()).or_insert_with(|| json!([]));
+                    let Some(existing) = current.as_array_mut() else {
+                        *current = json!([]);
+                        continue;
+                    };
+                    for sample in incoming {
+                        let identity = |item: &Value| {
+                            (
+                                item.get("node_id").and_then(Value::as_str).unwrap_or("").to_owned(),
+                                item.get("name").and_then(Value::as_str).unwrap_or("").to_owned(),
+                                item.get("labels").cloned().unwrap_or(Value::Null),
+                            )
+                        };
+                        let key = identity(sample);
+                        if let Some(previous) = existing.iter_mut().find(|item| identity(item) == key) {
+                            *previous = sample.clone();
+                        } else {
+                            existing.push(sample.clone());
+                        }
+                    }
+                } else {
+                    target.insert(key.clone(), value.clone());
+                }
+            }
         } else {
             merged = metrics;
         }
+
         values.insert(id.to_owned(), merged.clone());
         merged
     };
