@@ -687,8 +687,7 @@ export function HcssExplorerPage() {
 
   return <section ref={explorerRef} className="hc-explorer" aria-label="Проводник HomeCloud">
     <aside className="hc-explorer-sidebar" aria-label="Места">
-      <div className="hc-explorer-brand"><span className="hc-explorer-brand__mark"><HardDrive size={21} strokeWidth={1.7} aria-hidden="true" /></span>
-        <div><strong>Проводник</strong></div></div>
+      <div className="hc-explorer-brand" aria-hidden="true"><span className="hc-explorer-brand__mark"><HardDrive size={21} strokeWidth={1.7} aria-hidden="true" /></span></div>
       <div className="hc-explorer-sidebar__section">
         <span className="hc-explorer-sidebar__label">Сервер</span>
         <select aria-label="Сервер" value={serverId} disabled={busy}
