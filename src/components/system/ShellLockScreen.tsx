@@ -115,13 +115,17 @@ export function ShellLockScreen({
       setPhase('rejected');
       setError(typeof reason === 'string' ? reason : 'Не удалось проверить PIN-код.');
       await wait(reducedMotion ? 100 : 650);
-      await onRefreshSecurity();
+      try {
+        await onRefreshSecurity();
+      } catch {
+        // Keep the lock screen active if the status refresh is temporarily unavailable.
+      }
       setPin('');
       setPhase('idle');
     }
   }, [lockoutRemaining, onRefreshSecurity, onUnlock, onVerify, phase, pinLength, reducedMotion]);
 
-  const handlePinChange = (next: string) => {
+  const handlePinChange = useCallback((next: string) => {
     if (phase !== 'idle' || lockoutRemaining > 0 || pinLength === null) return;
     if (next.length < pin.length) {
       setPin(next);
@@ -131,7 +135,7 @@ export function ShellLockScreen({
     if (next.length > pinLength) return;
     setPin(next);
     if (next.length === pinLength) void submitPin(next);
-  };
+  }, [lockoutRemaining, phase, pin, pinLength, submitPin]);
 
   useEffect(() => {
     if (!entryOpen || lockoutRemaining > 0) return;
@@ -347,7 +351,20 @@ export function ShellLockScreen({
                             : { backgroundColor: index < pin.length ? 'rgba(112, 222, 255, .2)' : 'rgba(255,255,255,.045)', borderColor: index < pin.length ? 'rgba(125,225,255,.95)' : 'rgba(196,225,255,.38)', color: '#f4fbff' }}
                           transition={{ duration: reducedMotion ? 0.08 : 0.18 }}
                         >
-                          {pin[index] ?? ''}
+                          <AnimatePresence initial={false} mode="popLayout">
+                            {pin[index] && (
+                              <motion.span
+                                key={`${index}-${pin[index]}`}
+                                initial={{ opacity: 0, y: 13, scale: 0.65, rotateX: -35 }}
+                                animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+                                exit={{ opacity: 0, y: -12, scale: 0.55, rotateX: 35 }}
+                                transition={{ duration: reducedMotion ? 0.06 : 0.2, ease: 'easeOut' }}
+                                style={{ display: 'inline-block', transformPerspective: 500 }}
+                              >
+                                {pin[index]}
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
                         </motion.span>
                       ))}
                     </div>
