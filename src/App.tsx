@@ -11,7 +11,18 @@ import './styles/shell.css';
 
 const LOCK_KEY = 'homecloud:shell-locked';
 
-type SecurityStatus = { enabled: boolean; pin_length: number | null };
+type SecurityStatus = {
+  enabled: boolean;
+  pin_length: number | null;
+  attempts_remaining: number;
+  lockout_remaining_secs: number;
+};
+
+type PinVerificationResult = {
+  valid: boolean;
+  attemptsRemaining: number;
+  lockoutRemainingSecs: number;
+};
 
 function wasLocked(): boolean {
   try {
@@ -33,6 +44,15 @@ function App() {
       const status = await invoke<SecurityStatus>('shell_security_status');
       setSecurity(status);
       setSecurityError(null);
+      if (status.lockout_remaining_secs > 0) {
+        try {
+          window.sessionStorage.setItem(LOCK_KEY, '1');
+        } catch {
+          // The native security lockout remains authoritative.
+        }
+        setPowerOpen(false);
+        setLocked(true);
+      }
     } catch {
       setSecurity(null);
       setSecurityError('Не удалось загрузить параметры безопасности.');
@@ -46,8 +66,40 @@ function App() {
     return () => window.removeEventListener('homecloud:security-changed', onSecurityChanged);
   }, [refreshSecurity]);
 
-  const verifyPin = useCallback((pin: string) =>
-    invoke<boolean>('shell_security_verify_pin', { pin }), []);
+  const verifyPin = useCallback(async (pin: string): Promise<PinVerificationResult> => {
+    let valid = false;
+    try {
+      valid = await invoke<boolean>('shell_security_verify_pin', { pin });
+    } catch (error) {
+      const status = await invoke<SecurityStatus>('shell_security_status');
+      setSecurity(status);
+      if (status.lockout_remaining_secs > 0) {
+        setLocked(true);
+        return {
+          valid: false,
+          attemptsRemaining: 0,
+          lockoutRemainingSecs: status.lockout_remaining_secs,
+        };
+      }
+      throw error;
+    }
+
+    const status = await invoke<SecurityStatus>('shell_security_status');
+    setSecurity(status);
+    if (status.lockout_remaining_secs > 0) {
+      try {
+        window.sessionStorage.setItem(LOCK_KEY, '1');
+      } catch {
+        // The native security lockout remains authoritative.
+      }
+      setLocked(true);
+    }
+    return {
+      valid,
+      attemptsRemaining: status.attempts_remaining,
+      lockoutRemainingSecs: status.lockout_remaining_secs,
+    };
+  }, []);
 
   const lockShell = useCallback(() => {
     try {
@@ -75,7 +127,6 @@ function App() {
         return;
       }
 
-      // Avoid intercepting uppercase F/G when typing in an input in future screens.
       const target = event.target;
       if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable="true"]')) {
         return;
@@ -109,7 +160,6 @@ function App() {
   }, [locked, lockShell]);
 
   const restartShell = () => {
-    // Reloads only the WebView/React shell; Rust WebSocket stays alive.
     window.location.reload();
   };
 
@@ -122,43 +172,43 @@ function App() {
   };
 
   return (
-      <MotionConfig reducedMotion="user">
-        <main className="homecloud-screen h-screen w-screen">
-          {/* Основной рабочий стол HomeCloud */}
-          <ShellLayout onLock={lockShell} onOpenPower={() => { setPowerError(null); setPowerOpen(true); }} />
+    <MotionConfig reducedMotion="user">
+      <main className="homecloud-screen h-screen w-screen">
+        <ShellLayout onLock={lockShell} onOpenPower={() => { setPowerError(null); setPowerOpen(true); }} />
 
-          {/* Меню питания поверх рабочего стола */}
-          <AnimatePresence initial={false}>
-            {!locked && powerOpen && (
-                <ShellPowerMenu
-                    key="homecloud-power"
-                    onDismiss={() => {
-                      setPowerOpen(false);
-                      setPowerError(null);
-                    }}
-                    onLock={lockShell}
-                    onRestart={restartShell}
-                    onPowerOff={() => void powerOffShell()}
-                    error={powerError}
-                />
-            )}
-          </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {!locked && powerOpen && (
+            <ShellPowerMenu
+              key="homecloud-power"
+              onDismiss={() => {
+                setPowerOpen(false);
+                setPowerError(null);
+              }}
+              onLock={lockShell}
+              onRestart={restartShell}
+              onPowerOff={() => void powerOffShell()}
+              error={powerError}
+            />
+          )}
+        </AnimatePresence>
 
-          {/* Экран блокировки поверх всей оболочки */}
-          <AnimatePresence initial={false}>
-            {locked && (
-                <ShellLockScreen
-                    key="homecloud-lock"
-                    securityReady={security !== null}
-                    securityError={securityError}
-                    pinLength={security?.enabled ? security.pin_length : null}
-                    onVerify={verifyPin}
-                    onUnlock={unlockShell}
-                />
-            )}
-          </AnimatePresence>
-        </main>
-      </MotionConfig>
+        <AnimatePresence initial={false}>
+          {locked && (
+            <ShellLockScreen
+              key="homecloud-lock"
+              securityReady={security !== null}
+              securityError={securityError}
+              pinLength={security?.enabled ? security.pin_length : null}
+              attemptsRemaining={security?.attempts_remaining ?? 3}
+              lockoutRemainingSecs={security?.lockout_remaining_secs ?? 0}
+              onVerify={verifyPin}
+              onRefreshSecurity={refreshSecurity}
+              onUnlock={unlockShell}
+            />
+          )}
+        </AnimatePresence>
+      </main>
+    </MotionConfig>
   );
 }
 
