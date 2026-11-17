@@ -16,13 +16,7 @@ export function SectionPlaceholderPage({ title, description, icon: Icon }: Secti
         <Icon size={34} strokeWidth={1.45} aria-hidden="true" />
       </div>
 
-      <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-100/60">
-        HomeCloud · Раздел
-      </span>
-      <h1 id="hc-section-placeholder-title" className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-        {title}
-      </h1>
-      <p className="mt-3 max-w-xl text-sm leading-6 text-white/60 sm:text-base">
+      <p id="hc-section-placeholder-title" className="max-w-xl text-sm leading-6 text-white/60 sm:text-base">
         {description}
       </p>
 
