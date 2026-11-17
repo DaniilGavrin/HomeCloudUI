@@ -168,7 +168,6 @@ export function ShellLayout() {
                 <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} onTitleChange={setPageTitle} />
               ) : (
                 <SectionPlaceholderPage
-                  title={activeItem.label}
                   description={activeItem.description}
                   icon={PLACEHOLDER_ICONS[activeId] ?? Workflow}
                 />
