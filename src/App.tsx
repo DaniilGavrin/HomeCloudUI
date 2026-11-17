@@ -63,7 +63,11 @@ function App() {
     void refreshSecurity();
     const onSecurityChanged = () => void refreshSecurity();
     window.addEventListener('homecloud:security-changed', onSecurityChanged);
-    return () => window.removeEventListener('homecloud:security-changed', onSecurityChanged);
+    window.addEventListener('homecloud:security-lockout', onSecurityChanged);
+    return () => {
+      window.removeEventListener('homecloud:security-changed', onSecurityChanged);
+      window.removeEventListener('homecloud:security-lockout', onSecurityChanged);
+    };
   }, [refreshSecurity]);
 
   const verifyPin = useCallback(async (pin: string): Promise<PinVerificationResult> => {
