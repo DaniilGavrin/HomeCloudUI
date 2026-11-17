@@ -199,3 +199,271 @@
 @media (prefers-reduced-motion: reduce) {
   .hc-pin-tile,.hc-pinpad__key { transition: none; }
 }
+
+
+/* Full-size PIN entry opened from the original lock screen. */
+.hc-lock-entry-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: clamp(16px, 4vw, 48px);
+}
+.hc-lock-entry-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 7, 23, .88);
+  -webkit-backdrop-filter: blur(16px) saturate(115%);
+  backdrop-filter: blur(16px) saturate(115%);
+}
+.hc-lock-entry-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 760px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: clamp(24px, 5vw, 52px);
+  border: 1px solid rgba(169, 222, 255, .22);
+  border-radius: clamp(22px, 3vw, 34px);
+  color: #f1f8ff;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(83, 169, 255, .15), transparent 54%),
+    linear-gradient(145deg, rgba(24, 39, 76, .97), rgba(9, 14, 37, .98) 65%, rgba(31, 17, 57, .97));
+  box-shadow: 0 32px 110px rgba(0, 0, 0, .55), inset 0 1px rgba(255, 255, 255, .11);
+  scrollbar-width: none;
+}
+.hc-lock-entry-panel::-webkit-scrollbar { display: none; }
+.hc-lock-entry-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  text-align: left;
+}
+.hc-lock-entry-header > div { flex: 1; min-width: 0; }
+.hc-lock-entry-header p {
+  margin: 0 0 10px;
+  color: #8edfff;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .2em;
+}
+.hc-lock-entry-header h2 {
+  margin: 0;
+  color: #f4f9ff;
+  font-size: clamp(25px, 4vw, 38px);
+  font-weight: 550;
+  letter-spacing: -.035em;
+}
+.hc-lock-entry-header span {
+  display: block;
+  margin-top: 8px;
+  color: rgba(224, 239, 255, .56);
+  font-size: clamp(12px, 1.6vw, 15px);
+}
+.hc-lock-entry-close {
+  display: grid;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid rgba(221, 239, 255, .16);
+  border-radius: 14px;
+  color: rgba(231, 245, 255, .8);
+  background: rgba(255, 255, 255, .045);
+  cursor: pointer;
+}
+.hc-lock-entry-close:hover { border-color: rgba(139, 219, 255, .42); background: rgba(107, 199, 255, .1); }
+.hc-lock-entry-body { padding-top: clamp(28px, 5vh, 48px); }
+.hc-pin-tiles--large {
+  gap: clamp(9px, 1.6vw, 17px);
+  min-height: clamp(58px, 8vw, 78px);
+  margin-bottom: clamp(24px, 4vh, 36px);
+}
+.hc-pin-tiles--large .hc-pin-tile {
+  display: grid;
+  place-items: center;
+  width: clamp(43px, 7vw, 68px);
+  height: clamp(55px, 8vw, 78px);
+  border-width: 1px;
+  border-radius: clamp(12px, 1.5vw, 17px);
+  color: #f4fbff;
+  font-size: clamp(25px, 4vw, 35px);
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px rgba(255,255,255,.07);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+.hc-pin-tiles--large .hc-pin-tile.is-filled {
+  background: rgba(112, 222, 255, .2);
+  box-shadow: 0 0 24px rgba(90, 211, 255, .15), inset 0 1px rgba(255,255,255,.13);
+}
+.hc-pin-tiles--large.is-rejected .hc-pin-tile {
+  border-color: rgba(255, 105, 130, .95);
+  color: #ffd8df;
+  background: rgba(255, 76, 105, .25);
+  box-shadow: 0 0 22px rgba(255, 76, 105, .14);
+}
+.hc-lock-entry-panel .hc-pinpad { width: min(100%, 420px); }
+.hc-lock-entry-panel .hc-pinpad__keys { gap: clamp(10px, 1.6vw, 16px); }
+.hc-lock-entry-panel .hc-pinpad__key {
+  min-height: clamp(62px, 9vh, 88px);
+  border-radius: clamp(14px, 1.7vw, 19px);
+  border-color: rgba(190, 224, 255, .2);
+  color: #f4f9ff;
+  background: linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+  font-size: clamp(25px, 3.3vw, 34px);
+  font-weight: 500;
+  box-shadow: inset 0 1px rgba(255,255,255,.07), 0 8px 22px rgba(0,0,0,.12);
+}
+.hc-lock-entry-panel .hc-pinpad__key:not(:disabled):hover {
+  border-color: rgba(130, 221, 255, .48);
+  background: rgba(91, 190, 255, .15);
+}
+.hc-lock-entry-panel .hc-pinpad__key:not(:disabled):active { transform: scale(.96); }
+.hc-lock-entry-panel .hc-pinpad__key:disabled { opacity: .45; }
+.hc-lock-entry-panel .hc-pinpad__key--utility { color: rgba(210, 231, 255, .72); }
+.hc-lock-entry-panel .hc-pinpad__clear {
+  margin-top: 16px;
+  color: rgba(196, 224, 255, .68);
+  font-size: 12px;
+}
+.hc-lock-entry-feedback {
+  min-height: 24px;
+  margin-top: 15px;
+  color: rgba(190, 224, 255, .55);
+  font-size: 13px;
+}
+.hc-lock-entry-feedback.is-error { color: #ff9eaf; }
+.hc-pin-success {
+  display: flex;
+  min-height: 330px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: #9df2c7;
+}
+.hc-pin-success svg {
+  width: clamp(90px, 13vw, 132px);
+  height: clamp(90px, 13vw, 132px);
+  padding: 20px;
+  border: 1px solid rgba(126, 241, 187, .35);
+  border-radius: 50%;
+  background: rgba(67, 211, 146, .1);
+  box-shadow: 0 0 55px rgba(67, 211, 146, .16), inset 0 1px rgba(255,255,255,.12);
+}
+.hc-pin-success strong { font-size: clamp(19px, 2.7vw, 26px); font-weight: 550; }
+
+/* Non-dismissible, full-screen lockout after the third failed PIN. */
+.hc-lockout-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  color: #fff2f4;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(139, 35, 69, .3), transparent 58%),
+    linear-gradient(135deg, #100b1b, #1a0d20 55%, #100d20);
+}
+.hc-lockout-content {
+  width: min(100%, 680px);
+  text-align: center;
+}
+.hc-lockout-icon {
+  display: grid;
+  width: 104px;
+  height: 104px;
+  place-items: center;
+  margin: 0 auto 30px;
+  border: 1px solid rgba(255, 135, 157, .28);
+  border-radius: 30px;
+  color: #ff9bad;
+  background: rgba(255, 91, 125, .09);
+  box-shadow: 0 0 65px rgba(255, 67, 112, .12), inset 0 1px rgba(255,255,255,.08);
+}
+.hc-lockout-eyebrow {
+  margin: 0 0 12px;
+  color: rgba(255, 165, 181, .7);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+.hc-lockout-content h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 54px);
+  font-weight: 550;
+  letter-spacing: -.04em;
+}
+.hc-lockout-description {
+  max-width: 520px;
+  margin: 18px auto 30px;
+  color: rgba(255, 226, 232, .62);
+  font-size: clamp(13px, 1.8vw, 16px);
+  line-height: 1.65;
+}
+.hc-lockout-countdown {
+  color: #fff5f7;
+  font-size: clamp(76px, 14vw, 132px);
+  font-weight: 250;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.065em;
+  line-height: 1;
+  text-shadow: 0 0 42px rgba(255, 111, 144, .16);
+}
+.hc-lockout-caption {
+  margin: 16px 0 18px;
+  color: rgba(255, 216, 225, .55);
+  font-size: 13px;
+}
+.hc-lockout-progress {
+  width: min(100%, 400px);
+  height: 5px;
+  overflow: hidden;
+  margin: 0 auto;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .1);
+}
+.hc-lockout-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff819c, #ffb0bb);
+  transform-origin: left center;
+}
+.hc-lockout-attempts {
+  margin: 22px 0 0;
+  color: rgba(255, 193, 205, .42);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.hc-lockout-screen ~ * { pointer-events: none; }
+
+.hc-lock-entry-panel button:focus-visible,
+.hc-lock-screen button:focus-visible { outline: 2px solid #9bddff; outline-offset: 4px; }
+
+@media (max-width: 520px) {
+  .hc-lock-entry-layer { padding: 10px; }
+  .hc-lock-entry-panel { padding: 20px 16px; border-radius: 22px; }
+  .hc-lock-entry-header { gap: 12px; }
+  .hc-lock-entry-close { flex-basis: 40px; width: 40px; height: 40px; }
+  .hc-lock-entry-panel .hc-pinpad { width: min(100%, 340px); }
+  .hc-lock-entry-panel .hc-pinpad__key { min-height: 62px; }
+  .hc-lockout-icon { width: 82px; height: 82px; border-radius: 24px; }
+}
+@media (max-height: 680px) {
+  .hc-lock-entry-panel { padding-top: 18px; padding-bottom: 18px; }
+  .hc-lock-entry-body { padding-top: 18px; }
+  .hc-lock-entry-panel .hc-pinpad__key { min-height: 54px; }
+  .hc-pin-tiles--large { margin-bottom: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc-lock-entry-panel .hc-pinpad__key { transition: none; }
+}
