@@ -36,9 +36,43 @@ jobs:
       - name: Verify HC Storage Service browser model
         run: npm run test:storage
 
+  codeql:
+    name: CodeQL - ${{ matrix.language }}
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - language: rust
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        if: matrix.language == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
   build:
     name: Build ${{ matrix.platform }}
-    needs: prepare
+    needs: [prepare, codeql]
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -215,7 +249,7 @@ jobs:
 
   release:
     name: Publish both platforms to GitHub Releases
-    needs: [prepare, build]
+    needs: [prepare, codeql, build]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
