@@ -4,7 +4,12 @@ import { motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, Check, ShieldCheck, X } from 'lucide-react';
 import { PinPad } from '../system/PinPad';
 
-type SecurityStatus = { enabled: boolean; pin_length: number | null };
+type SecurityStatus = {
+  enabled: boolean;
+  pin_length: number | null;
+  attempts_remaining: number;
+  lockout_remaining_secs: number;
+};
 type Mode = 'set' | 'change' | 'remove' | null;
 type Step = 'current' | 'new' | 'confirm';
 
@@ -116,9 +121,18 @@ export function ShellSecuritySettings({ onClose }: { onClose: () => void }) {
         setPin('');
         setSuccess(mode === 'set' ? 'PIN-код установлен.' : 'PIN-код изменён.');
       }
-    })().catch((reason: unknown) => {
+    })().catch(async (reason: unknown) => {
       setPin('');
       setError(reason instanceof Error ? reason.message : String(reason));
+      try {
+        const latest = await invoke<SecurityStatus>('shell_security_status');
+        setStatus(latest);
+        if (latest.lockout_remaining_secs > 0) {
+          window.dispatchEvent(new Event('homecloud:security-lockout'));
+        }
+      } catch {
+        // Preserve the original verification error if status cannot be loaded.
+      }
     }).finally(() => setBusy(false));
   };
 
