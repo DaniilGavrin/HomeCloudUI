@@ -15,7 +15,6 @@ type HomeIconName = 'cloud' | 'devices' | 'activity' | 'arrow' | 'refresh' | 'st
 
 type Props = {
   connection: ConnectionStatus;
-  now: Date;
   onNavigate: (section: string) => void;
   enabledSections: SectionPreferences;
 };
@@ -39,13 +38,6 @@ const HOME_ICONS: Record<HomeIconName, LucideIcon> = {
 function HomeIcon({ name, size = 22 }: { name: HomeIconName; size?: number }) {
   const Icon = HOME_ICONS[name];
   return <Icon size={size} strokeWidth={1.7} aria-hidden="true" />;
-}
-
-function greeting(hour: number): string {
-  if (hour >= 5 && hour < 12) return 'Доброе утро';
-  if (hour >= 12 && hour < 17) return 'Добрый день';
-  if (hour >= 17 && hour < 23) return 'Добрый вечер';
-  return 'Доброй ночи';
 }
 
 function clientIcon(type: string): HomeIconName {
@@ -95,7 +87,7 @@ function LatencyGraph({ values }: { values: number[] }) {
   );
 }
 
-export function HomePage({ connection, now, onNavigate, enabledSections }: Props) {
+export function HomePage({ connection, onNavigate, enabledSections }: Props) {
   const { snapshot, refresh, error: refreshError } = useHomeCloudDeviceRegistry();
   const { snapshot: pool } = useHomeCloudPool();
   const reduced = Boolean(useReducedMotion());
@@ -143,22 +135,6 @@ export function HomePage({ connection, now, onNavigate, enabledSections }: Props
   return (
     <div className="hc-home-page" aria-label="Главная HomeCloud">
       <div className="hc-home-inner">
-        <motion.section className="hc-home-hero homecloud-glass" {...enter(0)}>
-          <div className="hc-home-hero__content">
-            <span className="hc-home-eyebrow"><span className="hc-home-eyebrow__line" /> HOMECLOUD · ОБЗОР</span>
-            <h1>{greeting(now.getHours())}<span className="hc-home-title-dot">.</span></h1>
-            <p>Устройства, сервисы и состояние домашней системы — в одном пространстве.</p>
-            {enabledSections.devices && <button className="hc-home-primary-action" type="button" onClick={() => onNavigate('devices')}>
-              Открыть устройства <HomeIcon name="arrow" size={17} />
-            </button>}
-          </div>
-          <div className={`hc-home-hero__emblem ${connected ? 'hc-home-hero__emblem--online' : ''}`} aria-hidden="true">
-            <div className="hc-home-orbit hc-home-orbit--outer" />
-            <div className="hc-home-orbit hc-home-orbit--inner" />
-            <div className="hc-home-orb"><HomeIcon name="cloud" size={54} /></div>
-          </div>
-        </motion.section>
-
         <motion.div className="hc-home-section-label" {...enter(0.06)}>
           <div><span className="hc-home-section-index">01</span><h2>Прямо сейчас</h2></div>
           <span className="hc-home-caption">Актуальные показатели</span>
