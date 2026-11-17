@@ -53,6 +53,16 @@ function Chart({ points, unit }: { points: Point[]; unit?: string }) {
   return <div className="hc-system-chart"><div><strong>{fmt(values[values.length - 1])}{unit || ''}</strong><span>Последнее · минимум {fmt(min)} · максимум {fmt(max)}</span></div><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="История метрики"><path d="M8 56 H992 M8 100 H992 M8 144 H992" className="hc-system-chart__grid"/><path d={path} className="hc-system-chart__line"/></svg></div>;
 }
 
+function MetricGroup({ title, prefix, samples }: { title: string; prefix: string; samples: MetricSample[] }) {
+  const items = samples.filter(item => item.name.startsWith(prefix)).slice(0, 24);
+  return <section className="hc-system-metric-group"><h4>{title}</h4>
+    {items.length ? items.map((item, index) => <div className="hc-system-row" key={index}>
+      <span>{item.name}{item.labels ? ' · ' + Object.entries(item.labels).map(([key, value]) => key + '=' + value).join(', ') : ''}</span>
+      <b>{fmt(item.value)} {item.unit || ''}</b>
+    </div>) : <p className="hc-system-muted">Нет данных</p>}
+  </section>;
+}
+
 export function SystemPage() {
   const pool = useHomeCloudPool();
   const servers = pool.snapshot.servers;
@@ -143,7 +153,22 @@ export function SystemPage() {
 
       {tab === 'services' && <Card title="Метрики служб" hint="Доступность, опубликованная Backend">{samples.filter(s=>s.name.startsWith('services.')).length ? samples.filter(s=>s.name.startsWith('services.')).map((s,i)=><div className="hc-system-row" key={i}><span>{s.labels?.service || s.name}</span><b>{s.value} {s.unit || ''}</b></div>) : <p className="hc-system-muted">Метрики служб ещё не получены.</p>}</Card>}{historyPanel}
 
-      {tab === 'diagnostics' && <div className="hc-system-grid"><Card title="Ошибки сборщиков" hint="Последний system.status">{Object.keys(errors).length ? Object.entries(errors).map(([name,error])=><div className="hc-system-row is-warning" key={name}><span>{name}</span><b>{error}</b></div>) : <p className="hc-system-success"><ShieldCheck size={17}/> Ошибок сборщиков не сообщено.</p>}</Card><Card title="Metrics History" hint="Счётчики подсистемы">{Object.entries(stats).length ? Object.entries(stats).map(([name,value])=><div className="hc-system-row" key={name}><span>{name.replaceAll('_',' ')}</span><b>{fmt(value,0)}</b></div>) : <p className="hc-system-muted">Статистика истории ещё не получена.</p>}</Card></div>}
+      {tab === 'diagnostics' && <>
+        <div className="hc-system-grid"><Card title="Ошибки сборщиков" hint="Последний system.status">{Object.keys(errors).length ? Object.entries(errors).map(([name,error])=><div className="hc-system-row is-warning" key={name}><span>{name}</span><b>{error}</b></div>) : <p className="hc-system-success"><ShieldCheck size={17}/> Ошибок сборщиков не сообщено.</p>}</Card><Card title="Metrics History" hint="Счётчики подсистемы">{Object.entries(stats).length ? Object.entries(stats).map(([name,value])=><div className="hc-system-row" key={name}><span>{name.replaceAll('_',' ')}</span><b>{fmt(value,0)}</b></div>) : <p className="hc-system-muted">Статистика истории ещё не получена.</p>}</Card></div>
+        <Card title="Аппаратные и системные метрики" hint="SMART, GPU, вентиляторы, pressure и kernel">
+          <div className="hc-system-metric-groups">
+            <MetricGroup title="SMART" prefix="smart." samples={samples}/>
+            <MetricGroup title="GPU" prefix="gpu." samples={samples}/>
+            <MetricGroup title="Вентиляторы" prefix="fans." samples={samples}/>
+            <MetricGroup title="Датчики" prefix="sensors." samples={samples}/>
+            <MetricGroup title="Pressure" prefix="pressure." samples={samples}/>
+            <MetricGroup title="Kernel / disk" prefix="disk_kernel." samples={samples}/>
+            <MetricGroup title="Kernel / network" prefix="network_kernel." samples={samples}/>
+            <MetricGroup title="Сетевые соединения" prefix="network_connections." samples={samples}/>
+            <MetricGroup title="Linux kernel" prefix="linux_kernel." samples={samples}/>
+          </div>
+        </Card>
+      </>}
     </>}
   </section>;
 }
