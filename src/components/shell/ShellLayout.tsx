@@ -157,7 +157,7 @@ export function ShellLayout() {
               className="h-full"
             >
               {activeId === 'home' ? (
-                <HomePage connection={connection} now={time} onNavigate={setActiveId} enabledSections={sections} />
+                <HomePage connection={connection} onNavigate={setActiveId} enabledSections={sections} />
               ) : activeId === 'devices' ? (
                 <DevicesPage onOpenExplorer={() => setActiveId('explorer')} canOpenExplorer={sections.explorer} />
               ) : activeId === 'explorer' ? (
