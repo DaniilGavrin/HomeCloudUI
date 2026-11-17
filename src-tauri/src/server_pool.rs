@@ -662,7 +662,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 pending_metric_queries.retain(|_, reply| !reply.is_closed());
                 pending_storage.retain(|_, reply| !reply.is_closed());
                 if let Some((_, time)) = &pending_ping {
-                    if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && pending_storage.is_empty() && tokio::time::Instant::now() >= grace {
+                    if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && pending_storage.is_empty() && pending_metric_queries.is_empty() && tokio::time::Instant::now() >= grace {
                         return Err("session ended: ping/pong timeout".into());
                     }
                 } else {
