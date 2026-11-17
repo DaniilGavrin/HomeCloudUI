@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, Check, ShieldCheck, X } from 'lucide-react';
 import { PinPad } from '../system/PinPad';
 
@@ -81,6 +81,7 @@ export function ShellSecuritySettings({ onClose }: { onClose: () => void }) {
       if (step === 'current' && mode === 'remove') {
         await invoke('shell_security_remove_pin', { currentPin: next });
         setStatus({ enabled: false, pin_length: null });
+        window.dispatchEvent(new Event('homecloud:security-changed'));
         setMode(null);
         setPin('');
         setSuccess('PIN-код удалён.');
@@ -110,6 +111,7 @@ export function ShellSecuritySettings({ onClose }: { onClose: () => void }) {
           });
         }
         setStatus({ enabled: true, pin_length: newLength });
+        window.dispatchEvent(new Event('homecloud:security-changed'));
         setMode(null);
         setPin('');
         setSuccess(mode === 'set' ? 'PIN-код установлен.' : 'PIN-код изменён.');
