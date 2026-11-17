@@ -507,7 +507,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     // Subscribe before clients.list, so updates during the initial snapshot
     // are not lost. This is the SAME secondary WebSocket used for telemetry.
     for (suffix, topic) in [("connected", "clients.connected"), ("disconnected", "clients.disconnected"), ("devices-updated", "devices.updated"),
-        ("media-changed", "media.room.changed"), ("media-closed", "media.room.closed")] {
+        ("media-changed", "media.room.changed"), ("media-closed", "media.room.closed"), ("system-metrics", "system.metrics")] {
         let msg = json!({"v":1,"id":format!("hc-pool-sub-{}-{suffix}", entry.id),"type":"subscribe","topic":topic});
         socket.send(Message::Text(msg.to_string().into())).await.map_err(|e| format!("subscribe failed: {e}"))?;
     }
@@ -533,6 +533,10 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     crate::storage::connected(app, &entry.id, storage_tx.clone());
     crate::media_rooms::connected(app, &entry.id);
     let mut pending_storage: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    let (metrics_tx, mut metrics_rx) = mpsc::channel::<MetricsQueryRequest>(8);
+    app.state::<ServerPool>().metric_queries.lock().unwrap_or_else(|e| e.into_inner()).insert(entry.id.clone(), metrics_tx);
+    let mut pending_metric_queries: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    let mut metrics_query_counter = 0u64;
     let mut storage_counter = 0u64;
     let mut list_resync = tokio::time::interval_at(tokio::time::Instant::now() + Duration::from_secs(30), Duration::from_secs(30));
     list_resync.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -544,6 +548,9 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut ping_counter = 0u64;
     let mut pending_status: Option<(String, tokio::time::Instant)> = None;
     let mut pending_ping: Option<(String, tokio::time::Instant)> = None;
+    let latest_metrics_id = format!("hc-pool-metrics-latest-{}", entry.id);
+    socket.send(Message::Text(json!({"v":1,"id":latest_metrics_id,"type":"command","action":"system.metrics.latest","data":{}}).to_string().into()))
+        .await.map_err(|e| format!("system.metrics.latest send failed: {e}"))?;
     let mut status_next = tokio::time::interval_at(tokio::time::Instant::now(), STATUS_INTERVAL);
     status_next.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut ping_next = tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
