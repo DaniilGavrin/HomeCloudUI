@@ -8,7 +8,10 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
+    sync::Mutex,
 };
+
+static SECURITY_LOCK: Mutex<()> = Mutex::new(());
 use tauri::{AppHandle, Manager};
 
 const MIN_PIN_LENGTH: usize = 4;
@@ -37,9 +40,16 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 fn read_config(app: &AppHandle) -> Result<Option<SecurityConfig>, String> {
     let path = config_path(app)?;
     match fs::read(path) {
-        Ok(bytes) => serde_json::from_slice(&bytes)
-            .map(Some)
-            .map_err(|error| format!("Не удалось прочитать настройки безопасности: {error}")),
+        Ok(bytes) => {
+            let config: SecurityConfig = serde_json::from_slice(&bytes)
+                .map_err(|error| format!("Не удалось прочитать настройки безопасности: {error}"))?;
+            if !(MIN_PIN_LENGTH..=MAX_PIN_LENGTH).contains(&usize::from(config.pin_length)) {
+                return Err("Некорректная длина PIN в настройках безопасности".into());
+            }
+            PasswordHash::new(&config.password_hash)
+                .map_err(|error| format!("Некорректный хеш PIN: {error}"))?;
+            Ok(Some(config))
+        },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(format!("Не удалось прочитать настройки безопасности: {error}")),
     }
@@ -50,12 +60,14 @@ fn write_config(app: &AppHandle, config: &SecurityConfig) -> Result<(), String> 
     let temporary = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec(config).map_err(|error| error.to_string())?;
 
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&temporary)
-        .map_err(|error| error.to_string())?;
+    let mut options = OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&temporary).map_err(|error| error.to_string())?;
     file.write_all(&bytes).map_err(|error| error.to_string())?;
     file.sync_all().map_err(|error| error.to_string())?;
 
@@ -125,6 +137,7 @@ pub fn shell_security_status(app: AppHandle) -> Result<SecurityStatus, String> {
 
 #[tauri::command]
 pub fn shell_security_set_pin(app: AppHandle, pin: String, pin_length: u8) -> Result<(), String> {
+    let _guard = SECURITY_LOCK.lock().map_err(|_| "Не удалось получить блокировку настроек безопасности")?;
     validate_pin(&pin, Some(pin_length))?;
     if read_config(&app)?.is_some() {
         return Err("PIN уже установлен".into());
@@ -147,6 +160,7 @@ pub fn shell_security_change_pin(
     new_pin: String,
     pin_length: u8,
 ) -> Result<(), String> {
+    let _guard = SECURITY_LOCK.lock().map_err(|_| "Не удалось получить блокировку настроек безопасности")?;
     validate_pin(&new_pin, Some(pin_length))?;
     let Some(config) = read_config(&app)? else {
         return Err("PIN ещё не установлен".into());
@@ -159,6 +173,7 @@ pub fn shell_security_change_pin(
 
 #[tauri::command]
 pub fn shell_security_remove_pin(app: AppHandle, current_pin: String) -> Result<(), String> {
+    let _guard = SECURITY_LOCK.lock().map_err(|_| "Не удалось получить блокировку настроек безопасности")?;
     let Some(config) = read_config(&app)? else {
         return Err("PIN ещё не установлен".into());
     };
