@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useHomeCloudPool, type PoolServer, type ServerPoolInput } from '../../hooks/useHomeCloudPool';
-import { ArrowRight, ArrowLeft, LayoutGrid, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, LayoutGrid, LockKeyhole, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import { ShellSecuritySettings } from './ShellSecuritySettings';
 import type { SectionId, SectionPreferences } from '../../hooks/useSectionPreferences';
 import { navigationItems } from '../../data/navigation';
 import type { LucideIcon } from 'lucide-react';
@@ -35,6 +36,7 @@ export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [securityOpen, setSecurityOpen] = useState(false);
   const reduced = Boolean(useReducedMotion());
   const returnFocus = useRef<HTMLButtonElement>(null);
   const selected = pool.snapshot.servers.find(s => s.id === editing) ?? null;
@@ -87,7 +89,8 @@ export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: {
     finally { setBusy(false); }
   };
 
-  return <section className="hc-settings homecloud-glass" aria-label="Настройки HomeCloud">
+  return <>
+    <section className="hc-settings homecloud-glass" aria-label="Настройки HomeCloud">
     <AnimatePresence mode="wait" initial={false}>
       <motion.div key={screen} className="hc-settings__view" initial={{ opacity: 0, x: reduced ? 0 : 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduced ? 0 : -12 }} transition={{ duration: reduced ? .08 : .19 }}>
         {screen === 'home' ? <>
@@ -98,6 +101,9 @@ export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: {
             </button>
             <button type="button" className="hc-settings__tile homecloud-glass" onClick={() => setScreen('sections')}>
               <span className="hc-settings__tile-icon"><Icon type="sections" /></span><span><strong>Разделы</strong><small>Управление видимостью разделов HomeCloud</small></span><Icon type="arrow" />
+            </button>
+            <button type="button" className="hc-settings__tile homecloud-glass" onClick={() => setSecurityOpen(true)}>
+              <span className="hc-settings__tile-icon"><LockKeyhole size={19} strokeWidth={1.7} aria-hidden="true" /></span><span><strong>Безопасность</strong><small>PIN-код и экран блокировки</small></span><Icon type="arrow" />
             </button>
           </div>
         </> : screen === 'sections' ? <>
@@ -146,5 +152,9 @@ export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: {
         </>}
       </motion.div>
     </AnimatePresence>
-  </section>;
+  </section>
+  <AnimatePresence>
+    {securityOpen && <ShellSecuritySettings onClose={() => setSecurityOpen(false)} />}
+  </AnimatePresence>
+  </>;
 }

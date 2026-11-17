@@ -5,6 +5,7 @@ mod storage;
 mod media_rooms;
 mod media_source;
 mod file_transfer;
+mod shell_security;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -22,6 +23,11 @@ pub fn run() {
         .manage(media_rooms::MediaRooms::default())
         .invoke_handler(tauri::generate_handler![
             greet,
+            shell_security::shell_security_status,
+            shell_security::shell_security_set_pin,
+            shell_security::shell_security_verify_pin,
+            shell_security::shell_security_change_pin,
+            shell_security::shell_security_remove_pin,
             homecloud_ws::homecloud_connection_status,
             homecloud_ws::homecloud_devices_status,
             homecloud_ws::homecloud_devices_refresh,

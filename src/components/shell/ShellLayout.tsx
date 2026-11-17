@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import {
   AirVent, Bell, BookOpen, Brush, CalendarDays, Camera, CarFront, CloudSun,
   Droplets, Flame, HeartPulse, KeyRound, Lightbulb, ListTodo, MonitorCog,
-  Phone, ShieldCheck, Sprout, Thermometer, Wallet, Workflow, Wind, Zap,
+  Phone, ShieldCheck, Sprout, Thermometer, Wallet, Workflow, Wind, Zap, LockKeyhole, Power,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { SidebarNav } from './SidebarNav';
@@ -44,7 +44,9 @@ const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
   automation: Workflow,
 };
 
-export function ShellLayout() {
+type Props = { onLock: () => void; onOpenPower: () => void };
+
+export function ShellLayout({ onLock, onOpenPower }: Props) {
   const [activeId, setActiveId] = useState('home');
   const [pageTitle, setPageTitle] = useState('Главная');
   const [time, setTime] = useState(() => new Date());
@@ -144,6 +146,15 @@ export function ShellLayout() {
                 <div className="mt-1 text-[13px] capitalize text-white/60">
                   {dateText}
                 </div>
+              </div>
+
+              <div className="hc-shell-topbar__system-actions" aria-label="Управление оболочкой">
+                <button type="button" className="hc-shell-topbar__system-button" onClick={onLock} aria-label="Заблокировать HomeCloud" title="Заблокировать">
+                  <LockKeyhole size={19} strokeWidth={1.8} aria-hidden="true" />
+                </button>
+                <button type="button" className="hc-shell-topbar__system-button hc-shell-topbar__system-button--power" onClick={onOpenPower} aria-label="Питание и перезапуск" title="Питание">
+                  <Power size={19} strokeWidth={1.8} aria-hidden="true" />
+                </button>
               </div>
             </div>
           </header>
