@@ -59,6 +59,16 @@ pub struct PoolSnapshot {
     pub revision: u64,
 }
 
+pub struct MetricsQueryRequest {
+    pub node_id: String,
+    pub metric: String,
+    pub from: String,
+    pub to: String,
+    pub resolution_ms: u64,
+    pub limit: usize,
+    pub reply: oneshot::Sender<Result<Value, String>>,
+}
+
 pub struct ServerPool {
     file: PathBuf,
     pub(crate) inner: Mutex<PoolSnapshot>,
@@ -68,6 +78,7 @@ pub struct ServerPool {
     deliveries: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceDelivery>>>,
     renames: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceRenameRequest>>>,
     forgets: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceForgetRequest>>>,
+    metric_queries: Mutex<HashMap<String, mpsc::Sender<MetricsQueryRequest>>>,
     primary_changes: watch::Sender<u64>,
 }
 
@@ -207,7 +218,7 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let manager = ServerPool {
         file, inner: Mutex::new(PoolSnapshot { servers: entries.into_iter().map(PoolNode::new).collect(), revision: 0 }),
         tasks: Mutex::new(HashMap::new()), refreshes: Mutex::new(HashMap::new()),
-        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), forgets: Mutex::new(HashMap::new()), primary_changes: tx,
+        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), forgets: Mutex::new(HashMap::new()), metric_queries: Mutex::new(HashMap::new()), primary_changes: tx,
     };
     app.manage(manager);
     Ok(())
