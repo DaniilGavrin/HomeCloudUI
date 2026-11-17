@@ -285,6 +285,7 @@ pub fn homecloud_pool_update(app: AppHandle, id: String, input: ServerInput) -> 
     };
     publish(&app);
     if address_changed {
+        app.state::<ServerPool>().metrics.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
         if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
         start_secondary(app, id);
     }
@@ -309,6 +310,7 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
     p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.forgets.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metrics.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::storage::disconnected(&app, &id);
     if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
     publish(&app);
