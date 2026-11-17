@@ -308,6 +308,7 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.forgets.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::storage::disconnected(&app, &id);
     if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
     publish(&app);
@@ -477,6 +478,7 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
         app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().forgets.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
+        app.state::<ServerPool>().metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         crate::storage::disconnected(&app, &entry.id);
         crate::device_registry::disconnected(&app, &entry.id);
         let detail = if attempted.is_empty() {
@@ -549,7 +551,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut pending_status: Option<(String, tokio::time::Instant)> = None;
     let mut pending_ping: Option<(String, tokio::time::Instant)> = None;
     let latest_metrics_id = format!("hc-pool-metrics-latest-{}", entry.id);
-    socket.send(Message::Text(json!({"v":1,"id":latest_metrics_id,"type":"command","action":"system.metrics.latest","data":{}}).to_string().into()))
+    socket.send(Message::Text(json!({"v":1,"id":latest_metrics_id.clone(),"type":"command","action":"system.metrics.latest","data":{}}).to_string().into()))
         .await.map_err(|e| format!("system.metrics.latest send failed: {e}"))?;
     let mut status_next = tokio::time::interval_at(tokio::time::Instant::now(), STATUS_INTERVAL);
     status_next.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
