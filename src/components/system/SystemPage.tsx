@@ -186,6 +186,10 @@ export function SystemPage() {
         <Card title="Аппаратные и системные метрики" hint="SMART, GPU, вентиляторы, pressure и kernel">
           <div className="hc-system-metric-groups">
             <MetricGroup title="SMART" prefix="smart." samples={samples}/>
+            <MetricGroup title="CPU frequency" prefix="cpu_frequency." samples={samples}/>
+            <MetricGroup title="Disk inventory" prefix="disk_inventory." samples={samples}/>
+            <MetricGroup title="Host" prefix="host." samples={samples}/>
+            <MetricGroup title="System" prefix="system." samples={samples}/>
             <MetricGroup title="GPU" prefix="gpu." samples={samples}/>
             <MetricGroup title="Вентиляторы" prefix="fans." samples={samples}/>
             <MetricGroup title="Датчики" prefix="sensors." samples={samples}/>
