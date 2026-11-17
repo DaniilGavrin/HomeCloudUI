@@ -599,6 +599,24 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 }
                 pending_storage.insert(id, command.reply);
             }
+            metric_query = metrics_rx.recv() => {
+                let Some(query) = metric_query else { return Err("session ended: metrics query channel closed".into()); };
+                if pending_metric_queries.len() >= 8 {
+                    let _ = query.reply.send(Err("Слишком много запросов истории метрик".into()));
+                    continue;
+                }
+                metrics_query_counter = metrics_query_counter.wrapping_add(1);
+                let id = format!("hc-pool-metrics-query-{}-{metrics_query_counter}", entry.id);
+                let packet = json!({"v":1,"id":id,"type":"command","action":"system.metrics.query","data":{
+                    "node_id":query.node_id,"metric":query.metric,"from":query.from,"to":query.to,
+                    "resolution_ms":query.resolution_ms,"limit":query.limit
+                }});
+                if let Err(error) = socket.send(Message::Text(packet.to_string().into())).await {
+                    let _ = query.reply.send(Err(error.to_string()));
+                    return Err(format!("session ended: metrics query send error: {error}"));
+                }
+                pending_metric_queries.insert(id, query.reply);
+            }
             delivery = delivery_rx.recv() => {
                 let Some(delivery) = delivery else { return Err("session ended: delivery channel closed".into()); };
                 if pending_deliveries.len() >= 64 {
@@ -656,6 +674,21 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 };
                 let Ok(payload) = serde_json::from_str::<Value>(raw.as_str()) else { continue; };
                 crate::media_rooms::on_event(app, &entry.id, &payload);
+                if payload.get("type").and_then(Value::as_str) == Some("event")
+                    && payload.get("topic").and_then(Value::as_str) == Some("system.metrics") {
+                    if let Some(metrics) = payload.pointer("/data/payload").cloned() {
+                        update_node_metrics(app, &entry.id, metrics);
+                    }
+                    continue;
+                }
+                if payload.get("id").and_then(Value::as_str) == Some(latest_metrics_id.as_str())
+                    && payload.get("action").and_then(Value::as_str) == Some("system.metrics.latest")
+                    && payload.get("type").and_then(Value::as_str) == Some("result") {
+                    if let Some(metrics) = payload.get("data").cloned() {
+                        update_node_metrics(app, &entry.id, metrics);
+                    }
+                    continue;
+                }
 
 
                 if let Some(device_id) = crate::homecloud_ws::parse_removed_device_event(&payload) {
@@ -680,6 +713,16 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 let id = payload.get("id").and_then(Value::as_str).unwrap_or("");
 
 
+                if let Some(reply) = pending_metric_queries.remove(id) {
+                    let result = if payload.get("type").and_then(Value::as_str) == Some("result")
+                        && payload.get("action").and_then(Value::as_str) == Some("system.metrics.query") {
+                        Ok(payload.get("data").cloned().unwrap_or(Value::Null))
+                    } else {
+                        Err(payload.get("error").and_then(Value::as_str).unwrap_or("Не удалось получить историю метрик").to_owned())
+                    };
+                    let _ = reply.send(result);
+                    continue;
+                }
                 if let Some(reply) = pending_forgets.remove(id) {
                     let result = if payload.get("type").and_then(Value::as_str) == Some("result")
                         && payload.get("action").and_then(Value::as_str) == Some("devices.forget") {
