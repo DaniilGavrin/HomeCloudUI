@@ -423,7 +423,7 @@ pub async fn send_to_device(app: &AppHandle, server_id: &str, device_id: String,
 
 fn metric_group_prefixes(group: &str) -> Vec<&'static str> {
     match group {
-        "overview" => vec!["cpu.usage_percent", "memory.used_percent", "host.uptime_seconds", "services.available", "disk."],
+        "overview" => vec!["cpu.usage_percent", "memory.used_percent", "host.uptime_seconds", "services.available"],
         "cpu" => vec!["cpu.", "cpu_frequency."],
         "memory" => vec!["memory."],
         "disks" => vec!["disk.", "disk_kernel.", "disk_inventory.", "smart."],
