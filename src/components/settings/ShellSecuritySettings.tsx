@@ -7,8 +7,8 @@ import { PinPad } from '../system/PinPad';
 type SecurityStatus = {
   enabled: boolean;
   pin_length: number | null;
-  attempts_remaining: number;
-  lockout_remaining_secs: number;
+  attempts_remaining?: number;
+  lockout_remaining_secs?: number;
 };
 type Mode = 'set' | 'change' | 'remove' | null;
 type Step = 'current' | 'new' | 'confirm';
@@ -127,7 +127,7 @@ export function ShellSecuritySettings({ onClose }: { onClose: () => void }) {
       try {
         const latest = await invoke<SecurityStatus>('shell_security_status');
         setStatus(latest);
-        if (latest.lockout_remaining_secs > 0) {
+        if ((latest.lockout_remaining_secs ?? 0) > 0) {
           window.dispatchEvent(new Event('homecloud:security-lockout'));
         }
       } catch {
