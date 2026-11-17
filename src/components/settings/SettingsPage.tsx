@@ -27,7 +27,7 @@ function Icon({ type }: { type: keyof typeof SETTINGS_ICONS }) {
   return <Component size={19} strokeWidth={1.7} aria-hidden="true" />;
 }
 
-export function SettingsPage({ sections, onSetSectionEnabled }: { sections: SectionPreferences; onSetSectionEnabled: (id: SectionId, enabled: boolean) => void }) {
+export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: { sections: SectionPreferences; onSetSectionEnabled: (id: SectionId, enabled: boolean) => void; onTitleChange?: (title: string) => void }) {
   const pool = useHomeCloudPool();
   const [screen, setScreen] = useState<Screen>('home');
   const [editing, setEditing] = useState<string | null>(null);
@@ -39,6 +39,11 @@ export function SettingsPage({ sections, onSetSectionEnabled }: { sections: Sect
   const returnFocus = useRef<HTMLButtonElement>(null);
   const selected = pool.snapshot.servers.find(s => s.id === editing) ?? null;
   const deleting = pool.snapshot.servers.find(s => s.id === confirmId) ?? null;
+  const screenTitle: Record<Screen, string> = { home: 'Настройки', pool: 'Пул серверов', sections: 'Разделы', form: editing ? 'Изменить сервер' : 'Добавить сервер', delete: 'Удаление сервера' };
+
+  useEffect(() => {
+    onTitleChange?.(screenTitle[screen]);
+  }, [screen, editing, onTitleChange]);
 
   const back = () => {
     if (busy) return;

@@ -192,7 +192,7 @@ export function DevicesPage({ onOpenExplorer, canOpenExplorer = true }: { onOpen
         ) : (
           <motion.div key="list" className="hc-devices-list" initial={{opacity:0,x:reduced?0:-12}} animate={{opacity:1,x:0}} exit={{opacity:0,x:reduced?0:-12}} transition={{duration:reduced ? 0.08 : 0.25}}>
             <div className="hc-devices-header">
-              <div><div className="hc-devices-eyebrow">УСТРОЙСТВА</div><h2>Устройства</h2><p>Активные и ранее подключавшиеся устройства</p></div>
+              <p>Активные и ранее подключавшиеся устройства</p>
               <div className="hc-devices-header__actions">
                 <span className="hc-devices-count" aria-live="polite"><span className="hc-devices-count__number">{activeCount}</span><span>в сети · {snapshot.devices.length} всего</span></span>
                 <motion.button className="hc-devices-refresh" type="button" onClick={() => void onRefresh()} disabled={busy} whileTap={reduced?undefined:{scale:.96}}>↻ Обновить</motion.button>

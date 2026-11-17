@@ -55,3 +55,8 @@
 @media(max-width:900px){.hc-settings__sections-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.hc-settings__sections-list{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.hc-settings__section-row,.hc-settings__section-row input,.hc-settings__section-row input::after{transition:none}}
+
+
+/* Section and nested-screen titles are rendered once in the global shell topbar. */
+.hc-settings__header h2,
+.hc-settings__header .hc-settings__eyebrow { display: none; }

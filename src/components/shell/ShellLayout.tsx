@@ -46,6 +46,7 @@ const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
 
 export function ShellLayout() {
   const [activeId, setActiveId] = useState('home');
+  const [pageTitle, setPageTitle] = useState('Главная');
   const [time, setTime] = useState(() => new Date());
   const connection = useHomeCloudConnection();
   const { sections, setEnabled } = useSectionPreferences();
@@ -75,6 +76,10 @@ export function ShellLayout() {
     [activeId],
   );
 
+  useEffect(() => {
+    setPageTitle(activeItem.label);
+  }, [activeItem.label]);
+
   const timeText = time.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
@@ -100,9 +105,9 @@ export function ShellLayout() {
         <main className="homecloud-main">
           <header className="homecloud-glass homecloud-topbar">
             <div className="min-w-0">
-              <div className="truncate text-[22px] font-semibold text-white">
-                {activeItem.label}
-              </div>
+              <h1 className="truncate text-[22px] font-semibold text-white">
+                {pageTitle}
+              </h1>
             </div>
 
             <div className="hc-shell-topbar__right flex shrink-0 items-center gap-3 sm:gap-6">
@@ -152,7 +157,7 @@ export function ShellLayout() {
               className="h-full"
             >
               {activeId === 'home' ? (
-                <HomePage connection={connection} now={time} onNavigate={setActiveId} enabledSections={sections} />
+                <HomePage connection={connection} onNavigate={setActiveId} enabledSections={sections} />
               ) : activeId === 'devices' ? (
                 <DevicesPage onOpenExplorer={() => setActiveId('explorer')} canOpenExplorer={sections.explorer} />
               ) : activeId === 'explorer' ? (
@@ -160,10 +165,9 @@ export function ShellLayout() {
               ) : activeId === 'servers' ? (
                 <ServersPage />
               ) : activeId === 'settings' ? (
-                <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} />
+                <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} onTitleChange={setPageTitle} />
               ) : (
                 <SectionPlaceholderPage
-                  title={activeItem.label}
                   description={activeItem.description}
                   icon={PLACEHOLDER_ICONS[activeId] ?? Workflow}
                 />
