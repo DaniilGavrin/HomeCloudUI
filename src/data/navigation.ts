@@ -196,7 +196,7 @@ export const navigationItems: NavItem[] = [
         label: 'Система',
         shortLabel: 'Система',
         description: 'Состояние и параметры системы HomeCloud',
-        defaultEnabled: false,
+        defaultEnabled: true,
     },
     {
         id: 'settings',
