@@ -26,7 +26,6 @@ export type PoolServer = {
   phase: 'offline' | 'connecting' | 'ready' | 'error';
   latency_ms: number | null;
   data: ServerStatusData | null;
-  metrics: MetricsSnapshot | null;
   error: string | null;
 };
 export type PoolSnapshot = { servers: PoolServer[]; revision: number };
