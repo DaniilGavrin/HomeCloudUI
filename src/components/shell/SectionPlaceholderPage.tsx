@@ -1,12 +1,11 @@
 import type { LucideIcon } from 'lucide-react';
 
 type SectionPlaceholderPageProps = {
-  title: string;
   description: string;
   icon: LucideIcon;
 };
 
-export function SectionPlaceholderPage({ title, description, icon: Icon }: SectionPlaceholderPageProps) {
+export function SectionPlaceholderPage({ description, icon: Icon }: SectionPlaceholderPageProps) {
   return (
     <section
       className="homecloud-glass flex h-full min-h-[320px] flex-col items-center justify-center rounded-[28px] px-6 py-12 text-center sm:px-10"
