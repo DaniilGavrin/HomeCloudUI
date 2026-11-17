@@ -9,9 +9,17 @@ use std::{
     io::Write,
     path::PathBuf,
     sync::Mutex,
+    time::{Duration, Instant},
 };
 
+#[derive(Default)]
+struct VerifyAttempts {
+    failures: u8,
+    blocked_until: Option<Instant>,
+}
+
 static SECURITY_LOCK: Mutex<()> = Mutex::new(());
+static VERIFY_ATTEMPTS: Mutex<VerifyAttempts> = Mutex::new(VerifyAttempts { failures: 0, blocked_until: None });
 use tauri::{AppHandle, Manager};
 
 const MIN_PIN_LENGTH: usize = 4;
@@ -110,6 +118,35 @@ fn make_config(pin: &str) -> Result<SecurityConfig, String> {
     })
 }
 
+fn verify_pin_with_limit(config: &SecurityConfig, pin: &str) -> Result<bool, String> {
+    let mut attempts = VERIFY_ATTEMPTS
+        .lock()
+        .map_err(|_| "Не удалось получить блокировку проверки PIN")?;
+
+    if let Some(until) = attempts.blocked_until {
+        let now = Instant::now();
+        if now < until {
+            let remaining = (until - now).as_secs().max(1);
+            return Err(format!("Слишком много попыток. Повторите через {remaining} сек."));
+        }
+        attempts.blocked_until = None;
+        attempts.failures = 0;
+    }
+
+    if pin_matches(config, pin) {
+        attempts.failures = 0;
+        attempts.blocked_until = None;
+        return Ok(true);
+    }
+
+    attempts.failures = attempts.failures.saturating_add(1);
+    if attempts.failures >= 5 {
+        attempts.failures = 0;
+        attempts.blocked_until = Some(Instant::now() + Duration::from_secs(30));
+    }
+    Ok(false)
+}
+
 fn pin_matches(config: &SecurityConfig, pin: &str) -> bool {
     if validate_pin(pin, Some(config.pin_length)).is_err() {
         return false;
@@ -150,7 +187,7 @@ pub fn shell_security_verify_pin(app: AppHandle, pin: String) -> Result<bool, St
     let Some(config) = read_config(&app)? else {
         return Ok(false);
     };
-    Ok(pin_matches(&config, &pin))
+    verify_pin_with_limit(&config, &pin)
 }
 
 #[tauri::command]
@@ -165,7 +202,7 @@ pub fn shell_security_change_pin(
     let Some(config) = read_config(&app)? else {
         return Err("PIN ещё не установлен".into());
     };
-    if !pin_matches(&config, &current_pin) {
+    if !verify_pin_with_limit(&config, &current_pin)? {
         return Err("Текущий PIN введён неверно".into());
     }
     write_config(&app, &make_config(&new_pin)?)
