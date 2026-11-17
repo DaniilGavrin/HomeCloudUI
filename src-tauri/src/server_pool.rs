@@ -394,6 +394,19 @@ pub async fn send_to_device(app: &AppHandle, server_id: &str, device_id: String,
         .map_err(|_| "Соединение прервалось до подтверждения")?
 }
 
+fn update_node_metrics(app: &AppHandle, id: &str, metrics: Value) {
+    let changed = {
+        let p = app.state::<ServerPool>();
+        let mut state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(node) = state.servers.iter_mut().find(|n| n.entry.id == id) {
+            node.metrics = Some(metrics);
+            state.revision += 1;
+            true
+        } else { false }
+    };
+    if changed { publish(app); }
+}
+
 fn update_node(app: &AppHandle, id: &str, phase: &str, latency: Option<u64>, data: Option<Value>, error: Option<String>) {
     let changed = {
         let p = app.state::<ServerPool>();
