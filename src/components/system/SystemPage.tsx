@@ -34,6 +34,23 @@ function uptime(value?: number) {
   const d = Math.floor(value / 86400), h = Math.floor(value % 86400 / 3600), m = Math.floor(value % 3600 / 60);
   return (d ? d + ' д ' : '') + h + ' ч ' + m + ' мин';
 }
+function mergeMetrics(previous: MetricsSnapshot | null, incoming: MetricsSnapshot): MetricsSnapshot {
+  const merged = new Map<string, MetricSample>();
+  for (const item of previous?.samples ?? []) {
+    const labels = Object.entries(item.labels ?? {}).sort(([a], [b]) => a.localeCompare(b));
+    merged.set(item.node_id + '|' + item.name + '|' + JSON.stringify(labels), item);
+  }
+  for (const item of incoming.samples ?? []) {
+    const labels = Object.entries(item.labels ?? {}).sort(([a], [b]) => a.localeCompare(b));
+    merged.set(item.node_id + '|' + item.name + '|' + JSON.stringify(labels), item);
+  }
+  return {
+    ...previous,
+    ...incoming,
+    samples: [...merged.values()],
+    stats: { ...(previous?.stats ?? {}), ...(incoming.stats ?? {}) },
+  };
+}
 function sample(samples: MetricSample[], name: string) { return [...samples].reverse().find(s => s.name === name); }
 function prefixSample(samples: MetricSample[], prefix: string) { return [...samples].reverse().find(s => s.name.startsWith(prefix)); }
 function Card({ title, children, hint }: { title: string; children: ReactNode; hint?: string }) {
@@ -138,7 +155,7 @@ export function SystemPage() {
         unlisten = await listen<{ server_id: string; metrics: MetricsSnapshot }>('homecloud:server-metrics', event => {
           if (live && event.payload.server_id === serverId) {
             eventReceived = true;
-            setMetrics(event.payload.metrics);
+            setMetrics(previous => mergeMetrics(previous, event.payload.metrics));
           }
         });
         if (!live) { unlisten(); return; }
@@ -150,6 +167,14 @@ export function SystemPage() {
     })();
     return () => { live = false; unlisten?.(); };
   }, [serverId]);
+  useEffect(() => {
+    if (!serverId) return;
+    setMetrics(null);
+    setMetricsError(null);
+    void invoke('homecloud_metrics_set_group', { serverId, group: tab })
+      .catch(error => setMetricsError(String(error)));
+  }, [serverId, tab]);
+
   const data = selected?.data ?? null;
   const samples = metrics?.samples ?? [];
   const activeMetric = useMemo(() => {
@@ -170,7 +195,7 @@ export function SystemPage() {
     setHistoryLoading(true); setHistoryError(null);
     void invoke<History>('homecloud_metrics_query', {
       serverId: selected.id, nodeId: activeMetric.node_id, metric: activeMetric.name,
-      from: from.toISOString(), to: to.toISOString(), resolutionMs: range.resolution, limit: 12000,
+      from: from.toISOString(), to: to.toISOString(), resolutionMs: range.resolution, limit: 2000,
     }).then(result => { if (live) setPoints(Array.isArray(result.points) ? result.points : []); })
       .catch(error => { if (live) { setPoints([]); setHistoryError(String(error)); } })
       .finally(() => { if (live) setHistoryLoading(false); });
