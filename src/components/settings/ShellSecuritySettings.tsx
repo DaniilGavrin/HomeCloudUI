@@ -6,7 +6,7 @@ import { PinPad } from '../system/PinPad';
 
 type SecurityStatus = { enabled: boolean; pin_length: number | null };
 type Mode = 'set' | 'change' | 'remove' | null;
-type Step = 'current' | 'new' | 'confirm' | 'complete';
+type Step = 'current' | 'new' | 'confirm';
 
 const PIN_LENGTHS = Array.from({ length: 9 }, (_, index) => index + 4);
 
@@ -184,7 +184,7 @@ export function ShellSecuritySettings({ onClose }: { onClose: () => void }) {
               <div><strong>{title}</strong><small>{step === 'current' ? 'Введите действующий PIN-код' : step === 'new' ? 'Выберите новый PIN-код' : step === 'confirm' ? 'Для подтверждения введите его ещё раз' : ' '}</small></div>
             </div>
 
-            {step !== 'current' && step !== 'complete' && (
+            {step === 'new' && (
               <label className="hc-security-length">Длина PIN-кода
                 <select value={newLength} onChange={(event) => { setNewLength(Number(event.target.value)); setPin(''); setError(null); }}>
                   {PIN_LENGTHS.map((length) => <option key={length} value={length}>{length} цифр</option>)}
