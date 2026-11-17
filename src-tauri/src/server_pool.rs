@@ -700,8 +700,8 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     {
                         let pool = app.state::<ServerPool>();
                         let mut cache = pool.metrics.lock().unwrap_or_else(|e| e.into_inner());
-                        let entry = cache.entry(entry.id.clone()).or_insert_with(|| json!({}));
-                        if let Some(object) = entry.as_object_mut() {
+                        let cached_metrics = cache.entry(entry.id.clone()).or_insert_with(|| json!({}));
+                        if let Some(object) = cached_metrics.as_object_mut() {
                             object.insert("samples".into(), json!([]));
                         }
                     }
