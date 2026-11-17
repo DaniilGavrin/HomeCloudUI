@@ -26,11 +26,12 @@ function App() {
   const [powerOpen, setPowerOpen] = useState(false);
   const [powerError, setPowerError] = useState<string | null>(null);
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
+  const [securityError, setSecurityError] = useState<string | null>(null);
 
   useEffect(() => {
     void invoke<SecurityStatus>('shell_security_status')
       .then(setSecurity)
-      .catch(() => setSecurity({ enabled: false, pin_length: null }));
+      .catch(() => setSecurityError('Не удалось загрузить параметры безопасности.'));
   }, []);
 
   const verifyPin = useCallback((pin: string) =>
@@ -137,6 +138,7 @@ function App() {
                 <ShellLockScreen
                     key="homecloud-lock"
                     securityReady={security !== null}
+                    securityError={securityError}
                     pinLength={security?.enabled ? security.pin_length : null}
                     onVerify={verifyPin}
                     onUnlock={unlockShell}
