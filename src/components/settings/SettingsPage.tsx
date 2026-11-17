@@ -89,7 +89,8 @@ export function SettingsPage({ sections, onSetSectionEnabled, onTitleChange }: {
     finally { setBusy(false); }
   };
 
-  return <section className="hc-settings homecloud-glass" aria-label="Настройки HomeCloud">
+  return <>
+    <section className="hc-settings homecloud-glass" aria-label="Настройки HomeCloud">
     <AnimatePresence mode="wait" initial={false}>
       <motion.div key={screen} className="hc-settings__view" initial={{ opacity: 0, x: reduced ? 0 : 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduced ? 0 : -12 }} transition={{ duration: reduced ? .08 : .19 }}>
         {screen === 'home' ? <>
