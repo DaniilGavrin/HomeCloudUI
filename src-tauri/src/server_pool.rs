@@ -278,7 +278,7 @@ pub fn homecloud_pool_update(app: AppHandle, id: String, input: ServerInput) -> 
         next[index].entry.name = name;
         next[index].entry.ipv4 = ipv4;
         next[index].entry.ipv6 = ipv6;
-        if changed { next[index].phase = "connecting".into(); next[index].latency_ms = None; next[index].data = None; next[index].error = None; }
+        if changed { next[index].phase = "connecting".into(); next[index].latency_ms = None; next[index].data = None; next[index].metrics = None; next[index].error = None; }
         save(&p.file, &next)?;
         state.servers = next; state.revision += 1;
         (state.clone(), changed)
@@ -437,6 +437,7 @@ fn start_secondary(app: AppHandle, id: String) {
     p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::media_rooms::disconnected(&app, &id);
     let entry = {
         let state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
