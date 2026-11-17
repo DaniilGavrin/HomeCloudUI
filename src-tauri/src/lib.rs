@@ -38,6 +38,7 @@ pub fn run() {
             server_pool::homecloud_pool_update,
             server_pool::homecloud_pool_delete,
             server_pool::homecloud_pool_refresh,
+            server_pool::homecloud_metrics_query,
             device_registry::homecloud_device_registry_status,
             device_registry::homecloud_device_forget,
             device_registry::homecloud_device_rename,
