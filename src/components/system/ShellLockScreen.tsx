@@ -5,12 +5,13 @@ import { PinPad } from './PinPad';
 
 type Props = {
   securityReady: boolean;
+  securityError?: string | null;
   pinLength: number | null;
   onVerify: (pin: string) => Promise<boolean>;
   onUnlock: () => void;
 };
 
-export function ShellLockScreen({ securityReady, pinLength, onVerify, onUnlock }: Props) {
+export function ShellLockScreen({ securityReady, securityError, pinLength, onVerify, onUnlock }: Props) {
   const [now, setNow] = useState(() => new Date());
   const [pin, setPin] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -103,7 +104,7 @@ export function ShellLockScreen({ securityReady, pinLength, onVerify, onUnlock }
         </motion.div>
 
         {!securityReady ? (
-          <p className="hc-lock-message" role="status">Загрузка параметров безопасности…</p>
+          <p className="hc-lock-message" role="status">{securityError ?? 'Загрузка параметров безопасности…'}</p>
         ) : pinLength !== null ? (
           <motion.div className="hc-lock-pin" {...reveal(0.33, 12)}>
             <p className="hc-lock-pin__title">Введите PIN-код</p>
