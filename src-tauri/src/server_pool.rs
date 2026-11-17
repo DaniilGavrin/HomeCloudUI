@@ -424,12 +424,12 @@ fn metric_group_prefixes(group: &str) -> Vec<&'static str> {
     match group {
         "overview" => vec!["cpu.usage_percent", "memory.used_percent", "host.uptime_seconds", "services.available", "disk."],
         "cpu" => vec!["cpu.", "cpu_frequency."],
-        "memory" => vec!["memory.", "pressure.memory."],
+        "memory" => vec!["memory."],
         "disks" => vec!["disk.", "disk_kernel.", "disk_inventory.", "smart."],
         "network" => vec!["network."],
         "processes" => vec!["process."],
-        "services" => vec!["services.", "backend.", "host."],
-        "diagnostics" => vec!["pressure.", "linux_kernel.", "backend.", "host.", "sensors.", "fans.", "gpu."],
+        "services" => vec!["services."],
+        "diagnostics" => vec!["pressure.", "linux_kernel.", "backend.", "host.", "system.", "sensors.", "fans.", "gpu.", "cpu_frequency.", "disk_inventory.", "disk_kernel.", "smart.", "network_kernel.", "network_connections."],
         _ => vec![],
     }
 }
@@ -696,6 +696,18 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     let subscribe = json!({"v":1,"id":format!("hc-pool-sub-{}-{}", entry.id, request.group),"type":"subscribe","topic":new_topic});
                     socket.send(Message::Text(subscribe.to_string().into())).await.map_err(|e| format!("metrics subscribe failed: {e}"))?;
                     metrics_group = request.group;
+                    {
+                        let pool = app.state::<ServerPool>();
+                        let mut cache = pool.metrics.lock().unwrap_or_else(|e| e.into_inner());
+                        let entry = cache.entry(entry.id.clone()).or_insert_with(|| json!({}));
+                        if let Some(object) = entry.as_object_mut() {
+                            object.insert("samples".into(), json!([]));
+                        }
+                    }
+                    let _ = app.emit("homecloud:server-metrics", json!({
+                        "server_id": entry.id,
+                        "metrics": {"samples": []}
+                    }));
                     latest_metrics_counter = latest_metrics_counter.wrapping_add(1);
                     latest_metrics_id = format!("hc-pool-metrics-latest-{}-{}", entry.id, latest_metrics_counter);
                     let latest = json!({"v":1,"id":latest_metrics_id.clone(),"type":"command","action":"system.metrics.latest","data":{"prefixes":metric_group_prefixes(&metrics_group)}});
