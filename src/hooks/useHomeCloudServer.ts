@@ -6,7 +6,7 @@ export type ServerStatusData = {
   status?: string;
   collected_at?: string;
   system?: {
-    hostname?: string; platform?: string; platform_family?: string; platform_version?: string;
+    node_id?: string; hostname?: string; platform?: string; platform_family?: string; platform_version?: string;
     goos?: string; goarch?: string; os_family?: string; kernel_version?: string;
     kernel_arch?: string; timezone?: string; timezone_offset_seconds?: number;
     uptime_seconds?: number; boot_time_unix?: number; process_count?: number;
