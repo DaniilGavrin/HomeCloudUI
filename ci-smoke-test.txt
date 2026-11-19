@@ -1,0 +1,3 @@
+Temporary marker for validating the pull-request Windows build workflow.
+
+This file does not affect application code, dependencies, or runtime behavior.
