@@ -58,6 +58,20 @@ pub struct PoolSnapshot {
     pub revision: u64,
 }
 
+pub struct MetricsGroupRequest {
+    pub group: String,
+}
+
+pub struct MetricsQueryRequest {
+    pub node_id: String,
+    pub metric: String,
+    pub from: String,
+    pub to: String,
+    pub resolution_ms: u64,
+    pub limit: usize,
+    pub reply: oneshot::Sender<Result<Value, String>>,
+}
+
 pub struct ServerPool {
     file: PathBuf,
     pub(crate) inner: Mutex<PoolSnapshot>,
@@ -67,6 +81,9 @@ pub struct ServerPool {
     deliveries: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceDelivery>>>,
     renames: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceRenameRequest>>>,
     forgets: Mutex<HashMap<String, mpsc::Sender<crate::homecloud_ws::DeviceForgetRequest>>>,
+    metric_queries: Mutex<HashMap<String, mpsc::Sender<MetricsQueryRequest>>>,
+    metric_groups: Mutex<HashMap<String, mpsc::Sender<MetricsGroupRequest>>>,
+    metrics: Mutex<HashMap<String, Value>>,
     primary_changes: watch::Sender<u64>,
 }
 
@@ -206,7 +223,7 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let manager = ServerPool {
         file, inner: Mutex::new(PoolSnapshot { servers: entries.into_iter().map(PoolNode::new).collect(), revision: 0 }),
         tasks: Mutex::new(HashMap::new()), refreshes: Mutex::new(HashMap::new()),
-        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), forgets: Mutex::new(HashMap::new()), primary_changes: tx,
+        device_refreshes: Mutex::new(HashMap::new()), deliveries: Mutex::new(HashMap::new()), renames: Mutex::new(HashMap::new()), forgets: Mutex::new(HashMap::new()), metric_queries: Mutex::new(HashMap::new()), metric_groups: Mutex::new(HashMap::new()), metrics: Mutex::new(HashMap::new()), primary_changes: tx,
     };
     app.manage(manager);
     Ok(())
@@ -273,6 +290,8 @@ pub fn homecloud_pool_update(app: AppHandle, id: String, input: ServerInput) -> 
     };
     publish(&app);
     if address_changed {
+        app.state::<ServerPool>().metrics.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+        let _ = app.emit("homecloud:server-metrics", json!({"server_id": id.clone(), "metrics": {}}));
         if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
         start_secondary(app, id);
     }
@@ -296,6 +315,9 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.forgets.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metric_groups.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metrics.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::storage::disconnected(&app, &id);
     if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
     publish(&app);
@@ -307,6 +329,53 @@ pub fn homecloud_pool_refresh(app: AppHandle, id: String) -> Result<(), String> 
     let p = app.state::<ServerPool>();
     let sender = p.refreshes.lock().unwrap_or_else(|e| e.into_inner()).get(&id).cloned();
     sender.ok_or("Сервер сейчас не подключён")?.try_send(()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn homecloud_metrics_status(app: AppHandle, server_id: String) -> Option<Value> {
+    app.state::<ServerPool>().metrics.lock()
+        .unwrap_or_else(|e| e.into_inner()).get(&server_id).cloned()
+}
+
+#[tauri::command]
+pub fn homecloud_metrics_set_group(app: AppHandle, server_id: String, group: String) -> Result<(), String> {
+    if !matches!(group.as_str(), "overview" | "cpu" | "memory" | "disks" | "network" | "processes" | "services" | "diagnostics") {
+        return Err("Неизвестная группа метрик".into());
+    }
+    let sender = app.state::<ServerPool>().metric_groups.lock()
+        .unwrap_or_else(|e| e.into_inner()).get(&server_id).cloned()
+        .ok_or("Сервер сейчас не подключён")?;
+    sender.try_send(MetricsGroupRequest { group }).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn homecloud_metrics_query(
+    app: AppHandle,
+    server_id: String,
+    node_id: String,
+    metric: String,
+    from: String,
+    to: String,
+    resolution_ms: u64,
+    limit: usize,
+) -> Result<Value, String> {
+    if server_id.is_empty() || node_id.is_empty() || node_id.len() > 128
+        || metric.is_empty() || metric.len() > 160 || from.is_empty() || to.is_empty() {
+        return Err("Некорректные параметры запроса истории метрик".into());
+    }
+    if !matches!(resolution_ms, 1000 | 10000 | 60000) {
+        return Err("Недопустимое разрешение истории метрик".into());
+    }
+    let sender = app.state::<ServerPool>().metric_queries.lock()
+        .unwrap_or_else(|e| e.into_inner()).get(&server_id).cloned()
+        .ok_or("Сервер сейчас не подключён")?;
+    let (reply, receive) = oneshot::channel();
+    sender.send(MetricsQueryRequest {
+        node_id, metric, from, to, resolution_ms, limit: limit.clamp(1, 20_000), reply,
+    }).await.map_err(|_| "Сессия сервера закрылась")?;
+    tokio::time::timeout(Duration::from_secs(20), receive).await
+        .map_err(|_| "Тайм-аут запроса истории метрик")?
+        .map_err(|_| "Соединение прервалось до ответа истории метрик")?
 }
 
 pub fn refresh_devices(app: &AppHandle, id: &str) -> Result<(), String> {
@@ -352,6 +421,72 @@ pub async fn send_to_device(app: &AppHandle, server_id: &str, device_id: String,
         .map_err(|_| "Соединение прервалось до подтверждения")?
 }
 
+fn metric_group_prefixes(group: &str) -> Vec<&'static str> {
+    match group {
+        "overview" => vec!["cpu.usage_percent", "memory.used_percent", "host.uptime_seconds", "services.available"],
+        "cpu" => vec!["cpu.", "cpu_frequency."],
+        "memory" => vec!["memory."],
+        "disks" => vec!["disk.", "disk_kernel.", "disk_inventory.", "smart."],
+        "network" => vec!["network."],
+        "processes" => vec!["process."],
+        "services" => vec!["services."],
+        "diagnostics" => vec!["pressure.", "linux_kernel.", "backend.", "host.", "system.", "sensors.", "fans.", "gpu.", "cpu_frequency.", "disk_inventory.", "disk_kernel.", "smart.", "network_kernel.", "network_connections."],
+        _ => vec![],
+    }
+}
+
+fn update_node_metrics(app: &AppHandle, id: &str, metrics: Value) {
+    let snapshot = {
+        let p = app.state::<ServerPool>();
+        let mut values = p.metrics.lock().unwrap_or_else(|e| e.into_inner());
+        let mut merged = values.remove(id).unwrap_or_else(|| json!({}));
+
+        if let (Some(target), Some(update)) = (merged.as_object_mut(), metrics.as_object()) {
+            for (key, value) in update {
+                if key == "samples" {
+                    let Some(incoming) = value.as_array() else {
+                        target.insert(key.clone(), value.clone());
+                        continue;
+                    };
+                    let current = target.entry(key.clone()).or_insert_with(|| json!([]));
+                    let Some(existing) = current.as_array_mut() else {
+                        *current = json!([]);
+                        continue;
+                    };
+                    for sample in incoming {
+                        let identity = |item: &Value| {
+                            (
+                                item.get("node_id").and_then(Value::as_str).unwrap_or("").to_owned(),
+                                item.get("name").and_then(Value::as_str).unwrap_or("").to_owned(),
+                                item.get("labels").cloned().unwrap_or(Value::Null),
+                            )
+                        };
+                        let key = identity(sample);
+                        if let Some(previous) = existing.iter_mut().find(|item| identity(item) == key) {
+                            *previous = sample.clone();
+                        } else {
+                            existing.push(sample.clone());
+                        }
+                    }
+                } else {
+                    target.insert(key.clone(), value.clone());
+                }
+            }
+        } else {
+            merged = metrics.clone();
+        }
+
+        values.insert(id.to_owned(), merged);
+        metrics
+    };
+    if let Err(error) = app.emit("homecloud:server-metrics", json!({
+        "server_id": id,
+        "metrics": snapshot
+    })) {
+        eprintln!("[ServerPool] Failed to emit metrics update: {error}");
+    }
+}
+
 fn update_node(app: &AppHandle, id: &str, phase: &str, latency: Option<u64>, data: Option<Value>, error: Option<String>) {
     let changed = {
         let p = app.state::<ServerPool>();
@@ -375,6 +510,8 @@ fn start_secondary(app: AppHandle, id: String) {
     p.device_refreshes.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    p.metric_groups.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     crate::media_rooms::disconnected(&app, &id);
     let entry = {
         let state = p.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -422,6 +559,8 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
         app.state::<ServerPool>().deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         app.state::<ServerPool>().forgets.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
+        app.state::<ServerPool>().metric_queries.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
+        app.state::<ServerPool>().metric_groups.lock().unwrap_or_else(|e| e.into_inner()).remove(&entry.id);
         crate::storage::disconnected(&app, &entry.id);
         crate::device_registry::disconnected(&app, &entry.id);
         let detail = if attempted.is_empty() {
@@ -452,7 +591,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     // Subscribe before clients.list, so updates during the initial snapshot
     // are not lost. This is the SAME secondary WebSocket used for telemetry.
     for (suffix, topic) in [("connected", "clients.connected"), ("disconnected", "clients.disconnected"), ("devices-updated", "devices.updated"),
-        ("media-changed", "media.room.changed"), ("media-closed", "media.room.closed")] {
+        ("media-changed", "media.room.changed"), ("media-closed", "media.room.closed"), ("system-metrics-overview", "system.metrics.overview")] {
         let msg = json!({"v":1,"id":format!("hc-pool-sub-{}-{suffix}", entry.id),"type":"subscribe","topic":topic});
         socket.send(Message::Text(msg.to_string().into())).await.map_err(|e| format!("subscribe failed: {e}"))?;
     }
@@ -478,6 +617,12 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     crate::storage::connected(app, &entry.id, storage_tx.clone());
     crate::media_rooms::connected(app, &entry.id);
     let mut pending_storage: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    let (metrics_tx, mut metrics_rx) = mpsc::channel::<MetricsQueryRequest>(4);
+    app.state::<ServerPool>().metric_queries.lock().unwrap_or_else(|e| e.into_inner()).insert(entry.id.clone(), metrics_tx);
+    let (metric_group_tx, mut metric_group_rx) = mpsc::channel::<MetricsGroupRequest>(4);
+    app.state::<ServerPool>().metric_groups.lock().unwrap_or_else(|e| e.into_inner()).insert(entry.id.clone(), metric_group_tx);
+    let mut pending_metric_queries: HashMap<String, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    let mut metrics_query_counter = 0u64;
     let mut storage_counter = 0u64;
     let mut list_resync = tokio::time::interval_at(tokio::time::Instant::now() + Duration::from_secs(30), Duration::from_secs(30));
     list_resync.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -489,6 +634,11 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut ping_counter = 0u64;
     let mut pending_status: Option<(String, tokio::time::Instant)> = None;
     let mut pending_ping: Option<(String, tokio::time::Instant)> = None;
+    let mut metrics_group = "overview".to_owned();
+    let mut latest_metrics_counter = 0u64;
+    let mut latest_metrics_id = format!("hc-pool-metrics-latest-{}-{}", entry.id, latest_metrics_counter);
+    socket.send(Message::Text(json!({"v":1,"id":latest_metrics_id.clone(),"type":"command","action":"system.metrics.latest","data":{"prefixes":metric_group_prefixes(&metrics_group)}}).to_string().into()))
+        .await.map_err(|e| format!("system.metrics.latest send failed: {e}"))?;
     let mut status_next = tokio::time::interval_at(tokio::time::Instant::now(), STATUS_INTERVAL);
     status_next.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut ping_next = tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
@@ -537,6 +687,52 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 }
                 pending_storage.insert(id, command.reply);
             }
+            group_request = metric_group_rx.recv() => {
+                let Some(request) = group_request else { return Err("session ended: metrics group channel closed".into()); };
+                if request.group != metrics_group {
+                    let old_topic = format!("system.metrics.{}", metrics_group);
+                    let unsubscribe = json!({"v":1,"id":format!("hc-pool-unsub-{}-{}", entry.id, latest_metrics_counter),"type":"unsubscribe","topic":old_topic});
+                    socket.send(Message::Text(unsubscribe.to_string().into())).await.map_err(|e| format!("metrics unsubscribe failed: {e}"))?;
+                    let new_topic = format!("system.metrics.{}", request.group);
+                    let subscribe = json!({"v":1,"id":format!("hc-pool-sub-{}-{}", entry.id, request.group),"type":"subscribe","topic":new_topic});
+                    socket.send(Message::Text(subscribe.to_string().into())).await.map_err(|e| format!("metrics subscribe failed: {e}"))?;
+                    metrics_group = request.group;
+                    {
+                        let pool = app.state::<ServerPool>();
+                        let mut cache = pool.metrics.lock().unwrap_or_else(|e| e.into_inner());
+                        let cached_metrics = cache.entry(entry.id.clone()).or_insert_with(|| json!({}));
+                        if let Some(object) = cached_metrics.as_object_mut() {
+                            object.insert("samples".into(), json!([]));
+                        }
+                    }
+                    let _ = app.emit("homecloud:server-metrics", json!({
+                        "server_id": entry.id,
+                        "metrics": {"samples": []}
+                    }));
+                    latest_metrics_counter = latest_metrics_counter.wrapping_add(1);
+                    latest_metrics_id = format!("hc-pool-metrics-latest-{}-{}", entry.id, latest_metrics_counter);
+                    let latest = json!({"v":1,"id":latest_metrics_id.clone(),"type":"command","action":"system.metrics.latest","data":{"prefixes":metric_group_prefixes(&metrics_group)}});
+                    socket.send(Message::Text(latest.to_string().into())).await.map_err(|e| format!("filtered metrics.latest send failed: {e}"))?;
+                }
+            }
+            metric_query = metrics_rx.recv() => {
+                let Some(query) = metric_query else { return Err("session ended: metrics query channel closed".into()); };
+                if pending_metric_queries.len() >= 8 {
+                    let _ = query.reply.send(Err("Слишком много запросов истории метрик".into()));
+                    continue;
+                }
+                metrics_query_counter = metrics_query_counter.wrapping_add(1);
+                let id = format!("hc-pool-metrics-query-{}-{metrics_query_counter}", entry.id);
+                let packet = json!({"v":1,"id":id,"type":"command","action":"system.metrics.query","data":{
+                    "node_id":query.node_id,"metric":query.metric,"from":query.from,"to":query.to,
+                    "resolution_ms":query.resolution_ms,"limit":query.limit
+                }});
+                if let Err(error) = socket.send(Message::Text(packet.to_string().into())).await {
+                    let _ = query.reply.send(Err(error.to_string()));
+                    return Err(format!("session ended: metrics query send error: {error}"));
+                }
+                pending_metric_queries.insert(id, query.reply);
+            }
             delivery = delivery_rx.recv() => {
                 let Some(delivery) = delivery else { return Err("session ended: delivery channel closed".into()); };
                 if pending_deliveries.len() >= 64 {
@@ -559,9 +755,10 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             }
             _ = ping_next.tick() => {
                 pending_deliveries.retain(|_, reply| !reply.is_closed());
+                pending_metric_queries.retain(|_, reply| !reply.is_closed());
                 pending_storage.retain(|_, reply| !reply.is_closed());
                 if let Some((_, time)) = &pending_ping {
-                    if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && pending_storage.is_empty() && tokio::time::Instant::now() >= grace {
+                    if time.elapsed() >= PONG_TIMEOUT && pending_status.is_none() && pending_storage.is_empty() && pending_metric_queries.is_empty() && tokio::time::Instant::now() >= grace {
                         return Err("session ended: ping/pong timeout".into());
                     }
                 } else {
@@ -594,6 +791,21 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 };
                 let Ok(payload) = serde_json::from_str::<Value>(raw.as_str()) else { continue; };
                 crate::media_rooms::on_event(app, &entry.id, &payload);
+                if payload.get("type").and_then(Value::as_str) == Some("event")
+                    && payload.get("topic").and_then(Value::as_str).map(|topic| topic.starts_with("system.metrics.")).unwrap_or(false) {
+                    if let Some(metrics) = payload.pointer("/data/payload").cloned() {
+                        update_node_metrics(app, &entry.id, metrics);
+                    }
+                    continue;
+                }
+                if payload.get("id").and_then(Value::as_str) == Some(latest_metrics_id.as_str())
+                    && payload.get("action").and_then(Value::as_str) == Some("system.metrics.latest")
+                    && payload.get("type").and_then(Value::as_str) == Some("result") {
+                    if let Some(metrics) = payload.get("data").cloned() {
+                        update_node_metrics(app, &entry.id, metrics);
+                    }
+                    continue;
+                }
 
 
                 if let Some(device_id) = crate::homecloud_ws::parse_removed_device_event(&payload) {
@@ -618,6 +830,16 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 let id = payload.get("id").and_then(Value::as_str).unwrap_or("");
 
 
+                if let Some(reply) = pending_metric_queries.remove(id) {
+                    let result = if payload.get("type").and_then(Value::as_str) == Some("result")
+                        && payload.get("action").and_then(Value::as_str) == Some("system.metrics.query") {
+                        Ok(payload.get("data").cloned().unwrap_or(Value::Null))
+                    } else {
+                        Err(payload.get("error").and_then(Value::as_str).unwrap_or("Не удалось получить историю метрик").to_owned())
+                    };
+                    let _ = reply.send(result);
+                    continue;
+                }
                 if let Some(reply) = pending_forgets.remove(id) {
                     let result = if payload.get("type").and_then(Value::as_str) == Some("result")
                         && payload.get("action").and_then(Value::as_str) == Some("devices.forget") {
