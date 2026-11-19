@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, clean-monitoring]
   workflow_dispatch:
 
 # PRs build but never publish. Both merges and direct commits to main trigger
