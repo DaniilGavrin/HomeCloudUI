@@ -78,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 2
-      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"}]' || '[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"},{"platform":"linux-x64","os":"ubuntu-24.04","bundles":"deb,appimage"}]') }}
+      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"include":[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"}]}' || '{"include":[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"},{"platform":"linux-x64","os":"ubuntu-24.04","bundles":"deb,appimage"}]}') }}
     runs-on: ${{ matrix.os }}
     if: >-
       ${{
