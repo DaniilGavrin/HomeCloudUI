@@ -2,13 +2,11 @@ name: HomeCloud UI - Windows + Linux Release
 
 on:
   pull_request:
-    branches: [main]
   push:
-    branches: [main, clean-monitoring]
   workflow_dispatch:
 
-# PRs build but never publish. Both merges and direct commits to main trigger
-# a new release. Do not cancel an in-flight main release on the next commit.
+# Non-main refs and pull requests get only the Windows build.
+# Main keeps the full verification, multi-platform build, and release pipeline.
 concurrency:
   group: homecloud-ui-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -78,13 +76,14 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 2
-      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"include":[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"}]}' || '{"include":[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"},{"platform":"linux-x64","os":"ubuntu-24.04","bundles":"deb,appimage"}]}') }}
+      matrix: ${{ fromJSON((github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && '{"include":[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"}]}' || '{"include":[{"platform":"windows-x64","os":"windows-2022","bundles":"nsis"},{"platform":"linux-x64","os":"ubuntu-24.04","bundles":"deb,appimage"}]}') }}
     runs-on: ${{ matrix.os }}
     if: >-
       ${{
         always() &&
         (
           github.event_name == 'pull_request' ||
+          github.ref != 'refs/heads/main' ||
           (needs.prepare.result == 'success' && needs.codeql.result == 'success')
         )
       }}
