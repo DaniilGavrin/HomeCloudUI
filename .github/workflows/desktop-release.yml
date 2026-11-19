@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   prepare:
+    if: github.ref == 'refs/heads/main'
     name: Prepare - TypeScript and Vite
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -37,6 +38,7 @@ jobs:
         run: npm run test:storage
 
   codeql:
+    if: github.ref == 'refs/heads/main'
     name: CodeQL - ${{ matrix.language }}
     needs: prepare
     runs-on: ubuntu-24.04
@@ -85,6 +87,15 @@ jobs:
             os: ubuntu-24.04
             bundles: deb,appimage
     runs-on: ${{ matrix.os }}
+    if: >-
+      ${{
+        always() &&
+        (
+          github.event_name == 'pull_request' ||
+          (needs.prepare.result == 'success' && needs.codeql.result == 'success')
+        ) &&
+        (matrix.platform == 'windows-x64' || github.event_name != 'pull_request')
+      }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
