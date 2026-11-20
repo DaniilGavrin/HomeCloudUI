@@ -8,7 +8,7 @@ function addressLabel(ipv4: string | null, ipv6: string | null): string {
 }
 
 function ServerStatus({ phase }: { phase: string }) {
-  const online = phase === 'ready' || phase === 'loading';
+  const online = phase === 'ready';
   const pending = phase === 'connecting';
 
   return (
@@ -75,7 +75,7 @@ export function MonitoringPage() {
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={reduced ? undefined : { y: -2 }}
                 transition={{ duration: reduced ? 0.08 : 0.2, delay: reduced ? 0 : Math.min(index * 0.035, 0.18) }}
-                aria-label={`Сервер ${server.name}: ${server.phase === 'ready' || server.phase === 'loading' ? 'Online' : server.phase === 'connecting' ? 'Connecting' : 'Offline'}`}
+                aria-label={`Сервер ${server.name}: ${server.phase === 'ready' ? 'Online' : server.phase === 'connecting' ? 'Connecting' : 'Offline'}`}
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <span className="grid h-[49px] w-[49px] shrink-0 place-items-center rounded-[14px] border border-cyan-200/20 bg-[linear-gradient(140deg,rgba(35,171,220,.14),rgba(95,73,221,.07))] text-cyan-100">
