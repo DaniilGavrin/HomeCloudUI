@@ -40,6 +40,7 @@ const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
   environment: CloudSun,
   notifications: Bell,
   system: MonitorCog,
+  servers: MonitorCog,
   automation: Workflow,
 };
 
