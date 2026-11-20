@@ -181,9 +181,9 @@ export const navigationItems: NavItem[] = [
     },
     {
         id: 'servers',
-        label: 'Серверы',
-        shortLabel: 'Серверы',
-        description: 'HomeCloudBackend и системные службы',
+        label: 'Мониторинг',
+        shortLabel: 'Мониторинг',
+        description: 'Состояние серверов и системных ресурсов HomeCloud',
     },
     {
         id: 'automation',
