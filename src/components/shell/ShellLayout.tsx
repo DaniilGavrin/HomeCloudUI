@@ -15,6 +15,7 @@ import { DevicesPage } from '../devices/DevicesPage';
 import { HomePage } from '../home/HomePage';
 import { SettingsPage } from '../settings/SettingsPage';
 import { HcssExplorerPage } from '../explorer/HcssExplorerPage';
+import { MonitoringPage } from '../monitoring/MonitoringPage';
 
 const PLACEHOLDER_ICONS: Record<string, LucideIcon> = {
   security: ShieldCheck,
@@ -173,6 +174,8 @@ export function ShellLayout({ onLock, onOpenPower }: Props) {
                 <DevicesPage onOpenExplorer={() => setActiveId('explorer')} canOpenExplorer={sections.explorer} />
               ) : activeId === 'explorer' ? (
                 <HcssExplorerPage />
+              ) : activeId === 'servers' ? (
+                <MonitoringPage />
               ) : activeId === 'settings' ? (
                 <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} onTitleChange={setPageTitle} />
               ) : (
