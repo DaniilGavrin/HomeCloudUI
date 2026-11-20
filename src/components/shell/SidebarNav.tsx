@@ -1,8 +1,8 @@
 import { motion } from 'motion/react';
 import {
-  AirVent, Bell, BookOpen, Brush, CalendarDays, Camera, CarFront, CloudSun,
+  Activity, AirVent, Bell, BookOpen, Brush, CalendarDays, Camera, CarFront, CloudSun,
   Cpu, Droplets, Flame, FolderOpen, HeartPulse, House, KeyRound, Lightbulb,
-  ListTodo, MonitorCog, Phone, Server, Settings, ShieldCheck, Sprout,
+  ListTodo, MonitorCog, Phone, Settings, ShieldCheck, Sprout,
   Thermometer, Wallet, Workflow, Wind, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -34,7 +34,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   medicine: HeartPulse,
   environment: CloudSun,
   notifications: Bell,
-  servers: Server,
+  servers: Activity,
   automation: Workflow,
   system: MonitorCog,
   settings: Settings,
