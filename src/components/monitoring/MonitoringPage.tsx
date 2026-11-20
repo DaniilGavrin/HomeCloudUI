@@ -1,7 +1,26 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowLeft, Server } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
+
+const MONITORING_SECTIONS = [
+  { id: 'overview', label: 'Главная' },
+  { id: 'cpu', label: 'CPU' },
+  { id: 'ram', label: 'RAM' },
+  { id: 'gpu', label: 'GPU' },
+  { id: 'disks', label: 'Диски' },
+  { id: 'network', label: 'Сеть' },
+  { id: 'processes', label: 'Процессы' },
+  { id: 'services', label: 'Службы' },
+  { id: 'load', label: 'Нагрузка' },
+  { id: 'sensors', label: 'Датчики' },
+  { id: 'system', label: 'Система' },
+  { id: 'events', label: 'События' },
+  { id: 'history', label: 'История' },
+  { id: 'nodes', label: 'Сравнение узлов' },
+] as const;
+
+type MonitoringSectionId = (typeof MONITORING_SECTIONS)[number]['id'];
 
 function addressLabel(ipv4: string | null, ipv6: string | null): string {
   const addresses = [ipv4, ipv6].filter((value): value is string => Boolean(value));
@@ -34,11 +53,45 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
+function MonitoringSectionPage({ section }: { section: MonitoringSectionId }) {
+  const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
+
+  return (
+    <section
+      className="homecloud-glass min-h-0 flex-1 rounded-[22px] border border-sky-200/[0.13]"
+      aria-label={`Раздел мониторинга: ${definition.label}`}
+      data-monitoring-section={section}
+    />
+  );
+}
+
 export function MonitoringPage() {
   const { snapshot, error } = useHomeCloudPool();
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<MonitoringSectionId>('overview');
+  const sectionScroller = useRef<HTMLDivElement>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
+
+  const changeSection = (section: MonitoringSectionId) => {
+    setActiveSection(section);
+  };
+
+  const scrollSections = (direction: -1 | 1) => {
+    sectionScroller.current?.scrollBy({
+      left: direction * Math.max(220, sectionScroller.current.clientWidth * 0.65),
+      behavior: reduced ? 'instant' : 'smooth',
+    });
+  };
+
+  const openServer = (serverId: string) => {
+    setActiveSection('overview');
+    setSelectedServerId(serverId);
+  };
+
+  const closeServer = () => {
+    setSelectedServerId(null);
+  };
 
   return (
     <section
@@ -49,16 +102,16 @@ export function MonitoringPage() {
         {selectedServer ? (
           <motion.div
             key={`server-detail-${selectedServer.id}`}
-            className="flex min-h-0 flex-1 flex-col"
+            className="flex min-h-0 flex-1 flex-col gap-[12px]"
             initial={{ opacity: 0, x: reduced ? 0 : 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: reduced ? 0 : -12 }}
             transition={{ duration: reduced ? 0.08 : 0.24 }}
           >
-            <header className="mb-[17px] flex min-h-[36px] items-center justify-between gap-3">
+            <header className="flex min-h-[36px] items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => setSelectedServerId(null)}
+                onClick={closeServer}
                 className="inline-flex min-h-[36px] items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-[12px] font-medium text-white/75 transition-colors hover:border-sky-200/25 hover:bg-white/[0.075] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50"
               >
                 <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
@@ -69,8 +122,70 @@ export function MonitoringPage() {
 
             <div
               className="homecloud-glass min-h-[150px] w-full flex-none rounded-[22px] border border-sky-200/[0.13]"
-              aria-label="Панель мониторинга сервера"
+              aria-label="Постоянная панель мониторинга сервера"
             />
+
+            <nav
+              className="homecloud-glass flex min-h-[54px] w-full flex-none items-center gap-2 overflow-hidden rounded-[18px] border border-sky-200/[0.13] px-2 py-[7px]"
+              aria-label="Разделы мониторинга"
+            >
+              <button
+                type="button"
+                onClick={() => scrollSections(-1)}
+                className="grid h-[34px] w-[30px] flex-none place-items-center rounded-[10px] text-white/55 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50"
+                aria-label="Прокрутить разделы влево"
+              >
+                <ChevronLeft size={18} aria-hidden="true" />
+              </button>
+
+              <div
+                ref={sectionScroller}
+                className="flex min-w-0 flex-1 items-center gap-[6px] overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: 'none' }}
+              >
+                {MONITORING_SECTIONS.map(section => {
+                  const active = activeSection === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => changeSection(section.id)}
+                      aria-current={active ? 'page' : undefined}
+                      className={[
+                        'min-h-[34px] flex-none whitespace-nowrap rounded-[10px] border px-[14px] text-[12px] font-medium transition-[color,background,border-color] duration-150',
+                        active
+                          ? 'border-sky-200/30 bg-sky-300/[0.16] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.08)]'
+                          : 'border-transparent bg-white/[0.025] text-white/60 hover:border-white/10 hover:bg-white/[0.065] hover:text-white/90',
+                      ].join(' ')}
+                    >
+                      {section.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => scrollSections(1)}
+                className="grid h-[34px] w-[30px] flex-none place-items-center rounded-[10px] text-white/55 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50"
+                aria-label="Прокрутить разделы вправо"
+              >
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            </nav>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeSection}
+                className="flex min-h-0 flex-1"
+                initial={{ opacity: 0, x: reduced ? 0 : 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: reduced ? 0 : -8 }}
+                transition={{ duration: reduced ? 0.06 : 0.16 }}
+              >
+                <MonitoringSectionPage section={activeSection} />
+              </motion.div>
+            </AnimatePresence>
           </motion.div>
         ) : (
           <motion.div
@@ -110,7 +225,7 @@ export function MonitoringPage() {
                     <motion.button
                       key={server.id}
                       type="button"
-                      onClick={() => setSelectedServerId(server.id)}
+                      onClick={() => openServer(server.id)}
                       className="flex min-h-[150px] min-w-0 flex-col rounded-[22px] border border-sky-200/[0.14] bg-[linear-gradient(145deg,rgba(125,189,255,.043),rgba(110,123,222,.025)),rgba(21,42,74,.13)] p-[18px] text-left shadow-[0_12px_32px_rgba(0,0,0,.10),inset_0_1px_0_rgba(255,255,255,.035)] transition-[border-color,background] duration-200 hover:border-sky-200/30 hover:bg-white/[0.045] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50"
                       initial={reduced ? false : { opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
