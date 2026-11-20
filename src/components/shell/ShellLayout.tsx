@@ -13,7 +13,6 @@ import { useSectionPreferences } from '../../hooks/useSectionPreferences';
 import { useHomeCloudConnection } from '../../hooks/useHomeCloudConnection';
 import { DevicesPage } from '../devices/DevicesPage';
 import { HomePage } from '../home/HomePage';
-import { ServersPage } from '../servers/ServersPage';
 import { SettingsPage } from '../settings/SettingsPage';
 import { HcssExplorerPage } from '../explorer/HcssExplorerPage';
 
@@ -173,8 +172,6 @@ export function ShellLayout({ onLock, onOpenPower }: Props) {
                 <DevicesPage onOpenExplorer={() => setActiveId('explorer')} canOpenExplorer={sections.explorer} />
               ) : activeId === 'explorer' ? (
                 <HcssExplorerPage />
-              ) : activeId === 'servers' ? (
-                <ServersPage />
               ) : activeId === 'settings' ? (
                 <SettingsPage sections={sections} onSetSectionEnabled={setEnabled} onTitleChange={setPageTitle} />
               ) : (
