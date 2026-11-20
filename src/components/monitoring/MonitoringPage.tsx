@@ -8,13 +8,13 @@ const MONITORING_SECTIONS = [
   { id: 'cpu', label: 'CPU' },
   { id: 'ram', label: 'RAM' },
   { id: 'gpu', label: 'GPU' },
-  { id: 'disks', label: 'Диски' },
+  { id: 'disks', label: 'Диски и файловые системы' },
   { id: 'network', label: 'Сеть' },
   { id: 'processes', label: 'Процессы' },
-  { id: 'services', label: 'Службы' },
-  { id: 'load', label: 'Нагрузка' },
+  { id: 'services', label: 'Службы HomeCloud' },
+  { id: 'load', label: 'Нагрузка и PSI' },
   { id: 'sensors', label: 'Датчики' },
-  { id: 'system', label: 'Система' },
+  { id: 'system', label: 'Системная информация' },
   { id: 'events', label: 'События' },
   { id: 'history', label: 'История' },
   { id: 'nodes', label: 'Сравнение узлов' },
@@ -78,9 +78,12 @@ export function MonitoringPage() {
   };
 
   const scrollSections = (direction: -1 | 1) => {
-    sectionScroller.current?.scrollBy({
-      left: direction * Math.max(220, sectionScroller.current.clientWidth * 0.65),
-      behavior: reduced ? 'instant' : 'smooth',
+    const scroller = sectionScroller.current;
+    if (!scroller) return;
+
+    scroller.scrollBy({
+      left: direction * Math.max(220, scroller.clientWidth * 0.65),
+      behavior: reduced ? 'auto' : 'smooth',
     });
   };
 
