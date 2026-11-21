@@ -48,7 +48,7 @@ function CounterCard({ title, value, icon }: { title: string; value: string | nu
 
 function cstateName(metricId: string): string {
   const suffix = metricId.slice('system.cpu.idle.cstate.'.length);
-  return suffix.replaceAll('_', ' ').toUpperCase();
+  return suffix.replace(/_/g, ' ').toUpperCase();
 }
 
 function CStateCard({ cpu, states }: { cpu: string; states: CpuCStateTelemetry[] }) {
