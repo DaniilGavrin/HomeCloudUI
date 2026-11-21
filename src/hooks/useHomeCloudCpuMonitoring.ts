@@ -44,11 +44,13 @@ export function useHomeCloudCpuMonitoring(
   activeSection: string,
 ): CpuTelemetry {
   const [telemetry, setTelemetry] = useState<CpuTelemetry>(INITIAL);
+  const [listenerReadyFor, setListenerReadyFor] = useState<string | null>(null);
 
   // One listener per selected server. It remains mounted while the user moves
   // between Monitoring tabs; only the native subscription target changes.
   useEffect(() => {
     if (!serverId) {
+      setListenerReadyFor(null);
       setTelemetry(INITIAL);
       return;
     }
@@ -136,6 +138,7 @@ export function useHomeCloudCpuMonitoring(
           return;
         }
         unlisten = stop;
+        setListenerReadyFor(serverId);
       } catch (error) {
         if (!disposed) setTelemetry(previous => ({ ...previous, phase: 'error', error: String(error) }));
       }
@@ -151,14 +154,14 @@ export function useHomeCloudCpuMonitoring(
   // Section changes update the desired target without an intermediate cancel /
   // recreate race. Rust deduplicates and owns the actual WebSocket lifecycle.
   useEffect(() => {
-    if (!serverId) return;
+    if (!serverId || listenerReadyFor !== serverId) return;
     void invoke('homecloud_monitoring_set_active', {
       serverId,
       section: activeSection,
     }).catch(error => {
       setTelemetry(previous => ({ ...previous, phase: 'error', error: String(error) }));
     });
-  }, [serverId, activeSection]);
+  }, [serverId, activeSection, listenerReadyFor]);
 
   useEffect(() => {
     if (serverPhase === 'offline' || serverPhase === 'error') {
