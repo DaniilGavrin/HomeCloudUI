@@ -33,9 +33,9 @@ function formatFrequency(value: number | null): string {
   return value === null || value <= 0 ? '—' : `${(value / 1_000_000).toFixed(2)} GHz`;
 }
 
-function CompactMetric({ title, value, icon }: { title: string; value: string; icon: ReactNode }) {
+function CompactMetric({ title, value, icon, className = 'w-[190px] shrink-0' }: { title: string; value: string; icon: ReactNode; className?: string }) {
   return (
-    <article className="flex min-h-[112px] w-[190px] shrink-0 flex-col justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
+    <article className={`flex min-h-[112px] min-w-0 flex-col ${className} ` justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
       <div className="flex items-center gap-2 text-white/50">
         <span className="text-cyan-100/80">{icon}</span>
         <span className="truncate text-[11px] font-medium">{title}</span>
@@ -157,15 +157,18 @@ function TopologySection({ topology, onRefresh }: { topology: CpuTopology; onRef
         <p role="alert" className="mb-3 rounded-[10px] border border-rose-300/20 bg-rose-400/[0.06] px-3 py-2 text-[10px] leading-5 text-rose-100/80">{topology.error}</p>
       )}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <CompactMetric title="Логических CPU" value={topology.logicalCount?.toString() ?? '—'} icon={<Cpu size={13} />} />
-        <CompactMetric title="Физических ядер" value={topology.physicalCoreCount?.toString() ?? '—'} icon={<Layers size={13} />} />
-        <CompactMetric title="Online / Offline" value={topology.onlineCount === null ? '—' : `${topology.onlineCount} / ${topology.offlineCount ?? '—'}`} icon={<Activity size={13} />} />
-        <CompactMetric title="NUMA Nodes" value={topology.numaNodeCount?.toString() ?? '—'} icon={<Network size={13} />} />
+        <CompactMetric className="w-full" title="Логических CPU" value={topology.logicalCount?.toString() ?? '—'} icon={<Cpu size={13} />} />
+        <CompactMetric className="w-full" title="Физических ядер" value={topology.physicalCoreCount?.toString() ?? '—'} icon={<Layers size={13} />} />
+        <CompactMetric className="w-full" title="Online / Offline" value={topology.onlineCount === null ? '—' : `${topology.onlineCount} / ${topology.offlineCount ?? '—'}`} icon={<Activity size={13} />} />
+        <CompactMetric className="w-full" title="Packages" value={topology.packageCount?.toString() ?? '—'} icon={<Layers size={13} />} />
+        <CompactMetric className="w-full" title="Dies" value={topology.dieCount?.toString() ?? '—'} icon={<Layers size={13} />} />
+        <CompactMetric className="w-full" title="NUMA Nodes" value={topology.numaNodeCount?.toString() ?? '—'} icon={<Network size={13} />} />
       </div>
       {firstCpu?.model && (
         <p className="mt-3 px-1 text-[10px] text-white/45">
           {firstCpu.vendor ? `${firstCpu.vendor} · ` : ''}{firstCpu.model}
           {firstCpu.family ? ` · Family ${firstCpu.family}` : ''}
+          {firstCpu.modelId ? ` · Model ${firstCpu.modelId}` : ''}
           {firstCpu.stepping !== null ? ` · Stepping ${firstCpu.stepping}` : ''}
         </p>
       )}
