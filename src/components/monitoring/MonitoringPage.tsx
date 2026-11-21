@@ -58,7 +58,7 @@ function ServerStatus({ phase }: { phase: string }) {
 function MonitoringSectionPage({ section, server, cpuTelemetry }: { section: MonitoringSectionId; server: PoolServer; cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring> }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
-  if (section === 'cpu') return <CpuMonitoringPage server={server} telemetry={cpuTelemetry} />;
+  if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} />;
 
   return (
     <section
