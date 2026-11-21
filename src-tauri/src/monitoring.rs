@@ -159,12 +159,14 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
                 "object_id": item.get("object_id").and_then(Value::as_str),
             })).collect::<Vec<_>>()
         }).unwrap_or_default();
-        eprintln!(
-            "[HomeCloud Monitoring][CPU] emit server_id={} kind={} target={} subscription_id={} items={}",
-            server_id, kind,
-            target,
-            payload.get("subscription_id").and_then(Value::as_str).unwrap_or(""),
-            summary,
+        crate::diagnostics::log(
+            "INFO",
+            &format!(
+                "CPU emit server_id={} kind={} target={} subscription_id={} items={}",
+                server_id, kind, target,
+                payload.get("subscription_id").and_then(Value::as_str).unwrap_or(""),
+                summary,
+            ),
         );
     }
     let event = json!({
@@ -174,8 +176,16 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
         "node_id": node_id,
         "payload": payload,
     });
-    if let Err(error) = app.emit(EVENT, event) {
-        eprintln!("[HomeCloud Monitoring] Failed to emit telemetry: {error}");
+    match app.emit(EVENT, event) {
+        Ok(()) if target.starts_with("system.cpu") => crate::diagnostics::log(
+            "INFO",
+            &format!("Tauri event emitted server_id={} target={} kind={}", server_id, target, kind),
+        ),
+        Ok(()) => {}
+        Err(error) => crate::diagnostics::log(
+            "ERROR",
+            &format!("Tauri event emit failed server_id={} target={} kind={} error={}", server_id, target, kind, error),
+        ),
     }
 }
 
