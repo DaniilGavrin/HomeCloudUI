@@ -406,6 +406,10 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
             };
             // Keep the error for EACH configured address, instead of reporting
             // only the last IPv6 timeout when IPv4 failed for another reason.
+            crate::diagnostics::log(
+                "ERROR",
+                &format!("ServerPool session ended server_id={} endpoint={} reason={}", entry.id, url, failure),
+            );
             attempted.push(format!("{url}: {failure}"));
             // Each address attempt owns a distinct socket. Mark the observed
             // devices offline before trying a fallback address.
@@ -451,7 +455,11 @@ where S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
         "payload": { "target": target, "interval_ms": 1000 }
     });
     socket.send(Message::Text(request.to_string().into())).await
-        .map_err(|error| format!("Monitoring subscription request failed ({target}): {error}"))?;
+        .map_err(|error| {
+            crate::diagnostics::log("ERROR", &format!("CPU subscription request send failed server_id={} target={} error={}", server_id, target, error));
+            format!("Monitoring subscription request failed ({target}): {error}")
+        })?;
+    crate::diagnostics::log("INFO", &format!("CPU subscription.create sent server_id={} target={} correlation_id={} node_id={}", server_id, target, correlation_id, node_id));
     *pending = Some(correlation_id);
     Ok(())
 }
@@ -469,7 +477,11 @@ where S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
         "payload": { "subscription_id": subscription_id }
     });
     socket.send(Message::Text(request.to_string().into())).await
-        .map_err(|error| format!("Monitoring subscription cancellation failed: {error}"))?;
+        .map_err(|error| {
+            crate::diagnostics::log("ERROR", &format!("CPU subscription.cancel send failed server_id={} subscription_id={} error={}", server_id, subscription_id, error));
+            format!("Monitoring subscription cancellation failed: {error}")
+        })?;
+    crate::diagnostics::log("INFO", &format!("CPU subscription.cancel sent server_id={} subscription_id={}", server_id, subscription_id));
     Ok(())
 }
 
