@@ -1,5 +1,5 @@
+import type { ReactNode } from 'react';
 import { Activity, Cpu, Timer } from 'lucide-react';
-import type { PoolServer } from '../../hooks/useHomeCloudPool';
 import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 
 function formatCpuTime(value: string | null): string {
@@ -59,7 +59,7 @@ function CompactMetric({
 }: {
   title: string;
   value: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <article className="flex min-h-[104px] min-w-0 flex-col justify-center rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
@@ -74,7 +74,7 @@ function CompactMetric({
   );
 }
 
-export function CpuMonitoringPage({ server: _server, telemetry }: { server: PoolServer; telemetry: CpuTelemetry }) {
+export function CpuMonitoringPage({ telemetry }: { telemetry: CpuTelemetry }) {
   const statusLabel = telemetry.phase === 'streaming'
     ? 'Online'
     : telemetry.phase === 'offline'
