@@ -123,6 +123,7 @@ pub fn node_id(app: &AppHandle, server_id: &str) -> Option<String> {
 }
 
 pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_id: Option<&str>, payload: Value) {
+    let trace = std::env::var_os("HOMECLOUD_MONITORING_TRACE").is_some();
     let mut payload = payload;
     // Keep cumulative nanosecond counters exact across the Rust -> JavaScript
     // boundary. UI formatting uses BigInt rather than lossy JS Number values.
@@ -151,6 +152,21 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
                 }
             }
         }
+    }
+    if trace && (target == "system.cpu" || target == "system.cpu.frequency") {
+        let summary = payload.get("items").and_then(Value::as_array).map(|items| {
+            items.iter().map(|item| json!({
+                "metric_id": item.get("metric_id").and_then(Value::as_str).unwrap_or(""),
+                "object_id": item.get("object_id").and_then(Value::as_str),
+            })).collect::<Vec<_>>()
+        }).unwrap_or_default();
+        eprintln!(
+            "[HomeCloud Monitoring][CPU] emit server_id={} kind={} target={} subscription_id={} items={}",
+            server_id, kind,
+            target,
+            payload.get("subscription_id").and_then(Value::as_str).unwrap_or(""),
+            summary,
+        );
     }
     let event = json!({
         "server_id": server_id,
