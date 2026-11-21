@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Activity, Cpu, Timer } from 'lucide-react';
+import { Activity, Cpu, Gauge, Timer, Zap } from 'lucide-react';
 import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 
 function formatCpuTime(value: string | null): string {
-  if (value === null || !/^\d+$/.test(value)) return '—';
+  if (value === null || !/^\\d+$/.test(value)) return '—';
   try {
     const ns = BigInt(value);
     const totalMs = ns / 1_000_000n;
@@ -106,16 +106,12 @@ export function CpuMonitoringPage({ telemetry }: { telemetry: CpuTelemetry }) {
         <div className="flex justify-center sm:justify-start">
           <CpuGauge value={telemetry.totalUsage} />
         </div>
-        <CompactMetric
-          title="User Time"
-          value={formatCpuTime(telemetry.userTimeNs)}
-          icon={<Timer size={14} aria-hidden="true" />}
-        />
-        <CompactMetric
-          title="System Time"
-          value={formatCpuTime(telemetry.systemTimeNs)}
-          icon={<Activity size={14} aria-hidden="true" />}
-        />
+        <CompactMetric title="User Time" value={formatCpuTime(telemetry.userTimeNs)} icon={<Timer size={14} aria-hidden="true" />} />
+        <CompactMetric title="System Time" value={formatCpuTime(telemetry.systemTimeNs)} icon={<Activity size={14} aria-hidden="true" />} />
+        <CompactMetric title="Nice Time" value={formatCpuTime(telemetry.niceTimeNs)} icon={<Gauge size={14} aria-hidden="true" />} />
+        <CompactMetric title="Idle Time" value={formatCpuTime(telemetry.idleTimeNs)} icon={<Timer size={14} aria-hidden="true" />} />
+        <CompactMetric title="I/O Wait" value={formatCpuTime(telemetry.ioWaitTimeNs)} icon={<Activity size={14} aria-hidden="true" />} />
+        <CompactMetric title="IRQ Time" value={formatCpuTime(telemetry.irqTimeNs)} icon={<Zap size={14} aria-hidden="true" />} />
       </div>
 
       {telemetry.error && (
