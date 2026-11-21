@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
-import { useHomeCloudPool, type PoolServer } from '../../hooks/useHomeCloudPool';
+import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { CpuMonitoringPage } from './CpuMonitoringPage';
 import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
 
