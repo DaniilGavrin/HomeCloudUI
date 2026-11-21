@@ -755,13 +755,13 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     if let Some(target) = target {
                         crate::diagnostics::log(
                             "INFO",
-                            &format!("CPU subscription.update server_id={} subscription_id={} routed_target={} items={}", entry.id, subscription_id, target, summary),
+                            &format!("CPU subscription.update server_id={} subscription_id={} routed_target={} items={:?}", entry.id, subscription_id, target, summary),
                         );
                         crate::monitoring::publish(app, &entry.id, target, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
                     } else {
                         crate::diagnostics::log(
                             "WARN",
-                            &format!("CPU subscription.update not routed server_id={} subscription_id={} items={}", entry.id, subscription_id, summary),
+                            &format!("CPU subscription.update not routed server_id={} subscription_id={} items={:?}", entry.id, subscription_id, summary),
                         );
                     }
                     continue;
