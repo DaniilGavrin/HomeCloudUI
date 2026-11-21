@@ -234,7 +234,7 @@ export function MonitoringPage() {
             exit={{ opacity: 0, x: reduced ? 0 : -12 }}
             transition={{ duration: reduced ? 0.08 : 0.24 }}
           >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pr-[3px] [scrollbar-color:rgba(155,224,255,.30)_transparent] [scrollbar-width:thin]">
+            <div className="homecloud-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pr-[3px]">
               <header className="mb-[17px] flex flex-col items-start gap-2">
                 <p className="text-xs leading-[1.5] text-white/60">
                   Мониторинг узлов и доступности серверов HomeCloud.
