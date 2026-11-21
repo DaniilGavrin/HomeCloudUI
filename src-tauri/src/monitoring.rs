@@ -143,7 +143,12 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
                         | "system.cpu.guest"
                         | "system.cpu.guest_nice"
                         | "system.cpu.core.user"
-                );
+                        | "system.cpu.idle.cstate"
+                        | "system.cpu.throttling.thermal.core.duration"
+                        | "system.cpu.throttling.thermal.package.duration"
+                ) || metric.starts_with("system.cpu.idle.cstate.")
+                    || metric == "system.cpu.throttling.thermal.core.duration"
+                    || metric == "system.cpu.throttling.thermal.package.duration";
                 if is_nanosecond_counter {
                     if let Some(value) = item.get("value").and_then(Value::as_u64) {
                         item["value"] = Value::String(value.to_string());
