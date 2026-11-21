@@ -122,7 +122,7 @@ pub fn node_id(app: &AppHandle, server_id: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-pub fn publish(app: &AppHandle, server_id: &str, kind: &str, node_id: Option<&str>, payload: Value) {
+pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_id: Option<&str>, payload: Value) {
     let mut payload = payload;
     // Keep cumulative nanosecond counters exact across the Rust -> JavaScript
     // boundary. UI formatting uses BigInt rather than lossy JS Number values.
@@ -155,6 +155,7 @@ pub fn publish(app: &AppHandle, server_id: &str, kind: &str, node_id: Option<&st
     let event = json!({
         "server_id": server_id,
         "kind": kind,
+        "target": target,
         "node_id": node_id,
         "payload": payload,
     });
