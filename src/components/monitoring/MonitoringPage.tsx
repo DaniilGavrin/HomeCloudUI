@@ -7,6 +7,8 @@ import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring
 import { useHomeCloudCpuPanel } from '../../hooks/useHomeCloudCpuPanel';
 import { useHomeCloudCpuTopology } from '../../hooks/useHomeCloudCpuTopology';
 import { CpuGauge } from './CpuGauge';
+import { CpuExtendedSection } from './CpuExtendedSection';
+import { useHomeCloudCpuExtendedMonitoring } from '../../hooks/useHomeCloudCpuExtendedMonitoring';
 
 const MONITORING_SECTIONS = [
   { id: 'overview', label: 'Главная' },
@@ -63,10 +65,16 @@ function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuT
   cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring>;
   cpuTopology: ReturnType<typeof useHomeCloudCpuTopology>['topology'];
   refreshCpuTopology: () => void;
+  cpuExtendedTelemetry: ReturnType<typeof useHomeCloudCpuExtendedMonitoring>;
 }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
-  if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} topology={cpuTopology} onRefreshTopology={refreshCpuTopology} />;
+  if (section === 'cpu') return (
+    <>
+      <CpuMonitoringPage telemetry={cpuTelemetry} topology={cpuTopology} onRefreshTopology={refreshCpuTopology} />
+      <CpuExtendedSection telemetry={cpuExtendedTelemetry} />
+    </>
+  );
 
   return (
     <section
@@ -88,6 +96,7 @@ export function MonitoringPage() {
   const cpuPanelTelemetry = useHomeCloudCpuPanel(serverId, selectedServer?.phase ?? 'offline');
   const cpuTelemetry = useHomeCloudCpuMonitoring(serverId, selectedServer?.phase ?? 'offline', activeSection, cpuPanelTelemetry.readyFor);
   const cpuTopologyState = useHomeCloudCpuTopology(serverId, activeSection === 'cpu', selectedServer?.phase ?? 'offline');
+  const cpuExtendedTelemetry = useHomeCloudCpuExtendedMonitoring(serverId, activeSection, selectedServer?.phase ?? 'offline');
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -221,6 +230,7 @@ export function MonitoringPage() {
                   cpuTelemetry={cpuTelemetry}
                   cpuTopology={cpuTopologyState.topology}
                   refreshCpuTopology={cpuTopologyState.refresh}
+                  cpuExtendedTelemetry={cpuExtendedTelemetry}
                 />
               </motion.div>
             </AnimatePresence>
