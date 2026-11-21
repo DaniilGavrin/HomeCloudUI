@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 
 type MetricItem = {
   metric_id: string;
+  object_id?: string;
   value: number | string;
   unit: string;
   observed_at: string;
@@ -16,6 +17,12 @@ type MonitoringEvent = {
   payload: Record<string, unknown>;
 };
 
+export type CpuCoreTelemetry = {
+  objectId: string;
+  totalUsage: number | null;
+  userTimeNs: string | null;
+};
+
 export type CpuTelemetry = {
   phase: 'connecting' | 'streaming' | 'offline' | 'error';
   totalUsage: number | null;
@@ -25,6 +32,11 @@ export type CpuTelemetry = {
   idleTimeNs: string | null;
   ioWaitTimeNs: string | null;
   irqTimeNs: string | null;
+  softIrqTimeNs: string | null;
+  stealTimeNs: string | null;
+  guestTimeNs: string | null;
+  guestNiceTimeNs: string | null;
+  perCore: CpuCoreTelemetry[];
   observedAt: string | null;
   subscriptionId: string | null;
   error: string | null;
@@ -39,12 +51,27 @@ const INITIAL: CpuTelemetry = {
   idleTimeNs: null,
   ioWaitTimeNs: null,
   irqTimeNs: null,
+  softIrqTimeNs: null,
+  stealTimeNs: null,
+  guestTimeNs: null,
+  guestNiceTimeNs: null,
+  perCore: [],
   observedAt: null,
   subscriptionId: null,
   error: null,
 };
 
 const EVENT = 'homecloud:monitoring';
+
+function finitePercent(value: number | string): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+}
+
+function exactCounter(value: number | string): string | null {
+  const text = String(value);
+  return /^\d+$/.test(text) ? text : null;
+}
 
 export function useHomeCloudCpuMonitoring(
   serverId: string | null,
@@ -81,12 +108,16 @@ export function useHomeCloudCpuMonitoring(
             const subscriptionId = typeof message.payload.subscription_id === 'string'
               ? message.payload.subscription_id
               : null;
-            setTelemetry(previous => ({
-              ...previous,
-              phase: 'streaming',
-              subscriptionId,
-              error: null,
-            }));
+            setTelemetry(previous => {
+              if (previous.subscriptionId === subscriptionId) {
+                return { ...previous, phase: 'streaming', error: null };
+              }
+              return {
+                ...INITIAL,
+                phase: 'streaming',
+                subscriptionId,
+              };
+            });
             return;
           }
 
@@ -118,27 +149,80 @@ export function useHomeCloudCpuMonitoring(
             let idleTimeNs = previous.idleTimeNs;
             let ioWaitTimeNs = previous.ioWaitTimeNs;
             let irqTimeNs = previous.irqTimeNs;
+            let softIrqTimeNs = previous.softIrqTimeNs;
+            let stealTimeNs = previous.stealTimeNs;
+            let guestTimeNs = previous.guestTimeNs;
+            let guestNiceTimeNs = previous.guestNiceTimeNs;
             let observedAt = previous.observedAt;
+            const cores = new Map(previous.perCore.map(core => [core.objectId, core]));
 
             for (const item of items) {
               if (typeof item.observed_at === 'string') observedAt = item.observed_at;
-              if (item.metric_id === 'system.cpu.totalusage') {
-                const value = Number(item.value);
-                if (Number.isFinite(value)) totalUsage = Math.max(0, Math.min(100, value));
-              } else if (item.metric_id === 'system.cpu.user') {
-                userTimeNs = String(item.value);
-              } else if (item.metric_id === 'system.cpu.system') {
-                systemTimeNs = String(item.value);
-              } else if (item.metric_id === 'system.cpu.nice') {
-                niceTimeNs = String(item.value);
-              } else if (item.metric_id === 'system.cpu.idle') {
-                idleTimeNs = String(item.value);
-              } else if (item.metric_id === 'system.cpu.iowait') {
-                ioWaitTimeNs = String(item.value);
-              } else if (item.metric_id === 'system.cpu.irq') {
-                irqTimeNs = String(item.value);
+
+              switch (item.metric_id) {
+                case 'system.cpu.totalusage':
+                  totalUsage = finitePercent(item.value) ?? totalUsage;
+                  break;
+                case 'system.cpu.user':
+                  userTimeNs = exactCounter(item.value) ?? userTimeNs;
+                  break;
+                case 'system.cpu.system':
+                  systemTimeNs = exactCounter(item.value) ?? systemTimeNs;
+                  break;
+                case 'system.cpu.nice':
+                  niceTimeNs = exactCounter(item.value) ?? niceTimeNs;
+                  break;
+                case 'system.cpu.idle':
+                  idleTimeNs = exactCounter(item.value) ?? idleTimeNs;
+                  break;
+                case 'system.cpu.iowait':
+                  ioWaitTimeNs = exactCounter(item.value) ?? ioWaitTimeNs;
+                  break;
+                case 'system.cpu.irq':
+                  irqTimeNs = exactCounter(item.value) ?? irqTimeNs;
+                  break;
+                case 'system.cpu.softirq':
+                  softIrqTimeNs = exactCounter(item.value) ?? softIrqTimeNs;
+                  break;
+                case 'system.cpu.steal':
+                  stealTimeNs = exactCounter(item.value) ?? stealTimeNs;
+                  break;
+                case 'system.cpu.guest':
+                  guestTimeNs = exactCounter(item.value) ?? guestTimeNs;
+                  break;
+                case 'system.cpu.guest_nice':
+                  guestNiceTimeNs = exactCounter(item.value) ?? guestNiceTimeNs;
+                  break;
+                case 'system.cpu.core.totalusage': {
+                  if (!item.object_id) break;
+                  const core = cores.get(item.object_id) ?? {
+                    objectId: item.object_id,
+                    totalUsage: null,
+                    userTimeNs: null,
+                  };
+                  core.totalUsage = finitePercent(item.value) ?? core.totalUsage;
+                  cores.set(item.object_id, core);
+                  break;
+                }
+                case 'system.cpu.core.user': {
+                  if (!item.object_id) break;
+                  const core = cores.get(item.object_id) ?? {
+                    objectId: item.object_id,
+                    totalUsage: null,
+                    userTimeNs: null,
+                  };
+                  core.userTimeNs = exactCounter(item.value) ?? core.userTimeNs;
+                  cores.set(item.object_id, core);
+                  break;
+                }
               }
             }
+
+            const perCore = [...cores.values()].sort((a, b) => {
+              const aNumber = Number(a.objectId.match(/\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
+              const bNumber = Number(b.objectId.match(/\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
+              return aNumber - bNumber || a.objectId.localeCompare(b.objectId);
+            });
 
             return {
               ...previous,
@@ -151,6 +235,11 @@ export function useHomeCloudCpuMonitoring(
               idleTimeNs,
               ioWaitTimeNs,
               irqTimeNs,
+              softIrqTimeNs,
+              stealTimeNs,
+              guestTimeNs,
+              guestNiceTimeNs,
+              perCore,
               observedAt,
               error: null,
             };
