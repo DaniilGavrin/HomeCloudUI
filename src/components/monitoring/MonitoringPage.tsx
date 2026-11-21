@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
-import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
+import { useHomeCloudPool, type PoolServer } from '../../hooks/useHomeCloudPool';
+import { CpuMonitoringPage } from './CpuMonitoringPage';
 
 const MONITORING_SECTIONS = [
   { id: 'overview', label: 'Главная' },
@@ -53,8 +54,10 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section }: { section: MonitoringSectionId }) {
+function MonitoringSectionPage({ section, server }: { section: MonitoringSectionId; server: PoolServer }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
+
+  if (section === 'cpu') return <CpuMonitoringPage server={server} />;
 
   return (
     <section
@@ -186,7 +189,7 @@ export function MonitoringPage() {
                 exit={{ opacity: 0, x: reduced ? 0 : -8 }}
                 transition={{ duration: reduced ? 0.06 : 0.16 }}
               >
-                <MonitoringSectionPage section={activeSection} />
+                <MonitoringSectionPage section={activeSection} server={selectedServer} />
               </motion.div>
             </AnimatePresence>
           </motion.div>
