@@ -59,7 +59,7 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology }: {
+function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology, cpuExtendedTelemetry }: {
   section: MonitoringSectionId;
   cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring>;
   cpuTopology: ReturnType<typeof useHomeCloudCpuTopology>['topology'];
