@@ -24,7 +24,7 @@ function formatCpuTime(value: string | null): string {
 }
 
 function CpuGauge({ value }: { value: number | null }) {
-  const radius = 39;
+  const radius = 43;
   const circumference = 2 * Math.PI * radius;
   const progress = value === null ? 0 : Math.max(0, Math.min(100, value));
   const offset = circumference * (1 - progress / 100);
@@ -62,7 +62,7 @@ function CompactMetric({
   icon: ReactNode;
 }) {
   return (
-    <article className="flex min-h-[112px] min-w-0 flex-col justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
+    <article className="flex min-h-[112px] w-[190px] shrink-0 flex-col justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
       <div className="flex items-center gap-2 text-white/50">
         <span className="text-cyan-100/80">{icon}</span>
         <span className="truncate text-[11px] font-medium">{title}</span>
