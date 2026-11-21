@@ -693,9 +693,9 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         frequency_pending_correlation = None;
                         Some("system.cpu.frequency")
                     } else { None };
-                    eprintln!(
-                        "[HomeCloud Monitoring][CPU] subscription created server_id={} correlation_id={} routed_target={:?}",
-                        entry.id, correlation_id, target,
+                    crate::diagnostics::log(
+                        "INFO",
+                        &format!("CPU subscription.created server_id={} correlation_id={} routed_target={:?}", entry.id, correlation_id, target),
                     );
                     if let Some(target) = target {
                         let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("").to_owned();
@@ -733,12 +733,17 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         "metric_id": item.get("metric_id").and_then(Value::as_str).unwrap_or(""),
                         "object_id": item.get("object_id").and_then(Value::as_str),
                     })).collect::<Vec<_>>()).unwrap_or_default();
-                    eprintln!(
-                        "[HomeCloud Monitoring][CPU] ws update server_id={} subscription_id={} routed_target={:?} items={}",
-                        entry.id, subscription_id, target, summary,
-                    );
                     if let Some(target) = target {
+                        crate::diagnostics::log(
+                            "INFO",
+                            &format!("CPU subscription.update server_id={} subscription_id={} routed_target={} items={}", entry.id, subscription_id, target, summary),
+                        );
                         crate::monitoring::publish(app, &entry.id, target, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
+                    } else {
+                        crate::diagnostics::log(
+                            "WARN",
+                            &format!("CPU subscription.update not routed server_id={} subscription_id={} items={}", entry.id, subscription_id, summary),
+                        );
                     }
                     continue;
                 }
@@ -764,6 +769,14 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         }
                         Some("system.cpu.frequency")
                     } else { None };
+                    crate::diagnostics::log(
+                        "ERROR",
+                        &format!(
+                            "CPU subscription.error server_id={} correlation_id={} subscription_id={} routed_target={:?} error={}",
+                            entry.id, correlation_id, subscription_id, target,
+                            payload.pointer("/payload/error").and_then(Value::as_str).or_else(|| payload.get("error").and_then(Value::as_str)).unwrap_or("unknown"),
+                        ),
+                    );
                     if let Some(target) = target {
                         crate::monitoring::publish(app, &entry.id, target, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
                     }
