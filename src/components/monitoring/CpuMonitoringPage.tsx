@@ -3,7 +3,7 @@ import { Activity, Cpu, Gauge, Timer, Zap } from 'lucide-react';
 import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 
 function formatCpuTime(value: string | null): string {
-  if (value === null || !/^\\d+$/.test(value)) return '—';
+  if (value === null || !/^\d+$/.test(value)) return '—';
   try {
     const ns = BigInt(value);
     const totalMs = ns / 1_000_000n;
