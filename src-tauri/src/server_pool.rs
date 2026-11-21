@@ -559,6 +559,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut monitoring_subscription_id: Option<String> = None;
     let mut monitoring_pending_correlation: Option<String> = None;
     let mut monitoring_node_id: Option<String> = None;
+    let mut monitoring_retry_blocked = false;
     let mut monitoring_counter = 0u64;
     loop {
         tokio::select! {
@@ -625,6 +626,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             changed = monitoring_session.active.changed() => {
                 if changed.is_err() { return Err("session ended: monitoring control closed".into()); }
                 monitoring_section = monitoring_session.active.borrow().clone();
+                monitoring_retry_blocked = false;
                 if monitoring_section.as_deref() != Some("cpu") {
                     if let (Some(subscription_id), Some(node_id)) = (monitoring_subscription_id.take(), monitoring_node_id.as_deref()) {
                         cancel_cpu_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
@@ -698,10 +700,13 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 if message_type == "subscription.error" {
                     let correlation_id = payload.get("correlation_id").and_then(Value::as_str).unwrap_or("");
                     let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("");
-                    if monitoring_pending_correlation.as_deref() == Some(correlation_id)
-                        || monitoring_subscription_id.as_deref() == Some(subscription_id) {
+                    if monitoring_pending_correlation.as_deref() == Some(correlation_id) {
                         monitoring_pending_correlation = None;
-                        monitoring_subscription_id = None;
+                        monitoring_retry_blocked = true;
+                        crate::monitoring::publish(app, &entry.id, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
+                    } else if monitoring_subscription_id.as_deref() == Some(subscription_id) {
+                        // A source error does not cancel the server-side subscription.
+                        // Keep its ID so updates can resume after the collector recovers.
                         crate::monitoring::publish(app, &entry.id, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
                     }
                     continue;
@@ -821,6 +826,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             queued_list = false;
         }
         if monitoring_section.as_deref() == Some("cpu")
+            && !monitoring_retry_blocked
             && monitoring_subscription_id.is_none()
             && monitoring_pending_correlation.is_none() {
             ensure_cpu_subscription(&mut socket, app, &entry.id, &mut monitoring_counter, &mut monitoring_pending_correlation).await?;
