@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { useHomeCloudPool, type PoolServer } from '../../hooks/useHomeCloudPool';
 import { CpuMonitoringPage } from './CpuMonitoringPage';
+import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
 
 const MONITORING_SECTIONS = [
   { id: 'overview', label: 'Главная' },
@@ -54,10 +55,10 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section, server }: { section: MonitoringSectionId; server: PoolServer }) {
+function MonitoringSectionPage({ section, server, cpuTelemetry }: { section: MonitoringSectionId; server: PoolServer; cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring> }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
-  if (section === 'cpu') return <CpuMonitoringPage server={server} />;
+  if (section === 'cpu') return <CpuMonitoringPage server={server} telemetry={cpuTelemetry} />;
 
   return (
     <section
@@ -75,6 +76,7 @@ export function MonitoringPage() {
   const sectionScroller = useRef<HTMLDivElement>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
+  const cpuTelemetry = useHomeCloudCpuMonitoring(selectedServer?.id ?? null, selectedServer?.phase ?? 'offline', activeSection);
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -189,7 +191,7 @@ export function MonitoringPage() {
                 exit={{ opacity: 0, x: reduced ? 0 : -8 }}
                 transition={{ duration: reduced ? 0.06 : 0.16 }}
               >
-                <MonitoringSectionPage section={activeSection} server={selectedServer} />
+                <MonitoringSectionPage section={activeSection} server={selectedServer} cpuTelemetry={cpuTelemetry} />
               </motion.div>
             </AnimatePresence>
           </motion.div>
