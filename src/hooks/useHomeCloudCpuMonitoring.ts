@@ -38,10 +38,21 @@ const INITIAL: CpuTelemetry = {
 
 const EVENT = 'homecloud:monitoring';
 
-export function useHomeCloudCpuMonitoring(serverId: string, serverPhase: string): CpuTelemetry {
+export function useHomeCloudCpuMonitoring(
+  serverId: string | null,
+  serverPhase: string,
+  activeSection: string,
+): CpuTelemetry {
   const [telemetry, setTelemetry] = useState<CpuTelemetry>(INITIAL);
 
+  // One listener per selected server. It remains mounted while the user moves
+  // between Monitoring tabs; only the native subscription target changes.
   useEffect(() => {
+    if (!serverId) {
+      setTelemetry(INITIAL);
+      return;
+    }
+
     let disposed = false;
     let unlisten: (() => void) | undefined;
 
@@ -76,11 +87,7 @@ export function useHomeCloudCpuMonitoring(serverId: string, serverPhase: string)
               : typeof errorObject?.code === 'string'
                 ? errorObject.code
                 : 'Не удалось получить телеметрию CPU';
-            setTelemetry(previous => ({
-              ...previous,
-              phase: 'error',
-              error: messageText,
-            }));
+            setTelemetry(previous => ({ ...previous, phase: 'error', error: messageText }));
             return;
           }
 
@@ -129,15 +136,8 @@ export function useHomeCloudCpuMonitoring(serverId: string, serverPhase: string)
           return;
         }
         unlisten = stop;
-        await invoke('homecloud_monitoring_set_active', { serverId, section: 'cpu' });
       } catch (error) {
-        if (!disposed) {
-          setTelemetry(previous => ({
-            ...previous,
-            phase: 'error',
-            error: String(error),
-          }));
-        }
+        if (!disposed) setTelemetry(previous => ({ ...previous, phase: 'error', error: String(error) }));
       }
     })();
 
@@ -147,6 +147,18 @@ export function useHomeCloudCpuMonitoring(serverId: string, serverPhase: string)
       void invoke('homecloud_monitoring_set_active', { serverId, section: null }).catch(() => undefined);
     };
   }, [serverId]);
+
+  // Section changes update the desired target without an intermediate cancel /
+  // recreate race. Rust deduplicates and owns the actual WebSocket lifecycle.
+  useEffect(() => {
+    if (!serverId) return;
+    void invoke('homecloud_monitoring_set_active', {
+      serverId,
+      section: activeSection,
+    }).catch(error => {
+      setTelemetry(previous => ({ ...previous, phase: 'error', error: String(error) }));
+    });
+  }, [serverId, activeSection]);
 
   useEffect(() => {
     if (serverPhase === 'offline' || serverPhase === 'error') {
