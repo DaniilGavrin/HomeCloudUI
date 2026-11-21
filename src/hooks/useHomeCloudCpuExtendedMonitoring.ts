@@ -61,7 +61,7 @@ const CONTEXT_SWITCHES = 'system.cpu.context_switches';
 
 function exactInteger(value: number | string): string | null {
   const text = String(value);
-  return /^\\d+$/.test(text) ? text : null;
+  return /^\d+$/.test(text) ? text : null;
 }
 
 function errorMessage(payload: Record<string, unknown>, fallback: string): string {
@@ -123,15 +123,12 @@ export function useHomeCloudCpuExtendedMonitoring(
       const items = Array.isArray(message.payload.items) ? message.payload.items as MetricItem[] : [];
       setTelemetry(previous => {
         if (target === CSTATE) {
-          const cstates = items
-            .filter(item => item.metric_id.startsWith(CSTATE + '.') && item.object_id)
-            .map(item => ({
-              metricId: item.metric_id,
-              objectId: item.object_id!,
-              residencyNs: exactInteger(item.value) ?? '0',
-            }))
-            .filter(item => item.residencyNs !== '0' || items.some(source => source.metric_id === item.metricId && source.object_id === item.objectId && String(source.value) === '0'))
-            .sort((a, b) => a.objectId.localeCompare(b.objectId, undefined, { numeric: true }) || a.metricId.localeCompare(b.metricId));
+          const cstates = items.flatMap(item => {
+            if (!item.metric_id.startsWith(CSTATE + '.') || !item.object_id) return [];
+            const residencyNs = exactInteger(item.value);
+            return residencyNs === null ? [] : [{ metricId: item.metric_id, objectId: item.object_id, residencyNs }];
+          }).sort((a, b) =>
+            a.objectId.localeCompare(b.objectId, undefined, { numeric: true }) || a.metricId.localeCompare(b.metricId));
           return { ...previous, cstates, cstatesError: null, observedAt: items[0]?.observed_at ?? previous.observedAt };
         }
         if (target === THROTTLING) {
