@@ -132,19 +132,22 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
                 let metric = item.get("metric_id").and_then(Value::as_str).unwrap_or("");
                 let is_nanosecond_counter = matches!(
                     metric,
-                    "system.cpu.user"
-                        | "system.cpu.system"
-                        | "system.cpu.nice"
-                        | "system.cpu.idle"
-                        | "system.cpu.iowait"
-                        | "system.cpu.irq"
-                        | "system.cpu.softirq"
-                        | "system.cpu.steal"
-                        | "system.cpu.guest"
-                        | "system.cpu.guest_nice"
-                        | "system.cpu.core.user"
+                    "system.cpu.user" | "system.cpu.system" | "system.cpu.nice"
+                        | "system.cpu.idle" | "system.cpu.iowait" | "system.cpu.irq"
+                        | "system.cpu.softirq" | "system.cpu.steal" | "system.cpu.guest"
+                        | "system.cpu.guest_nice" | "system.cpu.core.user"
+                        | "system.cpu.throttling.thermal.core.duration"
+                        | "system.cpu.throttling.thermal.package.duration"
+                ) || metric.starts_with("system.cpu.idle.cstate.");
+                let is_exact_count = matches!(
+                    metric,
+                    "system.cpu.interrupts" | "system.cpu.context_switches"
+                        | "system.cpu.throttling.thermal.core.events"
+                        | "system.cpu.throttling.thermal.package.events"
+                        | "system.cpu.throttling.power.core.events"
+                        | "system.cpu.throttling.power.package.events"
                 );
-                if is_nanosecond_counter {
+                if is_nanosecond_counter || is_exact_count {
                     if let Some(value) = item.get("value").and_then(Value::as_u64) {
                         item["value"] = Value::String(value.to_string());
                     }

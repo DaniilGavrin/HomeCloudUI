@@ -3,6 +3,8 @@ import { Activity, Cpu, Gauge, Timer, Zap, Layers, RefreshCw, Network } from 'lu
 import type { CpuCoreTelemetry, CpuFrequencyTelemetry, CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 import type { CpuTopology, CpuTopologyCore } from '../../hooks/useHomeCloudCpuTopology';
 import { CpuGauge } from './CpuGauge';
+import { CpuExtendedSection } from './CpuExtendedSection';
+import type { CpuExtendedTelemetry } from '../../hooks/useHomeCloudCpuExtendedMonitoring';
 
 function formatCpuTime(value: string | null): string {
   if (value === null || value.length === 0) return '—';
@@ -186,10 +188,12 @@ export function CpuMonitoringPage({
   telemetry,
   topology,
   onRefreshTopology,
+  extendedTelemetry,
 }: {
   telemetry: CpuTelemetry;
   topology: CpuTopology;
   onRefreshTopology: () => void;
+  extendedTelemetry: CpuExtendedTelemetry;
 }) {
   return (
     <section className="homecloud-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" aria-label="Мониторинг CPU">
@@ -254,6 +258,8 @@ export function CpuMonitoringPage({
       </section>
 
       <TopologySection topology={topology} onRefresh={onRefreshTopology} />
+
+      <CpuExtendedSection telemetry={extendedTelemetry} />
 
       {telemetry.error && (
         <p className="px-1 text-[10px] text-white/35">

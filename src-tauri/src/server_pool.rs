@@ -549,6 +549,22 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut frequency_pending_correlation: Option<String> = None;
     let mut frequency_node_id: Option<String> = None;
     let mut frequency_retry_blocked = false;
+    let mut cstate_subscription_id: Option<String> = None;
+    let mut cstate_pending_correlation: Option<String> = None;
+    let mut cstate_node_id: Option<String> = None;
+    let mut cstate_retry_blocked = false;
+    let mut throttling_subscription_id: Option<String> = None;
+    let mut throttling_pending_correlation: Option<String> = None;
+    let mut throttling_node_id: Option<String> = None;
+    let mut throttling_retry_blocked = false;
+    let mut interrupts_subscription_id: Option<String> = None;
+    let mut interrupts_pending_correlation: Option<String> = None;
+    let mut interrupts_node_id: Option<String> = None;
+    let mut interrupts_retry_blocked = false;
+    let mut context_switches_subscription_id: Option<String> = None;
+    let mut context_switches_pending_correlation: Option<String> = None;
+    let mut context_switches_node_id: Option<String> = None;
+    let mut context_switches_retry_blocked = false;
     let mut monitoring_counter = 0u64;
     loop {
         tokio::select! {
@@ -618,6 +634,10 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 panel_retry_blocked = false;
                 cpu_retry_blocked = false;
                 frequency_retry_blocked = false;
+                cstate_retry_blocked = false;
+                throttling_retry_blocked = false;
+                interrupts_retry_blocked = false;
+                context_switches_retry_blocked = false;
                 if monitoring_section.is_none() {
                     if let (Some(subscription_id), Some(node_id)) = (panel_subscription_id.take(), panel_node_id.as_deref()) {
                         cancel_monitoring_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
@@ -633,6 +653,20 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         cancel_monitoring_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
                     }
                     frequency_node_id = None;
+                    for (subscription_id, node_id) in [
+                        (cstate_subscription_id.take(), cstate_node_id.as_deref()),
+                        (throttling_subscription_id.take(), throttling_node_id.as_deref()),
+                        (interrupts_subscription_id.take(), interrupts_node_id.as_deref()),
+                        (context_switches_subscription_id.take(), context_switches_node_id.as_deref()),
+                    ] {
+                        if let (Some(subscription_id), Some(node_id)) = (subscription_id, node_id) {
+                            cancel_monitoring_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
+                        }
+                    }
+                    cstate_node_id = None;
+                    throttling_node_id = None;
+                    interrupts_node_id = None;
+                    context_switches_node_id = None;
                 }
                 if monitoring_section.is_some() && panel_subscription_id.is_none() && panel_pending_correlation.is_none() {
                     ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu.totalusage", &mut monitoring_counter, &mut panel_pending_correlation).await?;
@@ -642,6 +676,18 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 }
                 if monitoring_section.as_deref() == Some("cpu") && frequency_subscription_id.is_none() && frequency_pending_correlation.is_none() {
                     ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu.frequency", &mut monitoring_counter, &mut frequency_pending_correlation).await?;
+                }
+                if monitoring_section.as_deref() == Some("cpu") {
+                    for (target, pending) in [
+                        ("system.cpu.idle.cstate", &mut cstate_pending_correlation),
+                        ("system.cpu.throttling", &mut throttling_pending_correlation),
+                        ("system.cpu.interrupts", &mut interrupts_pending_correlation),
+                        ("system.cpu.context_switches", &mut context_switches_pending_correlation),
+                    ] {
+                        if pending.is_none() {
+                            ensure_monitoring_subscription(&mut socket, app, &entry.id, target, &mut monitoring_counter, pending).await?;
+                        }
+                    }
                 }
             }
             _ = ping_next.tick() => {
@@ -692,6 +738,18 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     } else if frequency_pending_correlation.as_deref() == Some(correlation_id) {
                         frequency_pending_correlation = None;
                         Some("system.cpu.frequency")
+                    } else if cstate_pending_correlation.as_deref() == Some(correlation_id) {
+                        cstate_pending_correlation = None;
+                        Some("system.cpu.idle.cstate")
+                    } else if throttling_pending_correlation.as_deref() == Some(correlation_id) {
+                        throttling_pending_correlation = None;
+                        Some("system.cpu.throttling")
+                    } else if interrupts_pending_correlation.as_deref() == Some(correlation_id) {
+                        interrupts_pending_correlation = None;
+                        Some("system.cpu.interrupts")
+                    } else if context_switches_pending_correlation.as_deref() == Some(correlation_id) {
+                        context_switches_pending_correlation = None;
+                        Some("system.cpu.context_switches")
                     } else { None };
                     if let Some(target) = target {
                         let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("").to_owned();
@@ -704,9 +762,21 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                             } else if target == "system.cpu" {
                                 cpu_subscription_id = Some(subscription_id);
                                 cpu_node_id = Some(node_id.clone());
-                            } else {
+                            } else if target == "system.cpu.frequency" {
                                 frequency_subscription_id = Some(subscription_id);
                                 frequency_node_id = Some(node_id.clone());
+                            } else if target == "system.cpu.idle.cstate" {
+                                cstate_subscription_id = Some(subscription_id);
+                                cstate_node_id = Some(node_id.clone());
+                            } else if target == "system.cpu.throttling" {
+                                throttling_subscription_id = Some(subscription_id);
+                                throttling_node_id = Some(node_id.clone());
+                            } else if target == "system.cpu.interrupts" {
+                                interrupts_subscription_id = Some(subscription_id);
+                                interrupts_node_id = Some(node_id.clone());
+                            } else {
+                                context_switches_subscription_id = Some(subscription_id);
+                                context_switches_node_id = Some(node_id.clone());
                             }
                             crate::monitoring::publish(app, &entry.id, target, "created", Some(&node_id), payload.get("payload").cloned().unwrap_or(Value::Null));
                         } else if !subscription_id.is_empty() && !node_id.is_empty() {
@@ -723,6 +793,14 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         Some("system.cpu")
                     } else if frequency_subscription_id.as_deref() == Some(subscription_id) {
                         Some("system.cpu.frequency")
+                    } else if cstate_subscription_id.as_deref() == Some(subscription_id) {
+                        Some("system.cpu.idle.cstate")
+                    } else if throttling_subscription_id.as_deref() == Some(subscription_id) {
+                        Some("system.cpu.throttling")
+                    } else if interrupts_subscription_id.as_deref() == Some(subscription_id) {
+                        Some("system.cpu.interrupts")
+                    } else if context_switches_subscription_id.as_deref() == Some(subscription_id) {
+                        Some("system.cpu.context_switches")
                     } else { None };
                     if let Some(target) = target {
                         crate::monitoring::publish(app, &entry.id, target, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
@@ -750,6 +828,18 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                             frequency_retry_blocked = true;
                         }
                         Some("system.cpu.frequency")
+                    } else if cstate_pending_correlation.as_deref() == Some(correlation_id) || cstate_subscription_id.as_deref() == Some(subscription_id) {
+                        if cstate_pending_correlation.as_deref() == Some(correlation_id) { cstate_pending_correlation = None; cstate_retry_blocked = true; }
+                        Some("system.cpu.idle.cstate")
+                    } else if throttling_pending_correlation.as_deref() == Some(correlation_id) || throttling_subscription_id.as_deref() == Some(subscription_id) {
+                        if throttling_pending_correlation.as_deref() == Some(correlation_id) { throttling_pending_correlation = None; throttling_retry_blocked = true; }
+                        Some("system.cpu.throttling")
+                    } else if interrupts_pending_correlation.as_deref() == Some(correlation_id) || interrupts_subscription_id.as_deref() == Some(subscription_id) {
+                        if interrupts_pending_correlation.as_deref() == Some(correlation_id) { interrupts_pending_correlation = None; interrupts_retry_blocked = true; }
+                        Some("system.cpu.interrupts")
+                    } else if context_switches_pending_correlation.as_deref() == Some(correlation_id) || context_switches_subscription_id.as_deref() == Some(subscription_id) {
+                        if context_switches_pending_correlation.as_deref() == Some(correlation_id) { context_switches_pending_correlation = None; context_switches_retry_blocked = true; }
+                        Some("system.cpu.context_switches")
                     } else { None };
                     if let Some(target) = target {
                         crate::monitoring::publish(app, &entry.id, target, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
@@ -881,6 +971,24 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
         if monitoring_section.as_deref() == Some("cpu") && !frequency_retry_blocked
             && frequency_subscription_id.is_none() && frequency_pending_correlation.is_none() {
             ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu.frequency", &mut monitoring_counter, &mut frequency_pending_correlation).await?;
+        }
+        if monitoring_section.as_deref() == Some("cpu") {
+            for (target, retry_blocked, subscription_id, pending) in [
+                ("system.cpu.idle.cstate", cstate_retry_blocked, cstate_subscription_id.is_some(), cstate_pending_correlation.is_some()),
+                ("system.cpu.throttling", throttling_retry_blocked, throttling_subscription_id.is_some(), throttling_pending_correlation.is_some()),
+                ("system.cpu.interrupts", interrupts_retry_blocked, interrupts_subscription_id.is_some(), interrupts_pending_correlation.is_some()),
+                ("system.cpu.context_switches", context_switches_retry_blocked, context_switches_subscription_id.is_some(), context_switches_pending_correlation.is_some()),
+            ] {
+                if !retry_blocked && !subscription_id && !pending {
+                    let pending_ref = match target {
+                        "system.cpu.idle.cstate" => &mut cstate_pending_correlation,
+                        "system.cpu.throttling" => &mut throttling_pending_correlation,
+                        "system.cpu.interrupts" => &mut interrupts_pending_correlation,
+                        _ => &mut context_switches_pending_correlation,
+                    };
+                    ensure_monitoring_subscription(&mut socket, app, &entry.id, target, &mut monitoring_counter, pending_ref).await?;
+                }
+            }
         }
         if status_queued && pending_status.is_none() {
             status_counter += 1;
