@@ -208,6 +208,19 @@ export function useHomeCloudCpuMonitoring(
             : null;
           const items = Array.isArray(message.payload.items) ? message.payload.items as MetricItem[] : [];
 
+          // Temporary CPU telemetry trace: keep this while diagnosing the missing per-core cards.
+          if (message.target === 'system.cpu' || message.target === 'system.cpu.frequency') {
+            console.info('[HomeCloud Monitoring][CPU] event', {
+              serverId: message.server_id,
+              kind: message.kind,
+              target: message.target,
+              subscriptionId,
+              expectedSubscriptionId: isFrequency ? telemetry.frequencySubscriptionId : telemetry.subscriptionId,
+              itemCount: items.length,
+              metrics: items.map(item => ({ metricId: item.metric_id, objectId: item.object_id, value: item.value })),
+            });
+          }
+
           if (isFrequency) {
             setTelemetry(previous => {
               if (previous.frequencySubscriptionId && subscriptionId !== previous.frequencySubscriptionId) return previous;
@@ -240,7 +253,13 @@ export function useHomeCloudCpuMonitoring(
           }
 
           setTelemetry(previous => {
-            if (previous.subscriptionId && subscriptionId !== previous.subscriptionId) return previous;
+            if (previous.subscriptionId && subscriptionId !== previous.subscriptionId) {
+              console.warn('[HomeCloud Monitoring][CPU] dropped update: subscription ID mismatch', {
+                serverId, target: message.target, received: subscriptionId, expected: previous.subscriptionId,
+                metrics: items.map(item => ({ metricId: item.metric_id, objectId: item.object_id })),
+              });
+              return previous;
+            }
 
             let totalUsage = previous.totalUsage;
             let userTimeNs = previous.userTimeNs;
