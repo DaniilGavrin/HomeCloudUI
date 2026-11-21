@@ -35,7 +35,7 @@ function formatFrequency(value: number | null): string {
 
 function CompactMetric({ title, value, icon, className = 'w-[190px] shrink-0' }: { title: string; value: string; icon: ReactNode; className?: string }) {
   return (
-    <article className={`flex min-h-[112px] min-w-0 flex-col ${className} ` justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
+    <article className={`flex min-h-[112px] min-w-0 flex-col ${className} justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3`}>
       <div className="flex items-center gap-2 text-white/50">
         <span className="text-cyan-100/80">{icon}</span>
         <span className="truncate text-[11px] font-medium">{title}</span>
