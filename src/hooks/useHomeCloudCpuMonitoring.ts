@@ -154,7 +154,7 @@ export function useHomeCloudCpuMonitoring(
             let guestTimeNs = previous.guestTimeNs;
             let guestNiceTimeNs = previous.guestNiceTimeNs;
             let observedAt = previous.observedAt;
-            const cores = new Map(previous.perCore.map(core => [core.objectId, core]));
+            const cores = new Map<string, CpuCoreTelemetry>(previous.perCore.map(core => [core.objectId, core] as const));
 
             for (const item of items) {
               if (typeof item.observed_at === 'string') observedAt = item.observed_at;
