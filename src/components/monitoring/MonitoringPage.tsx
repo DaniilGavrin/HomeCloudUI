@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
+import { CpuMonitoringPage } from './CpuMonitoringPage';
+import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
 
 const MONITORING_SECTIONS = [
   { id: 'overview', label: 'Главная' },
@@ -53,8 +55,10 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section }: { section: MonitoringSectionId }) {
+function MonitoringSectionPage({ section, cpuTelemetry }: { section: MonitoringSectionId; cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring> }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
+
+  if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} />;
 
   return (
     <section
@@ -72,6 +76,7 @@ export function MonitoringPage() {
   const sectionScroller = useRef<HTMLDivElement>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
+  const cpuTelemetry = useHomeCloudCpuMonitoring(selectedServer?.id ?? null, selectedServer?.phase ?? 'offline', activeSection);
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -186,7 +191,7 @@ export function MonitoringPage() {
                 exit={{ opacity: 0, x: reduced ? 0 : -8 }}
                 transition={{ duration: reduced ? 0.06 : 0.16 }}
               >
-                <MonitoringSectionPage section={activeSection} />
+                <MonitoringSectionPage section={activeSection} cpuTelemetry={cpuTelemetry} />
               </motion.div>
             </AnimatePresence>
           </motion.div>
