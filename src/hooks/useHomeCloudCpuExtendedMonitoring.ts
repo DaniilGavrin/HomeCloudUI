@@ -128,15 +128,17 @@ export function useHomeCloudCpuExtendedMonitoring(
           return { ...previous, cstates, cstatesError: null, observedAt: items[0]?.observed_at ?? previous.observedAt };
         }
         if (target === THROTTLING) {
-          const throttling = items
-            .filter(item => item.metric_id.startsWith(THROTTLING + '.'))
-            .map(item => ({
+          const throttling = items.flatMap(item => {
+            if (!item.metric_id.startsWith(THROTTLING + '.')) return [];
+            const value = exactInteger(item.value);
+            return value === null ? [] : [{
               metricId: item.metric_id,
               objectId: item.object_id ?? 'host',
-              value: exactInteger(item.value) ?? '0',
+              value,
               unit: item.unit,
-            }))
-            .sort((a, b) => a.metricId.localeCompare(b.metricId) || a.objectId.localeCompare(b.objectId, undefined, { numeric: true }));
+            }];
+          }).sort((a, b) =>
+            a.metricId.localeCompare(b.metricId) || a.objectId.localeCompare(b.objectId, undefined, { numeric: true }));
           return { ...previous, throttling, throttlingError: null, observedAt: items[0]?.observed_at ?? previous.observedAt };
         }
         const value = items.find(item => item.metric_id === target);
