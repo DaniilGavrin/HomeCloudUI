@@ -5,6 +5,7 @@ import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { CpuMonitoringPage } from './CpuMonitoringPage';
 import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
 import { useHomeCloudCpuPanel } from '../../hooks/useHomeCloudCpuPanel';
+import { useHomeCloudCpuTopology } from '../../hooks/useHomeCloudCpuTopology';
 import { CpuGauge } from './CpuGauge';
 
 const MONITORING_SECTIONS = [
@@ -57,10 +58,15 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section, cpuTelemetry }: { section: MonitoringSectionId; cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring> }) {
+function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology }: {
+  section: MonitoringSectionId;
+  cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring>;
+  cpuTopology: ReturnType<typeof useHomeCloudCpuTopology>['topology'];
+  refreshCpuTopology: () => void;
+}) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
-  if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} />;
+  if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} topology={cpuTopology} onRefreshTopology={refreshCpuTopology} />;
 
   return (
     <section
@@ -81,6 +87,7 @@ export function MonitoringPage() {
   const serverId = selectedServer?.id ?? null;
   const cpuPanelTelemetry = useHomeCloudCpuPanel(serverId, selectedServer?.phase ?? 'offline');
   const cpuTelemetry = useHomeCloudCpuMonitoring(serverId, selectedServer?.phase ?? 'offline', activeSection, cpuPanelTelemetry.readyFor);
+  const cpuTopologyState = useHomeCloudCpuTopology(serverId, activeSection === 'cpu', selectedServer?.phase ?? 'offline');
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -209,7 +216,12 @@ export function MonitoringPage() {
                 exit={{ opacity: 0, x: reduced ? 0 : -8 }}
                 transition={{ duration: reduced ? 0.06 : 0.16 }}
               >
-                <MonitoringSectionPage section={activeSection} cpuTelemetry={cpuTelemetry} />
+                <MonitoringSectionPage
+                  section={activeSection}
+                  cpuTelemetry={cpuTelemetry}
+                  cpuTopology={cpuTopologyState.topology}
+                  refreshCpuTopology={cpuTopologyState.refresh}
+                />
               </motion.div>
             </AnimatePresence>
           </motion.div>
