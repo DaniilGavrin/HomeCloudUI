@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import { Activity, Cpu, Gauge, Timer } from 'lucide-react';
+import { Activity, Cpu, Timer } from 'lucide-react';
 import type { PoolServer } from '../../hooks/useHomeCloudPool';
 import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 
@@ -15,9 +14,9 @@ function formatCpuTime(value: string | null): string {
     const minutes = (totalSeconds % 3_600n) / 60n;
     const seconds = totalSeconds % 60n;
 
-    if (days > 0n) return `${days} д ${hours} ч ${minutes} мин`;
-    if (hours > 0n) return `${hours} ч ${minutes} мин ${seconds} с`;
-    if (minutes > 0n) return `${minutes} мин ${seconds}.${milliseconds.toString().padStart(3, '0')} с`;
+    if (days > 0n) return `${days} д ${hours} ч`;
+    if (hours > 0n) return `${hours} ч ${minutes} мин`;
+    if (minutes > 0n) return `${minutes} мин ${seconds} с`;
     return `${seconds}.${milliseconds.toString().padStart(3, '0')} с`;
   } catch {
     return '—';
@@ -25,13 +24,13 @@ function formatCpuTime(value: string | null): string {
 }
 
 function CpuGauge({ value }: { value: number | null }) {
-  const radius = 43;
+  const radius = 39;
   const circumference = 2 * Math.PI * radius;
   const progress = value === null ? 0 : Math.max(0, Math.min(100, value));
   const offset = circumference * (1 - progress / 100);
 
   return (
-    <div className="relative grid h-[142px] w-[142px] shrink-0 place-items-center">
+    <div className="relative grid h-[104px] w-[104px] shrink-0 place-items-center">
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
         <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(190,220,255,.10)" strokeWidth="7" />
         <circle
@@ -43,115 +42,87 @@ function CpuGauge({ value }: { value: number | null }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[31px] font-semibold leading-none tracking-[-0.045em] text-white tabular-nums">
+        <span className="text-[25px] font-semibold leading-none tracking-[-0.045em] text-white tabular-nums">
           {value === null ? '—' : value.toFixed(1)}
-          <span className="ml-0.5 text-[17px] text-white/65">%</span>
+          <span className="ml-0.5 text-[14px] text-white/65">%</span>
         </span>
-        <span className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-white/45">CPU usage</span>
+        <span className="mt-1.5 text-[9px] font-medium uppercase tracking-[0.13em] text-white/45">CPU</span>
       </div>
     </div>
   );
 }
 
-function MetricCard({
+function CompactMetric({
   title,
   value,
-  description,
   icon,
 }: {
   title: string;
   value: string;
-  description: string;
-  icon: ReactNode;
+  icon: React.ReactNode;
 }) {
   return (
-    <article className="homecloud-glass min-w-0 rounded-[20px] border border-sky-200/[0.12] p-[18px]">
-      <div className="flex items-center gap-2 text-white/55">
-        <span className="grid h-8 w-8 place-items-center rounded-[10px] border border-sky-200/10 bg-sky-200/[0.055] text-cyan-100">
-          {icon}
-        </span>
-        <span className="text-[12px] font-medium">{title}</span>
+    <article className="flex min-h-[104px] min-w-0 flex-col justify-center rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3">
+      <div className="flex items-center gap-2 text-white/50">
+        <span className="text-cyan-100/80">{icon}</span>
+        <span className="truncate text-[11px] font-medium">{title}</span>
       </div>
-      <p className="mt-5 break-words text-[clamp(18px,2vw,24px)] font-semibold leading-tight tracking-[-0.035em] text-white tabular-nums">
+      <p className="mt-3 break-words text-[clamp(16px,1.7vw,21px)] font-semibold leading-tight tracking-[-0.035em] text-white tabular-nums">
         {value}
       </p>
-      <p className="mt-2 text-[11px] leading-5 text-white/40">{description}</p>
     </article>
   );
 }
 
-export function CpuMonitoringPage({ server, telemetry }: { server: PoolServer; telemetry: CpuTelemetry }) {
-  const cpu = server.data?.cpu;
-  const coreLabel = cpu?.logical_cores
-    ? `${cpu.logical_cores} логических ядер${cpu.physical_cores ? ` · ${cpu.physical_cores} физических` : ''}`
-    : 'Количество ядер не определено';
-
+export function CpuMonitoringPage({ server: _server, telemetry }: { server: PoolServer; telemetry: CpuTelemetry }) {
   const statusLabel = telemetry.phase === 'streaming'
-    ? 'Получение данных · 1 сек'
+    ? 'Online'
     : telemetry.phase === 'offline'
-      ? 'Сервер недоступен'
+      ? 'Offline'
       : telemetry.phase === 'error'
-        ? 'Ошибка телеметрии'
-        : 'Подключение к телеметрии';
+        ? 'Ошибка'
+        : 'Подключение';
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col gap-[14px]" aria-label="Мониторинг CPU">
-      <header className="flex flex-wrap items-start justify-between gap-3 px-1 pt-1">
-        <div>
-          <div className="flex items-center gap-2">
-            <Cpu size={17} className="text-cyan-200" aria-hidden="true" />
-            <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-white">Процессор</h2>
-          </div>
-          <p className="mt-1 text-[11px] text-white/45">{cpu?.model || coreLabel}</p>
+    <section className="flex min-h-0 flex-1 flex-col gap-3" aria-label="Мониторинг CPU">
+      <header className="flex items-center justify-between px-1 pt-1">
+        <div className="flex items-center gap-2">
+          <Cpu size={16} className="text-cyan-200" aria-hidden="true" />
+          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-white">CPU</h2>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.035] px-3 py-[7px] text-[10px] text-white/55">
-          <i className={`h-[6px] w-[6px] rounded-full ${telemetry.phase === 'streaming' ? 'bg-emerald-300 shadow-[0_0_8px_rgba(110,240,190,.5)]' : telemetry.phase === 'error' ? 'bg-rose-300' : 'bg-amber-200'}`} />
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-white/50">
+          <i className={`h-[6px] w-[6px] rounded-full ${telemetry.phase === 'streaming' ? 'bg-emerald-300 shadow-[0_0_8px_rgba(110,240,190,.5)]' : telemetry.phase === 'error' || telemetry.phase === 'offline' ? 'bg-rose-300' : 'bg-amber-200'}`} />
           {statusLabel}
         </span>
       </header>
 
       {telemetry.error && (
-        <div role="alert" className="rounded-[14px] border border-rose-300/20 bg-rose-400/[0.06] px-4 py-3 text-[12px] leading-5 text-rose-100/85">
+        <div role="alert" className="rounded-[12px] border border-rose-300/20 bg-rose-400/[0.06] px-3 py-2 text-[11px] leading-5 text-rose-100/85">
           {telemetry.error}
         </div>
       )}
 
-      <div className="homecloud-glass flex flex-wrap items-center gap-6 rounded-[22px] border border-sky-200/[0.14] p-[clamp(18px,2.2vw,28px)]">
-        <CpuGauge value={telemetry.totalUsage} />
-        <div className="min-w-[180px] flex-1">
-          <div className="flex items-center gap-2 text-cyan-100/80">
-            <Gauge size={15} aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.13em]">Текущая загрузка</span>
-          </div>
-          <p className="mt-3 max-w-xl text-[13px] leading-6 text-white/60">
-            Доля времени процессора, занятого выполнением задач за последний интервал измерения.
-            Значение обновляется один раз в секунду.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-[6px] text-[10px] text-white/50">{coreLabel}</span>
-            {cpu?.vendor && <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-[6px] text-[10px] text-white/50">{cpu.vendor}</span>}
-          </div>
+      <div className="homecloud-glass grid min-w-0 grid-cols-1 items-center gap-3 rounded-[20px] border border-sky-200/[0.13] p-3 sm:grid-cols-[minmax(112px,0.72fr)_minmax(0,1fr)_minmax(0,1fr)] sm:gap-2.5 sm:p-3.5">
+        <div className="flex justify-center sm:justify-start">
+          <CpuGauge value={telemetry.totalUsage} />
         </div>
-      </div>
-
-      <div className="grid min-w-0 grid-cols-1 gap-[14px] sm:grid-cols-2">
-        <MetricCard
+        <CompactMetric
           title="User Time"
           value={formatCpuTime(telemetry.userTimeNs)}
-          description="Накопленное CPU-время пользовательских процессов"
-          icon={<Timer size={15} aria-hidden="true" />}
+          icon={<Timer size={14} aria-hidden="true" />}
         />
-        <MetricCard
+        <CompactMetric
           title="System Time"
           value={formatCpuTime(telemetry.systemTimeNs)}
-          description="Накопленное CPU-время выполнения кода ядра"
-          icon={<Activity size={15} aria-hidden="true" />}
+          icon={<Activity size={14} aria-hidden="true" />}
         />
       </div>
 
-      <p className="px-1 text-[10px] leading-5 text-white/35">
-        Счётчики User/System накопительные и не сбрасываются между обновлениями. Последнее измерение: {telemetry.observedAt ? new Date(telemetry.observedAt).toLocaleTimeString() : 'ожидание данных'}.
-      </p>
+      {telemetry.error && (
+        <p className="px-1 text-[10px] text-white/35">
+          Последнее успешное измерение: {telemetry.observedAt ? new Date(telemetry.observedAt).toLocaleTimeString() : 'нет данных'}.
+        </p>
+      )}
     </section>
   );
 }
