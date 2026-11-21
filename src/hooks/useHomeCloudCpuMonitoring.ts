@@ -122,8 +122,18 @@ export function useHomeCloudCpuMonitoring(
         const stop = await listen<MonitoringEvent>(EVENT, event => {
           const message = event.payload;
           if (message.server_id !== serverId) return;
-          const isFrequency = message.target === 'system.cpu.frequency';
-          if (!isFrequency && message.target !== 'system.cpu') return;
+          const eventItems = Array.isArray(message.payload.items) ? message.payload.items as MetricItem[] : [];
+          const containsFrequencyMetrics = eventItems.some(item => item.metric_id.startsWith('system.cpu.frequency.'));
+          const containsCpuCounters = eventItems.some(item =>
+            item.metric_id.startsWith('system.cpu.')
+            && !item.metric_id.startsWith('system.cpu.frequency.')
+            && item.metric_id !== 'system.cpu.totalusage'
+          );
+          // Prefer the native routing target, but use metric IDs as a fallback.
+          // This keeps telemetry flowing if an update is routed with a stale target.
+          const isFrequency = message.target === 'system.cpu.frequency' || containsFrequencyMetrics;
+          const isCpu = message.target === 'system.cpu' || containsCpuCounters;
+          if (!isFrequency && !isCpu) return;
 
           if (message.kind === 'created') {
             const subscriptionId = typeof message.payload.subscription_id === 'string'
