@@ -724,6 +724,17 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     } else if frequency_subscription_id.as_deref() == Some(subscription_id) {
                         Some("system.cpu.frequency")
                     } else { None };
+                    if std::env::var_os("HOMECLOUD_MONITORING_TRACE").is_some() {
+                        let items = payload.pointer("/payload/items").and_then(Value::as_array);
+                        let summary = items.map(|items| items.iter().map(|item| json!({
+                            "metric_id": item.get("metric_id").and_then(Value::as_str).unwrap_or(""),
+                            "object_id": item.get("object_id").and_then(Value::as_str),
+                        })).collect::<Vec<_>>()).unwrap_or_default();
+                        eprintln!(
+                            "[HomeCloud Monitoring][CPU] ws update server_id={} subscription_id={} routed_target={:?} items={}",
+                            entry.id, subscription_id, target, summary,
+                        );
+                    }
                     if let Some(target) = target {
                         crate::monitoring::publish(app, &entry.id, target, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
                     }
