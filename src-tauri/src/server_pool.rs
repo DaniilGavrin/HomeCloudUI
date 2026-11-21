@@ -1,6 +1,6 @@
 //! Persistent HomeCloud server pool. A configured server is NOT an ephemeral device.
 //! React never opens sockets: each additional server is monitored by Rust/Tauri.
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{Sink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, fs, net::{Ipv4Addr, Ipv6Addr}, path::PathBuf, sync::Mutex, time::{Duration, SystemTime, UNIX_EPOCH}};
@@ -296,6 +296,7 @@ pub fn homecloud_pool_delete(app: AppHandle, id: String) -> Result<PoolSnapshot,
     p.deliveries.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.renames.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     p.forgets.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    crate::monitoring::clear_server(&app, &id);
     crate::storage::disconnected(&app, &id);
     if let Err(e) = crate::device_registry::forget_server(&app, &id) { eprintln!("[ServerPool] Device cleanup failed: {e}"); }
     publish(&app);
@@ -433,6 +434,64 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
     }
 }
 
+
+async fn ensure_cpu_subscription<S>(
+    socket: &mut S,
+    app: &AppHandle,
+    server_id: &str,
+    counter: &mut u64,
+    pending: &mut Option<String>,
+) -> Result<(), String>
+where
+    S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
+    if pending.is_some() {
+        return Ok(());
+    }
+    let Some(node_id) = crate::monitoring::node_id(app, server_id) else {
+        return Ok(());
+    };
+    *counter = counter.wrapping_add(1);
+    let correlation_id = format!("hc-monitoring-{server_id}-{}", *counter);
+    let request = json!({
+        "v": 1,
+        "id": correlation_id,
+        "type": "subscription.create",
+        "correlation_id": correlation_id,
+        "node_id": node_id,
+        "payload": { "target": "system.cpu", "interval_ms": 1000 }
+    });
+    socket.send(Message::Text(request.to_string().into())).await
+        .map_err(|error| format!("CPU subscription request failed: {error}"))?;
+    *pending = Some(correlation_id);
+    Ok(())
+}
+
+async fn cancel_cpu_subscription<S>(
+    socket: &mut S,
+    server_id: &str,
+    node_id: &str,
+    subscription_id: &str,
+    counter: &mut u64,
+) -> Result<(), String>
+where
+    S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
+    *counter = counter.wrapping_add(1);
+    let correlation_id = format!("hc-monitoring-cancel-{server_id}-{}", *counter);
+    let request = json!({
+        "v": 1,
+        "id": correlation_id,
+        "type": "subscription.cancel",
+        "correlation_id": correlation_id,
+        "node_id": node_id,
+        "payload": { "subscription_id": subscription_id }
+    });
+    socket.send(Message::Text(request.to_string().into())).await
+        .map_err(|error| format!("CPU subscription cancellation failed: {error}"))?;
+    Ok(())
+}
+
 async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, last_rtt: &mut Option<u64>) -> Result<(), String> {
     let (mut socket, _) = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(url)).await
         .map_err(|_| format!("Тайм-аут подключения к {url}"))?
@@ -495,6 +554,12 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     ping_next.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut grace = tokio::time::Instant::now();
     let mut status_queued = false;
+    let mut monitoring_session = crate::monitoring::attach(app, &entry.id);
+    let mut monitoring_section = monitoring_session.active.borrow().clone();
+    let mut monitoring_subscription_id: Option<String> = None;
+    let mut monitoring_pending_correlation: Option<String> = None;
+    let mut monitoring_node_id: Option<String> = None;
+    let mut monitoring_counter = 0u64;
     loop {
         tokio::select! {
             _ = list_resync.tick() => { queued_list = true; }
@@ -557,6 +622,17 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 if refresh.is_none() { return Err("session ended: refresh channel closed".into()); }
                 status_queued = true;
             }
+            changed = monitoring_session.active.changed() => {
+                if changed.is_err() { return Err("session ended: monitoring control closed".into()); }
+                monitoring_section = monitoring_session.active.borrow().clone();
+                if monitoring_section.as_deref() != Some("cpu") {
+                    if let (Some(subscription_id), Some(node_id)) = (monitoring_subscription_id.take(), monitoring_node_id.as_deref()) {
+                        cancel_cpu_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
+                    }
+                } else if monitoring_subscription_id.is_none() && monitoring_pending_correlation.is_none() {
+                    ensure_cpu_subscription(&mut socket, app, &entry.id, &mut monitoring_counter, &mut monitoring_pending_correlation).await?;
+                }
+            }
             _ = ping_next.tick() => {
                 pending_deliveries.retain(|_, reply| !reply.is_closed());
                 pending_storage.retain(|_, reply| !reply.is_closed());
@@ -593,6 +669,43 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     Some(Ok(_)) => continue,
                 };
                 let Ok(payload) = serde_json::from_str::<Value>(raw.as_str()) else { continue; };
+                let message_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+                if message_type == "subscription.created" {
+                    let correlation_id = payload.get("correlation_id").and_then(Value::as_str).unwrap_or("");
+                    if monitoring_pending_correlation.as_deref() == Some(correlation_id) {
+                        monitoring_pending_correlation = None;
+                        let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("").to_owned();
+                        let node_id = payload.get("node_id").and_then(Value::as_str).unwrap_or("").to_owned();
+                        if !subscription_id.is_empty() && !node_id.is_empty() {
+                            if monitoring_section.as_deref() == Some("cpu") {
+                                monitoring_subscription_id = Some(subscription_id);
+                                monitoring_node_id = Some(node_id.clone());
+                                crate::monitoring::publish(app, &entry.id, "created", Some(&node_id), payload.get("payload").cloned().unwrap_or(Value::Null));
+                            } else {
+                                cancel_cpu_subscription(&mut socket, &entry.id, &node_id, &subscription_id, &mut monitoring_counter).await?;
+                            }
+                        }
+                        continue;
+                    }
+                }
+                if message_type == "subscription.update" {
+                    let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("");
+                    if monitoring_subscription_id.as_deref() == Some(subscription_id) {
+                        crate::monitoring::publish(app, &entry.id, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
+                    }
+                    continue;
+                }
+                if message_type == "subscription.error" {
+                    let correlation_id = payload.get("correlation_id").and_then(Value::as_str).unwrap_or("");
+                    let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("");
+                    if monitoring_pending_correlation.as_deref() == Some(correlation_id)
+                        || monitoring_subscription_id.as_deref() == Some(subscription_id) {
+                        monitoring_pending_correlation = None;
+                        monitoring_subscription_id = None;
+                        crate::monitoring::publish(app, &entry.id, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
+                    }
+                    continue;
+                }
                 crate::media_rooms::on_event(app, &entry.id, &payload);
 
 
@@ -706,6 +819,11 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 .await.map_err(|e| format!("session ended: {e}"))?;
             pending_list = Some((id, tokio::time::Instant::now()));
             queued_list = false;
+        }
+        if monitoring_section.as_deref() == Some("cpu")
+            && monitoring_subscription_id.is_none()
+            && monitoring_pending_correlation.is_none() {
+            ensure_cpu_subscription(&mut socket, app, &entry.id, &mut monitoring_counter, &mut monitoring_pending_correlation).await?;
         }
         if status_queued && pending_status.is_none() {
             status_counter += 1;
