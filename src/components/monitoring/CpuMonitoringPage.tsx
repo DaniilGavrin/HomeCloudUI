@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Activity, Cpu, Gauge, Timer, Zap } from 'lucide-react';
-import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
+import { Activity, Cpu, Gauge, Timer, Zap, Layers } from 'lucide-react';
+import type { CpuCoreTelemetry, CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 
 function formatCpuTime(value: string | null): string {
   if (value === null || !/^\d+$/.test(value)) return '—';
@@ -21,6 +21,10 @@ function formatCpuTime(value: string | null): string {
   } catch {
     return '—';
   }
+}
+
+function formatPercent(value: number | null): string {
+  return value === null ? '—' : `${value.toFixed(1)}%`;
 }
 
 function CpuGauge({ value }: { value: number | null }) {
@@ -74,6 +78,44 @@ function CompactMetric({
   );
 }
 
+function coreLabel(objectId: string): string {
+  const match = objectId.match(/(\d+)/);
+  return match ? `CPU ${match[1]}` : objectId;
+}
+
+function CoreMetricCard({ core }: { core: CpuCoreTelemetry }) {
+  const usage = core.totalUsage;
+  const progress = usage === null ? 0 : Math.max(0, Math.min(100, usage));
+
+  return (
+    <article className="min-w-0 rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-[12px] font-semibold text-white/85">{coreLabel(core.objectId)}</span>
+        <span className="shrink-0 text-[13px] font-semibold tabular-nums text-cyan-100">
+          {formatPercent(usage)}
+        </span>
+      </div>
+      <div
+        className="mt-2 h-[5px] overflow-hidden rounded-full bg-white/[0.08]"
+        role="meter"
+        aria-label={`Загрузка ${coreLabel(core.objectId)}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={usage ?? 0}
+      >
+        <div
+          className="h-full rounded-full bg-cyan-300 transition-[width] duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-white/45">
+        <span>User Time</span>
+        <span className="text-right font-medium tabular-nums text-white/75">{formatCpuTime(core.userTimeNs)}</span>
+      </div>
+    </article>
+  );
+}
+
 export function CpuMonitoringPage({ telemetry }: { telemetry: CpuTelemetry }) {
   const statusLabel = telemetry.phase === 'streaming'
     ? 'Online'
@@ -84,7 +126,7 @@ export function CpuMonitoringPage({ telemetry }: { telemetry: CpuTelemetry }) {
         : 'Подключение';
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col gap-3" aria-label="Мониторинг CPU">
+    <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" aria-label="Мониторинг CPU">
       <header className="flex items-center justify-between px-1 pt-1">
         <div className="flex items-center gap-2">
           <Cpu size={16} className="text-cyan-200" aria-hidden="true" />
@@ -112,7 +154,30 @@ export function CpuMonitoringPage({ telemetry }: { telemetry: CpuTelemetry }) {
         <CompactMetric title="Idle Time" value={formatCpuTime(telemetry.idleTimeNs)} icon={<Timer size={14} aria-hidden="true" />} />
         <CompactMetric title="I/O Wait" value={formatCpuTime(telemetry.ioWaitTimeNs)} icon={<Activity size={14} aria-hidden="true" />} />
         <CompactMetric title="IRQ Time" value={formatCpuTime(telemetry.irqTimeNs)} icon={<Zap size={14} aria-hidden="true" />} />
+        <CompactMetric title="SoftIRQ Time" value={formatCpuTime(telemetry.softIrqTimeNs)} icon={<Zap size={14} aria-hidden="true" />} />
+        <CompactMetric title="Steal Time" value={formatCpuTime(telemetry.stealTimeNs)} icon={<Activity size={14} aria-hidden="true" />} />
+        <CompactMetric title="Guest Time" value={formatCpuTime(telemetry.guestTimeNs)} icon={<Layers size={14} aria-hidden="true" />} />
+        <CompactMetric title="Guest Nice Time" value={formatCpuTime(telemetry.guestNiceTimeNs)} icon={<Layers size={14} aria-hidden="true" />} />
       </div>
+
+      <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Мониторинг отдельных ядер CPU">
+        <div className="mb-3 flex items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2">
+            <Cpu size={14} className="text-cyan-100/80" aria-hidden="true" />
+            <h3 className="text-[12px] font-semibold text-white/85">По логическим ядрам</h3>
+          </div>
+          <span className="text-[10px] tabular-nums text-white/40">{telemetry.perCore.length} CPU</span>
+        </div>
+        {telemetry.perCore.length > 0 ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
+            {telemetry.perCore.map(core => <CoreMetricCard key={core.objectId} core={core} />)}
+          </div>
+        ) : (
+          <p className="px-1 py-3 text-[11px] text-white/40">
+            Ожидание данных по логическим ядрам…
+          </p>
+        )}
+      </section>
 
       {telemetry.error && (
         <p className="px-1 text-[10px] text-white/35">
