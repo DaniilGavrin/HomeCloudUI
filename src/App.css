@@ -31,3 +31,30 @@ body {
   background-size: cover;
   background-color: #000;
 }
+
+/* HomeCloud custom scrollbars */
+.homecloud-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125, 211, 252, 0.38) rgba(255, 255, 255, 0.035);
+  scrollbar-gutter: stable;
+}
+
+.homecloud-scrollbar::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.homecloud-scrollbar::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.homecloud-scrollbar::-webkit-scrollbar-thumb {
+  border: 1px solid rgba(190, 230, 255, 0.12);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.48), rgba(129, 140, 248, 0.38));
+}
+
+.homecloud-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.68), rgba(129, 140, 248, 0.58));
+}
