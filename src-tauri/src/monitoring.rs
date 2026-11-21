@@ -7,7 +7,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
     Mutex,
 };
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::watch;
 
 pub const EVENT: &str = "homecloud:monitoring";
