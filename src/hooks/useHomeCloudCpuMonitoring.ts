@@ -15,6 +15,7 @@ type MonitoringEvent = {
   kind: 'created' | 'update' | 'error' | 'state';
   node_id: string | null;
   payload: Record<string, unknown>;
+  target: string;
 };
 
 export type CpuCoreTelemetry = {
@@ -77,6 +78,7 @@ export function useHomeCloudCpuMonitoring(
   serverId: string | null,
   serverPhase: string,
   activeSection: string,
+  additionalListenerReadyFor: string | null,
 ): CpuTelemetry {
   const [telemetry, setTelemetry] = useState<CpuTelemetry>(INITIAL);
   const [listenerReadyFor, setListenerReadyFor] = useState<string | null>(null);
@@ -102,7 +104,7 @@ export function useHomeCloudCpuMonitoring(
       try {
         const stop = await listen<MonitoringEvent>(EVENT, event => {
           const message = event.payload;
-          if (message.server_id !== serverId) return;
+          if (message.server_id !== serverId || message.target !== 'system.cpu') return;
 
           if (message.kind === 'created') {
             const subscriptionId = typeof message.payload.subscription_id === 'string'
@@ -269,14 +271,14 @@ export function useHomeCloudCpuMonitoring(
   // Section changes update the desired target without an intermediate cancel /
   // recreate race. Rust deduplicates and owns the actual WebSocket lifecycle.
   useEffect(() => {
-    if (!serverId || listenerReadyFor !== serverId) return;
+    if (!serverId || listenerReadyFor !== serverId || additionalListenerReadyFor !== serverId) return;
     void invoke('homecloud_monitoring_set_active', {
       serverId,
       section: activeSection,
     }).catch(error => {
       setTelemetry(previous => ({ ...previous, phase: 'error', error: String(error) }));
     });
-  }, [serverId, activeSection, listenerReadyFor]);
+  }, [serverId, activeSection, listenerReadyFor, additionalListenerReadyFor]);
 
   useEffect(() => {
     if (serverPhase === 'offline' || serverPhase === 'error') {
