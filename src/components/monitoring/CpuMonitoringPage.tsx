@@ -1,6 +1,6 @@
 import { Activity, Cpu, Gauge, Timer } from 'lucide-react';
 import type { PoolServer } from '../../hooks/useHomeCloudPool';
-import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
+import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 
 function formatCpuTime(value: string | null): string {
   if (value === null || !/^\d+$/.test(value)) return '—';
@@ -79,8 +79,7 @@ function MetricCard({
   );
 }
 
-export function CpuMonitoringPage({ server }: { server: PoolServer }) {
-  const telemetry = useHomeCloudCpuMonitoring(server.id, server.phase);
+export function CpuMonitoringPage({ server, telemetry }: { server: PoolServer; telemetry: CpuTelemetry }) {
   const cpu = server.data?.cpu;
   const coreLabel = cpu?.logical_cores
     ? `${cpu.logical_cores} логических ядер${cpu.physical_cores ? ` · ${cpu.physical_cores} физических` : ''}`
