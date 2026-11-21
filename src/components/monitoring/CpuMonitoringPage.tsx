@@ -48,7 +48,7 @@ function CompactMetric({ title, value, icon, className = 'w-[190px] shrink-0' }:
 }
 
 function coreLabel(objectId: string): string {
-  const match = objectId.match(/(\\d+)/);
+  const match = objectId.match(/(\d+)/);
   return match ? `CPU ${match[1]}` : objectId;
 }
 
