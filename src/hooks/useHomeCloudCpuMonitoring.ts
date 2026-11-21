@@ -24,6 +24,15 @@ export type CpuCoreTelemetry = {
   userTimeNs: string | null;
 };
 
+export type CpuFrequencyTelemetry = {
+  objectId: string;
+  currentKHz: number | null;
+  minKHz: number | null;
+  maxKHz: number | null;
+  baseKHz: number | null;
+  governor: string | null;
+};
+
 export type CpuTelemetry = {
   phase: 'connecting' | 'streaming' | 'offline' | 'error';
   totalUsage: number | null;
@@ -38,8 +47,12 @@ export type CpuTelemetry = {
   guestTimeNs: string | null;
   guestNiceTimeNs: string | null;
   perCore: CpuCoreTelemetry[];
+  frequency: CpuFrequencyTelemetry[];
   observedAt: string | null;
   subscriptionId: string | null;
+  frequencySubscriptionId: string | null;
+  frequencyObservedAt: string | null;
+  frequencyError: string | null;
   error: string | null;
 };
 
@@ -57,8 +70,12 @@ const INITIAL: CpuTelemetry = {
   guestTimeNs: null,
   guestNiceTimeNs: null,
   perCore: [],
+  frequency: [],
   observedAt: null,
   subscriptionId: null,
+  frequencySubscriptionId: null,
+  frequencyObservedAt: null,
+  frequencyError: null,
   error: null,
 };
 
@@ -104,13 +121,18 @@ export function useHomeCloudCpuMonitoring(
       try {
         const stop = await listen<MonitoringEvent>(EVENT, event => {
           const message = event.payload;
-          if (message.server_id !== serverId || message.target !== 'system.cpu') return;
+          if (message.server_id !== serverId) return;
+          const isFrequency = message.target === 'system.cpu.frequency';
+          if (!isFrequency && message.target !== 'system.cpu') return;
 
           if (message.kind === 'created') {
             const subscriptionId = typeof message.payload.subscription_id === 'string'
               ? message.payload.subscription_id
               : null;
             setTelemetry(previous => {
+              if (isFrequency) {
+                return { ...previous, phase: 'streaming', frequencySubscriptionId: subscriptionId, error: null };
+              }
               if (previous.subscriptionId === subscriptionId) {
                 return { ...previous, phase: 'streaming', error: null };
               }
@@ -124,6 +146,14 @@ export function useHomeCloudCpuMonitoring(
           }
 
           if (message.kind === 'error') {
+            if (isFrequency) {
+              const errorObject = message.payload.error as { message?: unknown; code?: unknown } | undefined;
+              const errorText = typeof errorObject?.message === 'string' ? errorObject.message
+                : typeof errorObject?.code === 'string' ? errorObject.code
+                  : 'Не удалось получить частоты CPU';
+              setTelemetry(previous => ({ ...previous, phase: 'error', frequencyError: errorText }));
+              return;
+            }
             const errorObject = message.payload.error as { message?: unknown; code?: unknown } | undefined;
             const messageText = typeof errorObject?.message === 'string'
               ? errorObject.message
@@ -140,6 +170,37 @@ export function useHomeCloudCpuMonitoring(
             ? message.payload.subscription_id
             : null;
           const items = Array.isArray(message.payload.items) ? message.payload.items as MetricItem[] : [];
+
+          if (isFrequency) {
+            setTelemetry(previous => {
+              if (previous.frequencySubscriptionId && subscriptionId !== previous.frequencySubscriptionId) return previous;
+              const policies = new Map<string, CpuFrequencyTelemetry>();
+              for (const item of items) {
+                if (!item.object_id) continue;
+                const policy = policies.get(item.object_id) ?? {
+                  objectId: item.object_id, currentKHz: null, minKHz: null, maxKHz: null, baseKHz: null, governor: null,
+                };
+                const numeric = typeof item.value === 'number' ? item.value : Number(item.value);
+                switch (item.metric_id) {
+                  case 'system.cpu.frequency.current': policy.currentKHz = Number.isFinite(numeric) ? numeric : null; break;
+                  case 'system.cpu.frequency.min': policy.minKHz = Number.isFinite(numeric) ? numeric : null; break;
+                  case 'system.cpu.frequency.max': policy.maxKHz = Number.isFinite(numeric) ? numeric : null; break;
+                  case 'system.cpu.frequency.base': policy.baseKHz = Number.isFinite(numeric) ? numeric : null; break;
+                  case 'system.cpu.frequency.governor': policy.governor = typeof item.value === 'string' ? item.value : null; break;
+                }
+                policies.set(item.object_id, policy);
+              }
+              return {
+                ...previous,
+                phase: 'streaming',
+                frequencySubscriptionId: subscriptionId ?? previous.frequencySubscriptionId,
+                frequency: [...policies.values()].sort((a, b) => a.objectId.localeCompare(b.objectId, undefined, { numeric: true })),
+                frequencyObservedAt: items[0]?.observed_at ?? previous.frequencyObservedAt,
+                frequencyError: null,
+              };
+            });
+            return;
+          }
 
           setTelemetry(previous => {
             if (previous.subscriptionId && subscriptionId !== previous.subscriptionId) return previous;
