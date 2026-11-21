@@ -137,9 +137,23 @@ export function useHomeCloudCpuMonitoring(
                 return { ...previous, phase: 'streaming', error: null };
               }
               return {
-                ...INITIAL,
+                ...previous,
                 phase: 'streaming',
+                totalUsage: null,
+                userTimeNs: null,
+                systemTimeNs: null,
+                niceTimeNs: null,
+                idleTimeNs: null,
+                ioWaitTimeNs: null,
+                irqTimeNs: null,
+                softIrqTimeNs: null,
+                stealTimeNs: null,
+                guestTimeNs: null,
+                guestNiceTimeNs: null,
+                perCore: [],
+                observedAt: null,
                 subscriptionId,
+                error: null,
               };
             });
             return;
@@ -151,7 +165,7 @@ export function useHomeCloudCpuMonitoring(
               const errorText = typeof errorObject?.message === 'string' ? errorObject.message
                 : typeof errorObject?.code === 'string' ? errorObject.code
                   : 'Не удалось получить частоты CPU';
-              setTelemetry(previous => ({ ...previous, phase: 'error', frequencyError: errorText }));
+              setTelemetry(previous => ({ ...previous, frequencyError: errorText }));
               return;
             }
             const errorObject = message.payload.error as { message?: unknown; code?: unknown } | undefined;
