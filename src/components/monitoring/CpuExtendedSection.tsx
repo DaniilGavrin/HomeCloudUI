@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Activity, Clock3, Gauge, RefreshCw, Zap } from 'lucide-react';
 import type { CpuExtendedTelemetry, CpuCStateTelemetry, CpuThrottleTelemetry } from '../../hooks/useHomeCloudCpuExtendedMonitoring';
 
@@ -30,7 +31,7 @@ function MetricError({ children }: { children: string }) {
   return <p role="status" className="rounded-[10px] border border-amber-200/15 bg-amber-200/[0.04] px-3 py-2 text-[10px] leading-5 text-amber-100/70">{children}</p>;
 }
 
-function CounterCard({ title, value, icon }: { title: string; value: string | null; icon: React.ReactNode }) {
+function CounterCard({ title, value, icon }: { title: string; value: string | null; icon: ReactNode }) {
   return (
     <article className="min-w-0 rounded-[15px] border border-sky-200/[0.10] bg-white/[0.025] p-3.5">
       <div className="flex items-center gap-2 text-white/45">
