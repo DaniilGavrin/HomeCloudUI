@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 export type ServerStatusData = {
+  node_id?: string;
   status?: string;
   collected_at?: string;
   system?: {
