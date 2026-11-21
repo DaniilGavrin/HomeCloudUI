@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Activity, Cpu, Gauge, Timer } from 'lucide-react';
 import type { PoolServer } from '../../hooks/useHomeCloudPool';
 import type { CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
@@ -61,7 +62,7 @@ function MetricCard({
   title: string;
   value: string;
   description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <article className="homecloud-glass min-w-0 rounded-[20px] border border-sky-200/[0.12] p-[18px]">
