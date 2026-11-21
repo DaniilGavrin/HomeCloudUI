@@ -131,7 +131,15 @@ export function useHomeCloudCpuMonitoring(
               : null;
             setTelemetry(previous => {
               if (isFrequency) {
-                return { ...previous, phase: 'streaming', frequencySubscriptionId: subscriptionId, error: null };
+                return {
+                  ...previous,
+                  phase: 'streaming',
+                  frequencySubscriptionId: subscriptionId,
+                  frequency: [],
+                  frequencyObservedAt: null,
+                  frequencyError: null,
+                  error: null,
+                };
               }
               if (previous.subscriptionId === subscriptionId) {
                 return { ...previous, phase: 'streaming', error: null };
