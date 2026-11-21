@@ -693,6 +693,10 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         frequency_pending_correlation = None;
                         Some("system.cpu.frequency")
                     } else { None };
+                    eprintln!(
+                        "[HomeCloud Monitoring][CPU] subscription created server_id={} correlation_id={} routed_target={:?}",
+                        entry.id, correlation_id, target,
+                    );
                     if let Some(target) = target {
                         let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("").to_owned();
                         let node_id = payload.get("node_id").and_then(Value::as_str).unwrap_or("").to_owned();
