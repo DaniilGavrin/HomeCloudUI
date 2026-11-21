@@ -164,7 +164,7 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
         crate::diagnostics::log(
             "INFO",
             &format!(
-                "CPU emit server_id={} kind={} target={} subscription_id={} items={}",
+                "CPU emit server_id={} kind={} target={} subscription_id={} items={:?}",
                 server_id, kind, target,
                 payload.get("subscription_id").and_then(Value::as_str).unwrap_or(""),
                 summary,
