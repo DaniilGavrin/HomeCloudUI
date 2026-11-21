@@ -435,60 +435,41 @@ async fn monitor(app: AppHandle, entry: ServerEntry) {
 }
 
 
-async fn ensure_cpu_subscription<S>(
-    socket: &mut S,
-    app: &AppHandle,
-    server_id: &str,
-    counter: &mut u64,
-    pending: &mut Option<String>,
+async fn ensure_monitoring_subscription<S>(
+    socket: &mut S, app: &AppHandle, server_id: &str, target: &str,
+    counter: &mut u64, pending: &mut Option<String>,
 ) -> Result<(), String>
-where
-    S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+where S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
-    if pending.is_some() {
-        return Ok(());
-    }
-    let Some(node_id) = crate::monitoring::node_id(app, server_id) else {
-        return Ok(());
-    };
+    if pending.is_some() { return Ok(()); }
+    let Some(node_id) = crate::monitoring::node_id(app, server_id) else { return Ok(()); };
     *counter = counter.wrapping_add(1);
-    let correlation_id = format!("hc-monitoring-{server_id}-{}", *counter);
+    let correlation_id = format!("hc-monitoring-{server_id}-{counter}");
     let request = json!({
-        "v": 1,
-        "id": correlation_id,
-        "type": "subscription.create",
-        "correlation_id": correlation_id,
-        "node_id": node_id,
-        "payload": { "target": "system.cpu", "interval_ms": 1000 }
+        "v": 1, "id": correlation_id, "type": "subscription.create",
+        "correlation_id": correlation_id, "node_id": node_id,
+        "payload": { "target": target, "interval_ms": 1000 }
     });
     socket.send(Message::Text(request.to_string().into())).await
-        .map_err(|error| format!("CPU subscription request failed: {error}"))?;
+        .map_err(|error| format!("Monitoring subscription request failed ({target}): {error}"))?;
     *pending = Some(correlation_id);
     Ok(())
 }
 
-async fn cancel_cpu_subscription<S>(
-    socket: &mut S,
-    server_id: &str,
-    node_id: &str,
-    subscription_id: &str,
-    counter: &mut u64,
+async fn cancel_monitoring_subscription<S>(
+    socket: &mut S, server_id: &str, node_id: &str, subscription_id: &str, counter: &mut u64,
 ) -> Result<(), String>
-where
-    S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+where S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
     *counter = counter.wrapping_add(1);
-    let correlation_id = format!("hc-monitoring-cancel-{server_id}-{}", *counter);
+    let correlation_id = format!("hc-monitoring-cancel-{server_id}-{counter}");
     let request = json!({
-        "v": 1,
-        "id": correlation_id,
-        "type": "subscription.cancel",
-        "correlation_id": correlation_id,
-        "node_id": node_id,
+        "v": 1, "id": correlation_id, "type": "subscription.cancel",
+        "correlation_id": correlation_id, "node_id": node_id,
         "payload": { "subscription_id": subscription_id }
     });
     socket.send(Message::Text(request.to_string().into())).await
-        .map_err(|error| format!("CPU subscription cancellation failed: {error}"))?;
+        .map_err(|error| format!("Monitoring subscription cancellation failed: {error}"))?;
     Ok(())
 }
 
@@ -556,10 +537,14 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
     let mut status_queued = false;
     let mut monitoring_session = crate::monitoring::attach(app, &entry.id);
     let mut monitoring_section = monitoring_session.active.borrow().clone();
-    let mut monitoring_subscription_id: Option<String> = None;
-    let mut monitoring_pending_correlation: Option<String> = None;
-    let mut monitoring_node_id: Option<String> = None;
-    let mut monitoring_retry_blocked = false;
+    let mut panel_subscription_id: Option<String> = None;
+    let mut panel_pending_correlation: Option<String> = None;
+    let mut panel_node_id: Option<String> = None;
+    let mut panel_retry_blocked = false;
+    let mut cpu_subscription_id: Option<String> = None;
+    let mut cpu_pending_correlation: Option<String> = None;
+    let mut cpu_node_id: Option<String> = None;
+    let mut cpu_retry_blocked = false;
     let mut monitoring_counter = 0u64;
     loop {
         tokio::select! {
@@ -626,13 +611,25 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             changed = monitoring_session.active.changed() => {
                 if changed.is_err() { return Err("session ended: monitoring control closed".into()); }
                 monitoring_section = monitoring_session.active.borrow().clone();
-                monitoring_retry_blocked = false;
-                if monitoring_section.as_deref() != Some("cpu") {
-                    if let (Some(subscription_id), Some(node_id)) = (monitoring_subscription_id.take(), monitoring_node_id.as_deref()) {
-                        cancel_cpu_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
+                panel_retry_blocked = false;
+                cpu_retry_blocked = false;
+                if monitoring_section.is_none() {
+                    if let (Some(subscription_id), Some(node_id)) = (panel_subscription_id.take(), panel_node_id.as_deref()) {
+                        cancel_monitoring_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
                     }
-                } else if monitoring_subscription_id.is_none() && monitoring_pending_correlation.is_none() {
-                    ensure_cpu_subscription(&mut socket, app, &entry.id, &mut monitoring_counter, &mut monitoring_pending_correlation).await?;
+                    panel_node_id = None;
+                }
+                if monitoring_section.as_deref() != Some("cpu") {
+                    if let (Some(subscription_id), Some(node_id)) = (cpu_subscription_id.take(), cpu_node_id.as_deref()) {
+                        cancel_monitoring_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
+                    }
+                    cpu_node_id = None;
+                }
+                if monitoring_section.is_some() && panel_subscription_id.is_none() && panel_pending_correlation.is_none() {
+                    ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu.totalusage", &mut monitoring_counter, &mut panel_pending_correlation).await?;
+                }
+                if monitoring_section.as_deref() == Some("cpu") && cpu_subscription_id.is_none() && cpu_pending_correlation.is_none() {
+                    ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu", &mut monitoring_counter, &mut cpu_pending_correlation).await?;
                 }
             }
             _ = ping_next.tick() => {
@@ -674,40 +671,62 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 let message_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
                 if message_type == "subscription.created" {
                     let correlation_id = payload.get("correlation_id").and_then(Value::as_str).unwrap_or("");
-                    if monitoring_pending_correlation.as_deref() == Some(correlation_id) {
-                        monitoring_pending_correlation = None;
+                    let target = if panel_pending_correlation.as_deref() == Some(correlation_id) {
+                        panel_pending_correlation = None;
+                        Some("system.cpu.totalusage")
+                    } else if cpu_pending_correlation.as_deref() == Some(correlation_id) {
+                        cpu_pending_correlation = None;
+                        Some("system.cpu")
+                    } else { None };
+                    if let Some(target) = target {
                         let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("").to_owned();
                         let node_id = payload.get("node_id").and_then(Value::as_str).unwrap_or("").to_owned();
-                        if !subscription_id.is_empty() && !node_id.is_empty() {
-                            if monitoring_section.as_deref() == Some("cpu") {
-                                monitoring_subscription_id = Some(subscription_id);
-                                monitoring_node_id = Some(node_id.clone());
-                                crate::monitoring::publish(app, &entry.id, "created", Some(&node_id), payload.get("payload").cloned().unwrap_or(Value::Null));
+                        let still_wanted = if target == "system.cpu.totalusage" { monitoring_section.is_some() } else { monitoring_section.as_deref() == Some("cpu") };
+                        if !subscription_id.is_empty() && !node_id.is_empty() && still_wanted {
+                            if target == "system.cpu.totalusage" {
+                                panel_subscription_id = Some(subscription_id);
+                                panel_node_id = Some(node_id.clone());
                             } else {
-                                cancel_cpu_subscription(&mut socket, &entry.id, &node_id, &subscription_id, &mut monitoring_counter).await?;
+                                cpu_subscription_id = Some(subscription_id);
+                                cpu_node_id = Some(node_id.clone());
                             }
+                            crate::monitoring::publish(app, &entry.id, target, "created", Some(&node_id), payload.get("payload").cloned().unwrap_or(Value::Null));
+                        } else if !subscription_id.is_empty() && !node_id.is_empty() {
+                            cancel_monitoring_subscription(&mut socket, &entry.id, &node_id, &subscription_id, &mut monitoring_counter).await?;
                         }
                         continue;
                     }
                 }
                 if message_type == "subscription.update" {
                     let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("");
-                    if monitoring_subscription_id.as_deref() == Some(subscription_id) {
-                        crate::monitoring::publish(app, &entry.id, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
+                    let target = if panel_subscription_id.as_deref() == Some(subscription_id) {
+                        Some("system.cpu.totalusage")
+                    } else if cpu_subscription_id.as_deref() == Some(subscription_id) {
+                        Some("system.cpu")
+                    } else { None };
+                    if let Some(target) = target {
+                        crate::monitoring::publish(app, &entry.id, target, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
                     }
                     continue;
                 }
                 if message_type == "subscription.error" {
                     let correlation_id = payload.get("correlation_id").and_then(Value::as_str).unwrap_or("");
                     let subscription_id = payload.pointer("/payload/subscription_id").and_then(Value::as_str).unwrap_or("");
-                    if monitoring_pending_correlation.as_deref() == Some(correlation_id) {
-                        monitoring_pending_correlation = None;
-                        monitoring_retry_blocked = true;
-                        crate::monitoring::publish(app, &entry.id, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
-                    } else if monitoring_subscription_id.as_deref() == Some(subscription_id) {
-                        // A source error does not cancel the server-side subscription.
-                        // Keep its ID so updates can resume after the collector recovers.
-                        crate::monitoring::publish(app, &entry.id, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
+                    let target = if panel_pending_correlation.as_deref() == Some(correlation_id) || panel_subscription_id.as_deref() == Some(subscription_id) {
+                        if panel_pending_correlation.as_deref() == Some(correlation_id) {
+                            panel_pending_correlation = None;
+                            panel_retry_blocked = true;
+                        }
+                        Some("system.cpu.totalusage")
+                    } else if cpu_pending_correlation.as_deref() == Some(correlation_id) || cpu_subscription_id.as_deref() == Some(subscription_id) {
+                        if cpu_pending_correlation.as_deref() == Some(correlation_id) {
+                            cpu_pending_correlation = None;
+                            cpu_retry_blocked = true;
+                        }
+                        Some("system.cpu")
+                    } else { None };
+                    if let Some(target) = target {
+                        crate::monitoring::publish(app, &entry.id, target, "error", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
                     }
                     continue;
                 }
@@ -825,11 +844,13 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
             pending_list = Some((id, tokio::time::Instant::now()));
             queued_list = false;
         }
-        if monitoring_section.as_deref() == Some("cpu")
-            && !monitoring_retry_blocked
-            && monitoring_subscription_id.is_none()
-            && monitoring_pending_correlation.is_none() {
-            ensure_cpu_subscription(&mut socket, app, &entry.id, &mut monitoring_counter, &mut monitoring_pending_correlation).await?;
+        if monitoring_section.is_some() && !panel_retry_blocked
+            && panel_subscription_id.is_none() && panel_pending_correlation.is_none() {
+            ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu.totalusage", &mut monitoring_counter, &mut panel_pending_correlation).await?;
+        }
+        if monitoring_section.as_deref() == Some("cpu") && !cpu_retry_blocked
+            && cpu_subscription_id.is_none() && cpu_pending_correlation.is_none() {
+            ensure_monitoring_subscription(&mut socket, app, &entry.id, "system.cpu", &mut monitoring_counter, &mut cpu_pending_correlation).await?;
         }
         if status_queued && pending_status.is_none() {
             status_counter += 1;
