@@ -46,6 +46,9 @@ export type CpuTelemetry = {
   stealTimeNs: string | null;
   guestTimeNs: string | null;
   guestNiceTimeNs: string | null;
+  forks: string | null;
+  processesRunning: string | null;
+  processesBlocked: string | null;
   perCore: CpuCoreTelemetry[];
   frequency: CpuFrequencyTelemetry[];
   observedAt: string | null;
@@ -69,6 +72,9 @@ const INITIAL: CpuTelemetry = {
   stealTimeNs: null,
   guestTimeNs: null,
   guestNiceTimeNs: null,
+  forks: null,
+  processesRunning: null,
+  processesBlocked: null,
   perCore: [],
   frequency: [],
   observedAt: null,
@@ -173,6 +179,9 @@ export function useHomeCloudCpuMonitoring(
                 stealTimeNs: null,
                 guestTimeNs: null,
                 guestNiceTimeNs: null,
+                forks: null,
+                processesRunning: null,
+                processesBlocked: null,
                 perCore: [],
                 observedAt: null,
                 subscriptionId,
@@ -272,6 +281,9 @@ export function useHomeCloudCpuMonitoring(
             let stealTimeNs = previous.stealTimeNs;
             let guestTimeNs = previous.guestTimeNs;
             let guestNiceTimeNs = previous.guestNiceTimeNs;
+            let forks = previous.forks;
+            let processesRunning = previous.processesRunning;
+            let processesBlocked = previous.processesBlocked;
             let observedAt = previous.observedAt;
             // Group subscriptions publish partial updates from independent collectors.
             // Preserve previously observed cores and merge only fields present in this packet.
@@ -316,6 +328,15 @@ export function useHomeCloudCpuMonitoring(
                   break;
                 case 'system.cpu.guest_nice':
                   guestNiceTimeNs = exactCounter(item.value) ?? guestNiceTimeNs;
+                  break;
+                case 'system.cpu.forks':
+                  forks = exactCounter(item.value) ?? forks;
+                  break;
+                case 'system.cpu.processes.running':
+                  processesRunning = exactCounter(item.value) ?? processesRunning;
+                  break;
+                case 'system.cpu.processes.blocked':
+                  processesBlocked = exactCounter(item.value) ?? processesBlocked;
                   break;
                 case 'system.cpu.core.totalusage': {
                   if (!item.object_id) break;
@@ -363,6 +384,9 @@ export function useHomeCloudCpuMonitoring(
               stealTimeNs,
               guestTimeNs,
               guestNiceTimeNs,
+              forks,
+              processesRunning,
+              processesBlocked,
               perCore,
               observedAt,
               error: null,
