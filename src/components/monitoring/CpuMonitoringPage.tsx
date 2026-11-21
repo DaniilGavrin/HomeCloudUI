@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Activity, Cpu, Gauge, Timer, Zap, Layers, RefreshCw, Network } from 'lucide-react';
+import { Activity, Cpu, Gauge, Timer, Zap, Layers, RefreshCw, Network, GitFork, Play, Pause } from 'lucide-react';
 import type { CpuCoreTelemetry, CpuFrequencyTelemetry, CpuTelemetry } from '../../hooks/useHomeCloudCpuMonitoring';
 import type { CpuTopology, CpuTopologyCore } from '../../hooks/useHomeCloudCpuTopology';
 import { CpuGauge } from './CpuGauge';
@@ -27,6 +27,15 @@ function formatCpuTime(value: string | null): string {
 
 function formatPercent(value: number | null): string {
   return value === null ? '—' : `${value.toFixed(1)}%`;
+}
+
+function formatCounter(value: string | null): string {
+  if (value === null) return '—';
+  try {
+    return BigInt(value).toLocaleString('ru-RU');
+  } catch {
+    return '—';
+  }
 }
 
 function formatFrequency(value: number | null): string {
@@ -217,6 +226,36 @@ export function CpuMonitoringPage({
         <CompactMetric title="Guest Time" value={formatCpuTime(telemetry.guestTimeNs)} icon={<Layers size={14} />} />
         <CompactMetric title="Guest Nice Time" value={formatCpuTime(telemetry.guestNiceTimeNs)} icon={<Layers size={14} />} />
       </div>
+
+      <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Процессы и планировщик CPU">
+        <div className="mb-3 flex items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2">
+            <GitFork size={14} className="text-cyan-100/80" aria-hidden="true" />
+            <h3 className="text-[12px] font-semibold text-white/85">Процессы и планировщик</h3>
+          </div>
+          <span className="text-[10px] text-white/35">Linux scheduler</span>
+        </div>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
+          <CompactMetric
+            className="w-full"
+            title="Создано задач с загрузки"
+            value={formatCounter(telemetry.forks)}
+            icon={<GitFork size={13} />}
+          />
+          <CompactMetric
+            className="w-full"
+            title="Выполняются / готовы"
+            value={formatCounter(telemetry.processesRunning)}
+            icon={<Play size={13} />}
+          />
+          <CompactMetric
+            className="w-full"
+            title="Заблокированы"
+            value={formatCounter(telemetry.processesBlocked)}
+            icon={<Pause size={13} />}
+          />
+        </div>
+      </section>
 
       <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Частоты CPU">
         <div className="mb-3 flex items-center gap-2 px-1">
