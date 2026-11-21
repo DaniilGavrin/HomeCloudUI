@@ -110,11 +110,8 @@ function TopologyCoreCard({ core }: { core: CpuTopologyCore }) {
   ] as const;
   return (
     <article className="min-w-0 rounded-[15px] border border-sky-200/[0.10] bg-white/[0.025] p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex items-center">
         <span className="text-[12px] font-semibold text-white/85">{coreLabel(core.objectId)}</span>
-        <span className={`rounded-full border px-2 py-1 text-[9px] ${core.online === false ? 'border-rose-200/20 bg-rose-300/[0.07] text-rose-100/70' : 'border-emerald-200/20 bg-emerald-300/[0.07] text-emerald-100/75'}`}>
-          {core.online === null ? 'Unknown' : core.online ? 'Online' : 'Offline'}
-        </span>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {fields.map(([label, value]) => (
@@ -159,7 +156,6 @@ function TopologySection({ topology, onRefresh }: { topology: CpuTopology; onRef
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <CompactMetric className="w-full" title="Логических CPU" value={topology.logicalCount?.toString() ?? '—'} icon={<Cpu size={13} />} />
         <CompactMetric className="w-full" title="Физических ядер" value={topology.physicalCoreCount?.toString() ?? '—'} icon={<Layers size={13} />} />
-        <CompactMetric className="w-full" title="Online / Offline" value={topology.onlineCount === null ? '—' : `${topology.onlineCount} / ${topology.offlineCount ?? '—'}`} icon={<Activity size={13} />} />
         <CompactMetric className="w-full" title="Packages" value={topology.packageCount?.toString() ?? '—'} icon={<Layers size={13} />} />
         <CompactMetric className="w-full" title="Dies" value={topology.dieCount?.toString() ?? '—'} icon={<Layers size={13} />} />
         <CompactMetric className="w-full" title="NUMA Nodes" value={topology.numaNodeCount?.toString() ?? '—'} icon={<Network size={13} />} />
@@ -195,21 +191,13 @@ export function CpuMonitoringPage({
   topology: CpuTopology;
   onRefreshTopology: () => void;
 }) {
-  const statusLabel = telemetry.phase === 'streaming' ? 'Online'
-    : telemetry.phase === 'offline' ? 'Offline'
-      : telemetry.phase === 'error' ? 'Ошибка' : 'Подключение';
-
   return (
-    <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" aria-label="Мониторинг CPU">
+    <section className="homecloud-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" aria-label="Мониторинг CPU">
       <header className="flex items-center justify-between px-1 pt-1">
         <div className="flex items-center gap-2">
           <Cpu size={16} className="text-cyan-200" aria-hidden="true" />
           <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-white">CPU</h2>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-white/50">
-          <i className={`h-[6px] w-[6px] rounded-full ${telemetry.phase === 'streaming' ? 'bg-emerald-300 shadow-[0_0_8px_rgba(110,240,190,.5)]' : telemetry.phase === 'error' || telemetry.phase === 'offline' ? 'bg-rose-300' : 'bg-amber-200'}`} />
-          {statusLabel}
-        </span>
       </header>
 
       {telemetry.error && (
