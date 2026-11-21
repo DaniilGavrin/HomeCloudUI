@@ -73,12 +73,13 @@ pub fn homecloud_monitoring_set_active(
 
     let manager = app.state::<MonitoringManager>();
     let mut nodes = manager.nodes.lock().unwrap_or_else(|e| e.into_inner());
-    let node = nodes.entry(server_id).or_insert(ActiveNode {
+    let node = nodes.entry(server_id.clone()).or_insert(ActiveNode {
         section: None,
         sender: None,
         generation: 0,
     });
     node.section = section.clone();
+    crate::diagnostics::log("INFO", &format!("Monitoring active section changed server_id={} section={:?}", server_id, section));
     if let Some(sender) = &node.sender {
         sender.send_replace(section);
     }
@@ -94,6 +95,7 @@ pub fn attach(app: &AppHandle, server_id: &str) -> MonitoringSession {
         sender: None,
         generation: 0,
     });
+    crate::diagnostics::log("INFO", &format!("Monitoring session attached server_id={} section={:?}", server_id, node.section));
     let (sender, active) = watch::channel(node.section.clone());
     node.sender = Some(sender);
     node.generation = generation;
