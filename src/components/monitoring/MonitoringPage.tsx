@@ -4,6 +4,8 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
 import { CpuMonitoringPage } from './CpuMonitoringPage';
 import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
+import { useHomeCloudCpuPanel } from '../../hooks/useHomeCloudCpuPanel';
+import { CpuGauge } from './CpuGauge';
 
 const MONITORING_SECTIONS = [
   { id: 'overview', label: 'Главная' },
@@ -76,7 +78,9 @@ export function MonitoringPage() {
   const sectionScroller = useRef<HTMLDivElement>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
-  const cpuTelemetry = useHomeCloudCpuMonitoring(selectedServer?.id ?? null, selectedServer?.phase ?? 'offline', activeSection);
+  const serverId = selectedServer?.id ?? null;
+  const cpuPanelTelemetry = useHomeCloudCpuPanel(serverId, selectedServer?.phase ?? 'offline');
+  const cpuTelemetry = useHomeCloudCpuMonitoring(serverId, selectedServer?.phase ?? 'offline', activeSection, cpuPanelTelemetry.readyFor);
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -129,9 +133,23 @@ export function MonitoringPage() {
             </header>
 
             <div
-              className="homecloud-glass min-h-[150px] w-full flex-none rounded-[22px] border border-sky-200/[0.13]"
+              className="homecloud-glass flex min-h-[150px] w-full flex-none items-center gap-5 rounded-[22px] border border-sky-200/[0.13] px-5 py-3"
               aria-label="Постоянная панель мониторинга сервера"
-            />
+            >
+              <div className="flex shrink-0 items-center gap-4">
+                <CpuGauge value={cpuPanelTelemetry.totalUsage} />
+                <div className="flex flex-col gap-1">
+                  <span className="text-[12px] font-semibold text-white/85">Загрузка CPU</span>
+                  <span className="text-[11px] tabular-nums text-white/45">
+                    {cpuPanelTelemetry.phase === 'streaming' ? 'Обновление каждую секунду' : cpuPanelTelemetry.phase === 'error' ? 'Ошибка получения данных' : 'Ожидание телеметрии'}
+                  </span>
+                </div>
+              </div>
+              <div className="h-[82px] w-px shrink-0 bg-sky-100/[0.10]" aria-hidden="true" />
+              <div className="flex min-w-0 flex-1 items-center gap-3 text-[11px] text-white/25">
+                Остальные показатели появятся по мере реализации метрик
+              </div>
+            </div>
 
             <nav
               className="homecloud-glass flex min-h-[54px] w-full flex-none items-center gap-2 overflow-hidden rounded-[18px] border border-sky-200/[0.13] px-2 py-[7px]"
