@@ -446,7 +446,10 @@ async fn ensure_monitoring_subscription<S>(
 where S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
     if pending.is_some() { return Ok(()); }
-    let Some(node_id) = crate::monitoring::node_id(app, server_id) else { return Ok(()); };
+    let Some(node_id) = crate::monitoring::node_id(app, server_id) else {
+        crate::diagnostics::log("WARN", &format!("CPU subscription skipped: node_id unavailable server_id={} target={}", server_id, target));
+        return Ok(());
+    };
     *counter = counter.wrapping_add(1);
     let correlation_id = format!("hc-monitoring-{server_id}-{counter}");
     let request = json!({
@@ -714,6 +717,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                         let node_id = payload.get("node_id").and_then(Value::as_str).unwrap_or("").to_owned();
                         let still_wanted = if target == "system.cpu.totalusage" { monitoring_section.is_some() } else { monitoring_section.as_deref() == Some("cpu") };
                         if !subscription_id.is_empty() && !node_id.is_empty() && still_wanted {
+                            crate::diagnostics::log("INFO", &format!("CPU subscription accepted server_id={} target={} subscription_id={} node_id={}", entry.id, target, subscription_id, node_id));
                             if target == "system.cpu.totalusage" {
                                 panel_subscription_id = Some(subscription_id);
                                 panel_node_id = Some(node_id.clone());
@@ -726,7 +730,10 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                             }
                             crate::monitoring::publish(app, &entry.id, target, "created", Some(&node_id), payload.get("payload").cloned().unwrap_or(Value::Null));
                         } else if !subscription_id.is_empty() && !node_id.is_empty() {
+                            crate::diagnostics::log("WARN", &format!("CPU subscription no longer wanted; cancelling server_id={} target={} subscription_id={}", entry.id, target, subscription_id));
                             cancel_monitoring_subscription(&mut socket, &entry.id, &node_id, &subscription_id, &mut monitoring_counter).await?;
+                        } else {
+                            crate::diagnostics::log("ERROR", &format!("CPU subscription.created missing identifiers server_id={} target={} subscription_id_present={} node_id_present={} still_wanted={}", entry.id, target, !subscription_id.is_empty(), !node_id.is_empty(), still_wanted));
                         }
                         continue;
                     }
