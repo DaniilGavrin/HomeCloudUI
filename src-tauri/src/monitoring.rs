@@ -130,7 +130,21 @@ pub fn publish(app: &AppHandle, server_id: &str, kind: &str, node_id: Option<&st
         if let Some(items) = payload.get_mut("items").and_then(Value::as_array_mut) {
             for item in items {
                 let metric = item.get("metric_id").and_then(Value::as_str).unwrap_or("");
-                if metric == "system.cpu.user" || metric == "system.cpu.system" {
+                let is_nanosecond_counter = matches!(
+                    metric,
+                    "system.cpu.user"
+                        | "system.cpu.system"
+                        | "system.cpu.nice"
+                        | "system.cpu.idle"
+                        | "system.cpu.iowait"
+                        | "system.cpu.irq"
+                        | "system.cpu.softirq"
+                        | "system.cpu.steal"
+                        | "system.cpu.guest"
+                        | "system.cpu.guest_nice"
+                        | "system.cpu.core.user"
+                );
+                if is_nanosecond_counter {
                     if let Some(value) = item.get("value").and_then(Value::as_u64) {
                         item["value"] = Value::String(value.to_string());
                     }
