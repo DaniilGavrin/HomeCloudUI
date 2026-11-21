@@ -163,3 +163,23 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
         eprintln!("[HomeCloud Monitoring] Failed to emit telemetry: {error}");
     }
 }
+
+
+#[tauri::command]
+pub async fn homecloud_monitoring_get_topology(
+    app: AppHandle,
+    server_id: String,
+) -> Result<Value, String> {
+    if server_id.trim().is_empty() {
+        return Err("Не указан сервер мониторинга".into());
+    }
+    let exists = {
+        let pool = app.state::<crate::server_pool::ServerPool>();
+        let snapshot = pool.inner.lock().unwrap_or_else(|e| e.into_inner());
+        snapshot.servers.iter().any(|node| node.entry.id == server_id)
+    };
+    if !exists {
+        return Err("Сервер мониторинга не найден".into());
+    }
+    crate::storage::request_cpu_topology(&app, &server_id).await
+}
