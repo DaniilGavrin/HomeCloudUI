@@ -102,7 +102,7 @@ export function CpuMonitoringPage({ telemetry }: { telemetry: CpuTelemetry }) {
         </div>
       )}
 
-      <div className="homecloud-glass flex w-fit max-w-full flex-wrap items-center justify-start gap-3 rounded-[20px] border border-sky-200/[0.13] p-3.5">
+      <div className="homecloud-glass flex w-full max-w-full flex-wrap items-center justify-start gap-3 rounded-[20px] border border-sky-200/[0.13] p-3.5">
         <div className="flex justify-center sm:justify-start">
           <CpuGauge value={telemetry.totalUsage} />
         </div>
