@@ -1,4 +1,5 @@
 mod homecloud_ws;
+mod monitoring;
 mod server_pool;
 mod device_registry;
 mod storage;
@@ -21,6 +22,7 @@ pub fn run() {
         .manage(homecloud_ws::ConnectionManager::default())
         .manage(storage::StorageTransport::default())
         .manage(media_rooms::MediaRooms::default())
+        .manage(monitoring::MonitoringManager::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             shell_security::shell_security_status,
@@ -38,6 +40,7 @@ pub fn run() {
             server_pool::homecloud_pool_update,
             server_pool::homecloud_pool_delete,
             server_pool::homecloud_pool_refresh,
+            monitoring::homecloud_monitoring_set_active,
             device_registry::homecloud_device_registry_status,
             device_registry::homecloud_device_forget,
             device_registry::homecloud_device_rename,
