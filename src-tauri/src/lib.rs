@@ -1,3 +1,4 @@
+mod diagnostics;
 mod homecloud_ws;
 mod monitoring;
 mod server_pool;
@@ -56,6 +57,9 @@ pub fn run() {
             file_transfer::homecloud_hcss_file_operation,
         ])
         .setup(|app| {
+            if let Err(error) = diagnostics::initialize(app) {
+                eprintln!("[HomeCloud Diagnostics] initialization failed: {error}");
+            }
             server_pool::initialize(app.handle()).map_err(std::io::Error::other)?;
             device_registry::initialize(app.handle()).map_err(std::io::Error::other)?;
             device_registry::forget_server(app.handle(), "primary").map_err(std::io::Error::other)?;
