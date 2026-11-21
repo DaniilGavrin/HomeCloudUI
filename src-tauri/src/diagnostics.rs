@@ -24,16 +24,13 @@ pub fn initialize(app: &tauri::App) -> Result<PathBuf, String> {
         let mut slot = path_slot().lock().unwrap_or_else(|e| e.into_inner());
         *slot = Some(path.clone());
     }
-    log("INFO", "diagnostics initialized");
+    log("INFO", &format!("diagnostics initialized path={}", path.display()));
     Ok(path)
 }
 
 pub fn log(level: &str, message: &str) {
-    let path = {
-        let slot = path_slot().lock().unwrap_or_else(|e| e.into_inner());
-        slot.clone()
-    };
-    let Some(path) = path else {
+    let slot = path_slot().lock().unwrap_or_else(|e| e.into_inner());
+    let Some(path) = slot.as_ref() else {
         eprintln!("[HomeCloud Diagnostics][{level}] {message}");
         return;
     };
