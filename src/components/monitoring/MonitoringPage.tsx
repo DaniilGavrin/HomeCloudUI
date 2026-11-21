@@ -7,7 +7,6 @@ import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring
 import { useHomeCloudCpuPanel } from '../../hooks/useHomeCloudCpuPanel';
 import { useHomeCloudCpuTopology } from '../../hooks/useHomeCloudCpuTopology';
 import { CpuGauge } from './CpuGauge';
-import { CpuExtendedSection } from './CpuExtendedSection';
 import { useHomeCloudCpuExtendedMonitoring } from '../../hooks/useHomeCloudCpuExtendedMonitoring';
 
 const MONITORING_SECTIONS = [
@@ -70,10 +69,12 @@ function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuT
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
   if (section === 'cpu') return (
-    <>
-      <CpuMonitoringPage telemetry={cpuTelemetry} topology={cpuTopology} onRefreshTopology={refreshCpuTopology} />
-      <CpuExtendedSection telemetry={cpuExtendedTelemetry} />
-    </>
+    <CpuMonitoringPage
+      telemetry={cpuTelemetry}
+      topology={cpuTopology}
+      onRefreshTopology={refreshCpuTopology}
+      extendedTelemetry={cpuExtendedTelemetry}
+    />
   );
 
   return (
