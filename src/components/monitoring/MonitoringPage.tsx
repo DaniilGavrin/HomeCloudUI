@@ -55,7 +55,7 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section, server, cpuTelemetry }: { section: MonitoringSectionId; server: PoolServer; cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring> }) {
+function MonitoringSectionPage({ section, cpuTelemetry }: { section: MonitoringSectionId; cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring> }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
   if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} />;
@@ -191,7 +191,7 @@ export function MonitoringPage() {
                 exit={{ opacity: 0, x: reduced ? 0 : -8 }}
                 transition={{ duration: reduced ? 0.06 : 0.16 }}
               >
-                <MonitoringSectionPage section={activeSection} server={selectedServer} cpuTelemetry={cpuTelemetry} />
+                <MonitoringSectionPage section={activeSection} cpuTelemetry={cpuTelemetry} />
               </motion.div>
             </AnimatePresence>
           </motion.div>
