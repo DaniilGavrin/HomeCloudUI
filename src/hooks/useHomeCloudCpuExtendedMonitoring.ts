@@ -93,10 +93,6 @@ export function useHomeCloudCpuExtendedMonitoring(
       const target = message.target;
       if (![CSTATE, THROTTLING, INTERRUPTS, CONTEXT_SWITCHES].includes(target)) return;
 
-      const subscriptionId = typeof message.payload.subscription_id === 'string'
-        ? message.payload.subscription_id
-        : null;
-
       if (message.kind === 'created') {
         setTelemetry(previous => {
           if (target === CSTATE) return { ...previous, cstates: [], cstatesError: null };
@@ -148,7 +144,6 @@ export function useHomeCloudCpuExtendedMonitoring(
         if (target === INTERRUPTS) return { ...previous, interrupts: counter ?? previous.interrupts, interruptsError: null, observedAt: value?.observed_at ?? previous.observedAt };
         return { ...previous, contextSwitches: counter ?? previous.contextSwitches, contextSwitchesError: null, observedAt: value?.observed_at ?? previous.observedAt };
       });
-      void subscriptionId;
     }).then(stop => {
       if (disposed) stop();
       else unlisten = stop;
