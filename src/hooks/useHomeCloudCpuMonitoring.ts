@@ -129,10 +129,15 @@ export function useHomeCloudCpuMonitoring(
             && !item.metric_id.startsWith('system.cpu.frequency.')
             && item.metric_id !== 'system.cpu.totalusage'
           );
-          // Prefer the native routing target, but use metric IDs as a fallback.
-          // This keeps telemetry flowing if an update is routed with a stale target.
-          const isFrequency = message.target === 'system.cpu.frequency' || containsFrequencyMetrics;
-          const isCpu = message.target === 'system.cpu' || containsCpuCounters;
+          // The native routing target is authoritative for grouped subscriptions:
+          // system.cpu may legitimately contain frequency metrics as part of its payload.
+          // Use metric IDs only when the target is missing or stale.
+          const isCpu = message.target === 'system.cpu' || (
+            message.target !== 'system.cpu.frequency' && containsCpuCounters
+          );
+          const isFrequency = message.target === 'system.cpu.frequency' || (
+            message.target !== 'system.cpu' && containsFrequencyMetrics
+          );
           if (!isFrequency && !isCpu) return;
 
           if (message.kind === 'created') {
