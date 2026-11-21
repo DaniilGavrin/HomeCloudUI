@@ -273,9 +273,12 @@ export function useHomeCloudCpuMonitoring(
             let guestTimeNs = previous.guestTimeNs;
             let guestNiceTimeNs = previous.guestNiceTimeNs;
             let observedAt = previous.observedAt;
-            // The group subscription includes core.user for every currently present logical CPU.
-            // Rebuild the map per update so hot-removed CPUs do not remain in the UI.
-            const cores = new Map<string, CpuCoreTelemetry>();
+            // Group subscriptions publish partial updates from independent collectors.
+            // Preserve previously observed cores and merge only fields present in this packet.
+            // Rebuilding this map per event would erase cores on frequency/throttling/counter updates.
+            const cores = new Map<string, CpuCoreTelemetry>(
+              previous.perCore.map(core => [core.objectId, { ...core }]),
+            );
 
             for (const item of items) {
               if (typeof item.observed_at === 'string') observedAt = item.observed_at;
