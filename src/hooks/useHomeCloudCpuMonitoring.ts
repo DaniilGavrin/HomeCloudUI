@@ -21,6 +21,10 @@ export type CpuTelemetry = {
   totalUsage: number | null;
   userTimeNs: string | null;
   systemTimeNs: string | null;
+  niceTimeNs: string | null;
+  idleTimeNs: string | null;
+  ioWaitTimeNs: string | null;
+  irqTimeNs: string | null;
   observedAt: string | null;
   subscriptionId: string | null;
   error: string | null;
@@ -31,6 +35,10 @@ const INITIAL: CpuTelemetry = {
   totalUsage: null,
   userTimeNs: null,
   systemTimeNs: null,
+  niceTimeNs: null,
+  idleTimeNs: null,
+  ioWaitTimeNs: null,
+  irqTimeNs: null,
   observedAt: null,
   subscriptionId: null,
   error: null,
@@ -106,6 +114,10 @@ export function useHomeCloudCpuMonitoring(
             let totalUsage = previous.totalUsage;
             let userTimeNs = previous.userTimeNs;
             let systemTimeNs = previous.systemTimeNs;
+            let niceTimeNs = previous.niceTimeNs;
+            let idleTimeNs = previous.idleTimeNs;
+            let ioWaitTimeNs = previous.ioWaitTimeNs;
+            let irqTimeNs = previous.irqTimeNs;
             let observedAt = previous.observedAt;
 
             for (const item of items) {
@@ -117,6 +129,14 @@ export function useHomeCloudCpuMonitoring(
                 userTimeNs = String(item.value);
               } else if (item.metric_id === 'system.cpu.system') {
                 systemTimeNs = String(item.value);
+              } else if (item.metric_id === 'system.cpu.nice') {
+                niceTimeNs = String(item.value);
+              } else if (item.metric_id === 'system.cpu.idle') {
+                idleTimeNs = String(item.value);
+              } else if (item.metric_id === 'system.cpu.iowait') {
+                ioWaitTimeNs = String(item.value);
+              } else if (item.metric_id === 'system.cpu.irq') {
+                irqTimeNs = String(item.value);
               }
             }
 
@@ -127,6 +147,10 @@ export function useHomeCloudCpuMonitoring(
               totalUsage,
               userTimeNs,
               systemTimeNs,
+              niceTimeNs,
+              idleTimeNs,
+              ioWaitTimeNs,
+              irqTimeNs,
               observedAt,
               error: null,
             };
