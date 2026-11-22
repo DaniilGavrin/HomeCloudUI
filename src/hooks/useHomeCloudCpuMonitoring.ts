@@ -209,11 +209,11 @@ export function useHomeCloudCpuMonitoring(
             const subscriptionId = typeof message.payload.subscription_id === 'string'
               ? message.payload.subscription_id
               : null;
-            setTelemetry(previous => ({
+            setTelemetry({
               ...INITIAL,
               phase: 'streaming',
               subscriptionId,
-            }));
+            });
             return;
           }
 
