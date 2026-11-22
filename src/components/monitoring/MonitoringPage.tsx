@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
@@ -58,15 +59,25 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology }: {
+function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology, cpuPerfEnabled, onToggleCpuPerf }: {
   section: MonitoringSectionId;
   cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring>;
   cpuTopology: ReturnType<typeof useHomeCloudCpuTopology>['topology'];
   refreshCpuTopology: () => void;
+  cpuPerfEnabled: boolean;
+  onToggleCpuPerf: (enabled: boolean) => void;
 }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
-  if (section === 'cpu') return <CpuMonitoringPage telemetry={cpuTelemetry} topology={cpuTopology} onRefreshTopology={refreshCpuTopology} />;
+  if (section === 'cpu') return (
+    <CpuMonitoringPage
+      telemetry={cpuTelemetry}
+      topology={cpuTopology}
+      onRefreshTopology={refreshCpuTopology}
+      perfEnabled={cpuPerfEnabled}
+      onTogglePerf={onToggleCpuPerf}
+    />
+  );
 
   return (
     <section
@@ -81,6 +92,8 @@ export function MonitoringPage() {
   const { snapshot, error } = useHomeCloudPool();
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<MonitoringSectionId>('overview');
+  const [cpuPerfEnabled, setCpuPerfEnabled] = useState(false);
+  const [cpuPerfControlError, setCpuPerfControlError] = useState<string | null>(null);
   const sectionScroller = useRef<HTMLDivElement>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
@@ -88,6 +101,24 @@ export function MonitoringPage() {
   const cpuPanelTelemetry = useHomeCloudCpuPanel(serverId, selectedServer?.phase ?? 'offline');
   const cpuTelemetry = useHomeCloudCpuMonitoring(serverId, selectedServer?.phase ?? 'offline', activeSection, cpuPanelTelemetry.readyFor);
   const cpuTopologyState = useHomeCloudCpuTopology(serverId, activeSection === 'cpu', selectedServer?.phase ?? 'offline');
+
+  useEffect(() => {
+    if (!serverId || activeSection !== 'cpu') {
+      setCpuPerfEnabled(false);
+      setCpuPerfControlError(null);
+    }
+  }, [serverId, activeSection]);
+
+  const toggleCpuPerf = async (enabled: boolean) => {
+    if (!serverId) return;
+    setCpuPerfControlError(null);
+    try {
+      await invoke('homecloud_monitoring_set_perf_enabled', { serverId, enabled });
+      setCpuPerfEnabled(enabled);
+    } catch (error) {
+      setCpuPerfControlError(String(error));
+    }
+  };
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -222,6 +253,8 @@ export function MonitoringPage() {
                   cpuTelemetry={cpuTelemetry}
                   cpuTopology={cpuTopologyState.topology}
                   refreshCpuTopology={cpuTopologyState.refresh}
+                  cpuPerfEnabled={cpuPerfEnabled}
+                  onToggleCpuPerf={toggleCpuPerf}
                 />
               </motion.div>
             </AnimatePresence>
