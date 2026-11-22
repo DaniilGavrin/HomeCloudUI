@@ -46,7 +46,7 @@ export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: strin
           }
           if (message.kind !== 'update') return;
           const items = Array.isArray(message.payload.items)
-            ? message.payload.items as Array<{ metric_id?: unknown; value?: unknown }>
+            ? message.payload.items as Array<{ metric_id?: unknown; value?: unknown; status?: unknown }>
             : [];
           const item = items.find(candidate => candidate.metric_id === 'system.cpu.totalusage');
           if (!item) return;
