@@ -465,7 +465,7 @@ export function CpuMonitoringPage({
           </button>
         </div>
         {perfControlError && <p role="alert" className="mb-2 text-[10px] text-rose-100/80">{perfControlError}</p>}
-        {telemetry.perfError && <p role="alert" className="mb-2 text-[10px] text-rose-100/80">{telemetry.perfError}</p>}
+        {perfEnabled && telemetry.perfError && <p role="alert" className="mb-2 text-[10px] text-rose-100/80">{telemetry.perfError}</p>}
         {perfEnabled ? (
           perfMetrics.some(metric => metric.value !== null && metric.value !== undefined) ? (
             <MetricFamilySection title="PMU metrics" metrics={perfMetrics} />
