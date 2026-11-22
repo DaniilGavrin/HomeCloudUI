@@ -362,7 +362,9 @@ export function CpuMonitoringPage({
   const visibleCores = telemetry.perCore.filter(core =>
     core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null,
   );
-  const topologyByCPU = new Map(topology.cores.map(core => [core.objectId, core]));
+  const topologyByCPU = new Map<string, CpuTopologyCore>(
+    topology.cores.map(core => [core.objectId, core] as const),
+  );
   const coreGroups = new Map<string, { title: string | null; cores: CpuCoreTelemetry[] }>();
   for (const core of visibleCores) {
     const topologyCore = topologyByCPU.get(core.objectId);
