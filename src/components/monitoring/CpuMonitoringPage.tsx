@@ -98,7 +98,7 @@ function CompactMetric({
 
 function coreLabel(objectId: string): string {
   const match = objectId.match(/(\d+)/);
-  return match ? `CPU ${match[1]}` : objectId;
+  return match ? `Logical CPU ${match[1]}` : objectId;
 }
 
 function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: string }) {
@@ -486,6 +486,12 @@ export function CpuMonitoringPage({
             PMU выключен. Счётчики открываются только после явного включения.
           </p>
         )}
+      </section>
+
+      <section className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <p className="text-[10px] leading-5 text-white/40">
+          Исторические точки для CPU пока не предоставляются узлом. Здесь отображаются текущие измерения и накопительные счётчики; графики появятся после подключения хранения истории Monitoring.
+        </p>
       </section>
 
       <TopologySection topology={topology} onRefresh={onRefreshTopology} />
