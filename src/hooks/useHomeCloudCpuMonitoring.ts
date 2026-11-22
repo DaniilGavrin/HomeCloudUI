@@ -170,6 +170,10 @@ function isUsable(item: MetricItem): boolean {
   return (status === 'valid' || status === 'partial') && item.value !== undefined && item.value !== null;
 }
 
+function invalidQuality(quality: CpuMetricQuality, reason: string): CpuMetricQuality {
+  return { ...quality, status: 'invalid', reason, errorCode: quality.errorCode ?? 'SOURCE_INVALID_DATA' };
+}
+
 function frequencyMetric(item: MetricItem): boolean {
   return item.metric_id.startsWith('system.cpu.frequency.')
     || item.metric_id === 'system.cpu.frequency'
@@ -333,8 +337,12 @@ export function useHomeCloudCpuMonitoring(
             );
 
             for (const item of items) {
-              const qualityItem = qualityOf(item);
-              quality[metricKey(item)] = qualityItem;
+              let qualityItem = qualityOf(item);
+              const key = metricKey(item);
+              if (item.status === 'valid' && (item.value === undefined || item.value === null)) {
+                qualityItem = invalidQuality(qualityItem, 'missing_value');
+              }
+              quality[key] = qualityItem;
               if (typeof item.observed_at === 'string') observedAt = item.observed_at;
 
               if (frequencyMetric(item)) {
@@ -346,7 +354,11 @@ export function useHomeCloudCpuMonitoring(
                     userTimeNs: null,
                     frequencyHz: null,
                   };
-                  core.frequencyHz = isUsable(item) ? finiteNumber(item.value) : core.frequencyHz;
+                  if (isUsable(item)) {
+                    const value = finiteNumber(item.value);
+                    if (value === null || value < 0) quality[key] = invalidQuality(qualityItem, 'invalid_frequency_value');
+                    else core.frequencyHz = value;
+                  }
                   cores.set(item.object_id, core);
                   continue;
                 }
@@ -361,11 +373,24 @@ export function useHomeCloudCpuMonitoring(
                 };
                 const numeric = isUsable(item) ? finiteNumber(item.value) : null;
                 switch (item.metric_id) {
-                  case 'system.cpu.frequency.current': if (isUsable(item)) policy.currentHz = numeric; break;
-                  case 'system.cpu.frequency.min': if (isUsable(item)) policy.minHz = numeric; break;
-                  case 'system.cpu.frequency.max': if (isUsable(item)) policy.maxHz = numeric; break;
-                  case 'system.cpu.frequency.base': if (isUsable(item)) policy.baseHz = numeric; break;
-                  case 'system.cpu.frequency.governor': if (isUsable(item)) policy.governor = typeof item.value === 'string' ? item.value : null; break;
+                  case 'system.cpu.frequency.current':
+                  case 'system.cpu.frequency.min':
+                  case 'system.cpu.frequency.max':
+                  case 'system.cpu.frequency.base':
+                    if (isUsable(item)) {
+                      if (numeric === null || numeric < 0) quality[key] = invalidQuality(qualityItem, 'invalid_frequency_value');
+                      else if (item.metric_id === 'system.cpu.frequency.current') policy.currentHz = numeric;
+                      else if (item.metric_id === 'system.cpu.frequency.min') policy.minHz = numeric;
+                      else if (item.metric_id === 'system.cpu.frequency.max') policy.maxHz = numeric;
+                      else policy.baseHz = numeric;
+                    }
+                    break;
+                  case 'system.cpu.frequency.governor':
+                    if (isUsable(item)) {
+                      if (typeof item.value === 'string') policy.governor = item.value;
+                      else quality[key] = invalidQuality(qualityItem, 'invalid_governor_value');
+                    }
+                    break;
                 }
                 policies.set(item.object_id, policy);
                 continue;
@@ -397,48 +422,47 @@ export function useHomeCloudCpuMonitoring(
                   continue;
                 }
                 switch (item.metric_id) {
-                  case 'system.cpu.totalusage':
-                    totalUsage = finitePercent(item.value) ?? totalUsage;
+                  case 'system.cpu.totalusage': {
+                    const value = finitePercent(item.value);
+                    if (value === null) quality[key] = invalidQuality(qualityItem, 'percentage_out_of_range_or_non_finite');
+                    else totalUsage = value;
                     break;
+                  }
                   case 'system.cpu.user':
-                    userTimeNs = exactCounter(item.value) ?? userTimeNs;
-                    break;
                   case 'system.cpu.system':
-                    systemTimeNs = exactCounter(item.value) ?? systemTimeNs;
-                    break;
                   case 'system.cpu.nice':
-                    niceTimeNs = exactCounter(item.value) ?? niceTimeNs;
-                    break;
                   case 'system.cpu.idle':
-                    idleTimeNs = exactCounter(item.value) ?? idleTimeNs;
-                    break;
                   case 'system.cpu.iowait':
-                    ioWaitTimeNs = exactCounter(item.value) ?? ioWaitTimeNs;
-                    break;
                   case 'system.cpu.irq':
-                    irqTimeNs = exactCounter(item.value) ?? irqTimeNs;
-                    break;
                   case 'system.cpu.softirq':
-                    softIrqTimeNs = exactCounter(item.value) ?? softIrqTimeNs;
-                    break;
                   case 'system.cpu.steal':
-                    stealTimeNs = exactCounter(item.value) ?? stealTimeNs;
-                    break;
                   case 'system.cpu.guest':
-                    guestTimeNs = exactCounter(item.value) ?? guestTimeNs;
-                    break;
                   case 'system.cpu.guest_nice':
-                    guestNiceTimeNs = exactCounter(item.value) ?? guestNiceTimeNs;
-                    break;
                   case 'system.cpu.forks':
-                    forks = exactCounter(item.value) ?? forks;
-                    break;
                   case 'system.cpu.processes.running':
-                    processesRunning = exactCounter(item.value) ?? processesRunning;
+                  case 'system.cpu.processes.blocked': {
+                    const value = exactCounter(item.value);
+                    if (value === null) {
+                      quality[key] = invalidQuality(qualityItem, 'invalid_integer_counter');
+                      break;
+                    }
+                    switch (item.metric_id) {
+                      case 'system.cpu.user': userTimeNs = value; break;
+                      case 'system.cpu.system': systemTimeNs = value; break;
+                      case 'system.cpu.nice': niceTimeNs = value; break;
+                      case 'system.cpu.idle': idleTimeNs = value; break;
+                      case 'system.cpu.iowait': ioWaitTimeNs = value; break;
+                      case 'system.cpu.irq': irqTimeNs = value; break;
+                      case 'system.cpu.softirq': softIrqTimeNs = value; break;
+                      case 'system.cpu.steal': stealTimeNs = value; break;
+                      case 'system.cpu.guest': guestTimeNs = value; break;
+                      case 'system.cpu.guest_nice': guestNiceTimeNs = value; break;
+                      case 'system.cpu.forks': forks = value; break;
+                      case 'system.cpu.processes.running': processesRunning = value; break;
+                      case 'system.cpu.processes.blocked': processesBlocked = value; break;
+                    }
                     break;
-                  case 'system.cpu.processes.blocked':
-                    processesBlocked = exactCounter(item.value) ?? processesBlocked;
-                    break;
+                  }
                   case 'system.cpu.core.totalusage':
                   case 'system.cpu.core.usage': {
                     if (!item.object_id) break;
@@ -448,7 +472,9 @@ export function useHomeCloudCpuMonitoring(
                       userTimeNs: null,
                       frequencyHz: null,
                     };
-                    core.totalUsage = finitePercent(item.value) ?? core.totalUsage;
+                    const value = finitePercent(item.value);
+                    if (value === null) quality[key] = invalidQuality(qualityItem, 'percentage_out_of_range_or_non_finite');
+                    else core.totalUsage = value;
                     cores.set(item.object_id, core);
                     break;
                   }
@@ -460,7 +486,9 @@ export function useHomeCloudCpuMonitoring(
                       userTimeNs: null,
                       frequencyHz: null,
                     };
-                    core.userTimeNs = exactCounter(item.value) ?? core.userTimeNs;
+                    const value = exactCounter(item.value);
+                    if (value === null) quality[key] = invalidQuality(qualityItem, 'invalid_integer_counter');
+                    else core.userTimeNs = value;
                     cores.set(item.object_id, core);
                     break;
                   }
