@@ -115,7 +115,12 @@ function parseTopology(items: MetricItem[]): Omit<CpuTopology, 'phase' | 'error'
     dieCount: number('die_count'),
     numaNodeCount: number('numa_node_count'),
     architecture: string('architecture'),
-    cores: [...cpus.values()].sort((a, b) => a.objectId.localeCompare(b.objectId, undefined, { numeric: true })),
+    cores: [...cpus.values()]
+      .filter(cpu => cpu.online !== null || cpu.coreId !== null || cpu.packageId !== null
+        || cpu.dieId !== null || cpu.numaNodeId !== null || cpu.vendor !== null
+        || cpu.model !== null || cpu.family !== null || cpu.modelId !== null
+        || cpu.stepping !== null || cpu.features.length > 0)
+      .sort((a, b) => a.objectId.localeCompare(b.objectId, undefined, { numeric: true })),
     observedAt,
   };
 }
