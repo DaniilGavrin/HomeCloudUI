@@ -359,6 +359,23 @@ export function CpuMonitoringPage({
   const frequencyQuality = Object.values(telemetry.quality).filter(item =>
     item.metricId === 'system.cpu.frequency' || item.metricId.startsWith('system.cpu.frequency.') || item.metricId === 'system.cpu.core.frequency',
   );
+  const visibleCores = telemetry.perCore.filter(core =>
+    core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null,
+  );
+  const topologyByCPU = new Map(topology.cores.map(core => [core.objectId, core]));
+  const coreGroups = new Map<string, { title: string | null; cores: CpuCoreTelemetry[] }>();
+  for (const core of visibleCores) {
+    const topologyCore = topologyByCPU.get(core.objectId);
+    const groupKey = topologyCore?.coreId !== null && topologyCore?.coreId !== undefined
+      ? `package:${topologyCore.packageId ?? 'unknown'}:core:${topologyCore.coreId}`
+      : `logical:${core.objectId}`;
+    const title = topologyCore?.coreId !== null && topologyCore?.coreId !== undefined
+      ? `Package ${topologyCore.packageId ?? '—'} · Core ${topologyCore.coreId}`
+      : null;
+    const group = coreGroups.get(groupKey) ?? { title, cores: [] };
+    group.cores.push(core);
+    coreGroups.set(groupKey, group);
+  }
 
   return (
     <section className="homecloud-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" aria-label="Мониторинг CPU">
@@ -437,10 +454,18 @@ export function CpuMonitoringPage({
             </div>
             <span className="text-[10px] tabular-nums text-white/40">{telemetry.perCore.length} CPU</span>
           </div>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
-            {telemetry.perCore.filter(core => core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null).map(core => {
-              const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId)?.status;
-              return <CoreMetricCard key={core.objectId} core={core} quality={quality} />;
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-2">
+            {[...coreGroups.entries()].map(([groupKey, group]) => {
+              const cards = group.cores.map(core => {
+                const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId)?.status;
+                return <CoreMetricCard key={core.objectId} core={core} quality={quality} />;
+              });
+              return group.title ? (
+                <section key={groupKey} className="min-w-0 rounded-[16px] border border-cyan-200/[0.10] bg-cyan-300/[0.025] p-2.5">
+                  <h4 className="mb-2 px-1 text-[10px] font-semibold text-cyan-100/70">{group.title}</h4>
+                  <div className="grid grid-cols-1 gap-2">{cards}</div>
+                </section>
+              ) : <div key={groupKey}>{cards}</div>;
             })}
           </div>
         </section>
