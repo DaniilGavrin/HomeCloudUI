@@ -351,8 +351,8 @@ export function CpuMonitoringPage({
     'system.cpu.runqueue',
     'system.cpu.interrupts',
     'system.cpu.context_switches',
-    'system.cpu.temperature',
   ].includes(metric.metricId));
+  const cpuTemperature = extra.filter(metric => metric.metricId === 'system.cpu.temperature');
 
   const frequencyQuality = Object.values(telemetry.quality).filter(item =>
     item.metricId === 'system.cpu.frequency' || item.metricId.startsWith('system.cpu.frequency.') || item.metricId === 'system.cpu.core.frequency',
@@ -451,6 +451,7 @@ export function CpuMonitoringPage({
       <MetricFamilySection title="C-states и энергосбережение" metrics={cstates} />
       <MetricFamilySection title="Throttling и ограничения CPU" metrics={throttling} />
       <MetricFamilySection title="Scheduler и системные счётчики" metrics={scheduler} />
+      <MetricFamilySection title="Температура CPU" metrics={cpuTemperature} />
       <MetricFamilySection title="CPU Pressure" metrics={pressure} />
 
       <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Аппаратные счётчики CPU">
