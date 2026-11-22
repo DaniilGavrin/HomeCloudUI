@@ -272,7 +272,7 @@ function finiteNumber(value: unknown): number | null {
 }
 
 function metricTitle(metricId: string): string {
-  return metricId.replace(/^system\.cpu\./, '').replaceAll('.', ' · ');
+  return metricId.replace(/^system\.cpu\./, '').replace(/\\./g, ' · ');
 }
 
 function MetricFamilySection({
@@ -311,7 +311,7 @@ function MetricFamilySection({
       ) : (
         <p className="px-1 py-2 text-[10px] text-white/40">
           {firstUnavailable
-            ? `${statusLabel(firstUnavailable.status)}${firstUnavailable.reason ? ` · ${firstUnavailable.reason.replaceAll('_', ' ')}` : ''}`
+            ? `${statusLabel(firstUnavailable.status)}${firstUnavailable.reason ? ` · ${firstUnavailable.reason.replace(/_/g, ' ')}` : ''}`
             : emptyLabel}
         </p>
       )}
@@ -422,7 +422,7 @@ export function CpuMonitoringPage({
         </section>
       ) : frequencyQuality.length > 0 && (
         <p className="px-1 text-[10px] text-white/40">
-          Частоты CPU: {statusLabel(frequencyQuality[0].status)}{frequencyQuality[0].reason ? ` · ${frequencyQuality[0].reason.replaceAll('_', ' ')}` : ''}
+          Частоты CPU: {statusLabel(frequencyQuality[0].status)}{frequencyQuality[0].reason ? ` · ${frequencyQuality[0].reason.replace(/_/g, ' ')}` : ''}
         </p>
       )}
 
