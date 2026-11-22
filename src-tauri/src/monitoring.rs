@@ -147,21 +147,7 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
     // sample for the always-visible server panel instead of maintaining a
     // second Backend subscription while the CPU page is open.
     let panel_payload = if target == "system.cpu" {
-        match kind {
-            "update" => {
-                let mut panel = payload.clone();
-                if let Some(items) = panel.get_mut("items").and_then(Value::as_array_mut) {
-                    items.retain(|item| item.get("metric_id").and_then(Value::as_str) == Some("system.cpu.totalusage"));
-                }
-                if panel.get("items").and_then(Value::as_array).is_some_and(|items| !items.is_empty()) {
-                    Some(panel)
-                } else {
-                    None
-                }
-            }
-            "created" | "error" => Some(payload.clone()),
-            _ => None,
-        }
+        shared_cpu_panel_payload(kind, &payload)
     } else {
         None
     };
@@ -175,6 +161,24 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
     emit_monitoring_event(app, server_id, target, kind, node_id, payload);
     if let Some(panel_payload) = panel_payload {
         emit_monitoring_event(app, server_id, "system.cpu.totalusage", kind, node_id, panel_payload);
+    }
+}
+
+fn shared_cpu_panel_payload(kind: &str, payload: &Value) -> Option<Value> {
+    match kind {
+        "update" => {
+            let mut panel = payload.clone();
+            if let Some(items) = panel.get_mut("items").and_then(Value::as_array_mut) {
+                items.retain(|item| item.get("metric_id").and_then(Value::as_str) == Some("system.cpu.totalusage"));
+            }
+            if panel.get("items").and_then(Value::as_array).is_some_and(|items| !items.is_empty()) {
+                Some(panel)
+            } else {
+                None
+            }
+        }
+        "created" | "error" => Some(payload.clone()),
+        _ => None,
     }
 }
 
@@ -218,4 +222,43 @@ pub async fn homecloud_monitoring_get_topology(
         return Err("Сервер мониторинга не найден".into());
     }
     crate::storage::request_cpu_topology(&app, &server_id).await
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn shared_cpu_panel_update_contains_only_total_usage() {
+        let payload = json!({
+            "subscription_id": "sub-cpu",
+            "items": [
+                {"metric_id": "system.cpu.totalusage", "value": 42.5},
+                {"metric_id": "system.cpu.user", "value": "123456"},
+                {"metric_id": "system.cpu.frequency.current", "value": 2400000000}
+            ]
+        });
+        let panel = shared_cpu_panel_payload("update", &payload).expect("panel sample");
+        let items = panel["items"].as_array().expect("items array");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["metric_id"], "system.cpu.totalusage");
+        assert_eq!(panel["subscription_id"], "sub-cpu");
+    }
+
+    #[test]
+    fn shared_cpu_panel_omits_updates_without_total_usage() {
+        let payload = json!({
+            "items": [{"metric_id": "system.cpu.user", "value": "123456"}]
+        });
+        assert!(shared_cpu_panel_payload("update", &payload).is_none());
+    }
+
+    #[test]
+    fn shared_cpu_panel_forwards_subscription_lifecycle_events() {
+        let payload = json!({"subscription_id": "sub-cpu"});
+        assert_eq!(shared_cpu_panel_payload("created", &payload), Some(payload.clone()));
+        assert_eq!(shared_cpu_panel_payload("error", &payload), Some(payload));
+    }
 }
