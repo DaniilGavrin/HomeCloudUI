@@ -461,8 +461,9 @@ export function CpuMonitoringPage({
           <button
             type="button"
             aria-pressed={perfEnabled}
+            disabled={!perfEnabled && telemetry.phase !== 'streaming'}
             onClick={() => onTogglePerf(!perfEnabled)}
-            className={`min-h-[30px] rounded-[9px] border px-3 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50 ${perfEnabled ? 'border-amber-200/20 bg-amber-200/[0.07] text-amber-100/80 hover:bg-amber-200/[0.12]' : 'border-cyan-200/20 bg-cyan-300/[0.07] text-cyan-100/85 hover:bg-cyan-300/[0.12]'}`}
+            className={`min-h-[30px] rounded-[9px] border px-3 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50 disabled:cursor-not-allowed disabled:opacity-40 ${perfEnabled ? 'border-amber-200/20 bg-amber-200/[0.07] text-amber-100/80 hover:bg-amber-200/[0.12]' : 'border-cyan-200/20 bg-cyan-300/[0.07] text-cyan-100/85 hover:bg-cyan-300/[0.12]'}`}
           >
             {perfEnabled ? 'Отключить PMU' : 'Включить PMU'}
           </button>
