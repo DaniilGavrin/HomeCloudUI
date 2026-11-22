@@ -276,7 +276,7 @@ pub async fn homecloud_monitoring_get_topology(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::shared_cpu_panel_payload;
     use serde_json::json;
     use serde_json::json;
 
