@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 type MetricItem = {
@@ -122,9 +122,11 @@ function parseTopology(items: MetricItem[]): Omit<CpuTopology, 'phase' | 'error'
 
 export function useHomeCloudCpuTopology(serverId: string | null, active: boolean, serverPhase: string) {
   const [topology, setTopology] = useState<CpuTopology>(INITIAL);
+  const requestGeneration = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!serverId || !active) return;
+    const generation = ++requestGeneration.current;
     if (serverPhase === 'offline' || serverPhase === 'error') {
       setTopology({ ...INITIAL, phase: 'offline' });
       return;
@@ -132,15 +134,19 @@ export function useHomeCloudCpuTopology(serverId: string | null, active: boolean
     setTopology(previous => ({ ...previous, phase: 'loading', error: null }));
     try {
       const result = await invoke<MetricItem[]>('homecloud_monitoring_get_topology', { serverId });
+      if (generation !== requestGeneration.current) return;
       if (!Array.isArray(result)) throw new Error('Backend вернул некорректный формат топологии CPU');
       setTopology({ ...parseTopology(result), phase: 'ready', error: null });
     } catch (error) {
-      setTopology(previous => ({ ...previous, phase: 'error', error: String(error) }));
+      if (generation === requestGeneration.current) {
+        setTopology(previous => ({ ...previous, phase: 'error', error: String(error) }));
+      }
     }
   }, [serverId, active, serverPhase]);
 
   useEffect(() => {
     if (!serverId || !active) {
+      requestGeneration.current += 1;
       setTopology(INITIAL);
       return;
     }
