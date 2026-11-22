@@ -42,6 +42,7 @@ pub fn run() {
             server_pool::homecloud_pool_delete,
             server_pool::homecloud_pool_refresh,
             monitoring::homecloud_monitoring_set_active,
+            monitoring::homecloud_monitoring_set_perf_enabled,
             monitoring::homecloud_monitoring_get_topology,
             device_registry::homecloud_device_registry_status,
             device_registry::homecloud_device_forget,
