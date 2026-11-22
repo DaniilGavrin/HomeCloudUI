@@ -101,7 +101,7 @@ function coreLabel(objectId: string): string {
   return match ? `CPU ${match[1]}` : objectId;
 }
 
-function CoreMetricCard({ core }: { core: CpuCoreTelemetry }) {
+function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: string }) {
   const usage = core.totalUsage;
   return (
     <article className="min-w-0 rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] p-3">
@@ -113,6 +113,7 @@ function CoreMetricCard({ core }: { core: CpuCoreTelemetry }) {
         aria-label={`Загрузка ${coreLabel(core.objectId)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usage ?? 0}>
         <div className="h-full rounded-full bg-cyan-300 transition-[width] duration-500" style={{ width: `${usage ?? 0}%` }} />
       </div>
+      {quality && quality !== 'valid' && <p className="mt-1 text-[9px] text-amber-100/65">{statusLabel(quality)}</p>}
       {core.frequencyHz !== null && (
         <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-white/45">
           <span>Частота</span>
@@ -129,7 +130,7 @@ function CoreMetricCard({ core }: { core: CpuCoreTelemetry }) {
   );
 }
 
-function FrequencyCard({ policy }: { policy: CpuFrequencyTelemetry }) {
+function FrequencyCard({ policy, quality }: { policy: CpuFrequencyTelemetry; quality?: string }) {
   const rows = [
     ['Текущая', formatFrequency(policy.currentHz)],
     ['Минимальная', formatFrequency(policy.minHz)],
@@ -144,6 +145,7 @@ function FrequencyCard({ policy }: { policy: CpuFrequencyTelemetry }) {
           {policy.governor ?? 'Governor —'}
         </span>
       </div>
+      {quality && quality !== 'valid' && <p className="mb-2 text-[9px] text-amber-100/65">{statusLabel(quality)}</p>}
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         {rows.map(([label, value]) => (
           <div key={label} className="min-w-0">
@@ -371,7 +373,7 @@ export function CpuMonitoringPage({
       )}
 
       <div className="homecloud-glass flex w-full max-w-full flex-wrap items-center justify-start gap-3 rounded-[20px] border border-sky-200/[0.13] p-3.5">
-        <div className="flex justify-center sm:justify-start"><CpuGauge value={telemetry.totalUsage} /></div>
+        <div className="flex justify-center sm:justify-start"><CpuGauge value={telemetry.totalUsage} statusLabel={qualityFor(telemetry, 'system.cpu.totalusage')?.status !== 'valid' ? statusLabel(qualityFor(telemetry, 'system.cpu.totalusage')?.status ?? 'unknown') : undefined} /></div>
         {availableTimeMetrics.map(([metricId, title, value, icon]) => {
           const quality = qualityFor(telemetry, metricId);
           return (
@@ -384,6 +386,7 @@ export function CpuMonitoringPage({
             />
           );
         })}
+        {availableTimeMetrics.length > 0 && <p className="w-full px-1 text-[9px] text-white/30">Накопительное CPU time с момента запуска системы</p>}
       </div>
 
       {(telemetry.forks !== null || telemetry.processesRunning !== null || telemetry.processesBlocked !== null) && (
@@ -408,7 +411,10 @@ export function CpuMonitoringPage({
             <span className="ml-auto text-[10px] text-white/35">Hz → GHz</span>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-2">
-            {telemetry.frequency.map(policy => <FrequencyCard key={policy.objectId} policy={policy} />)}
+            {telemetry.frequency.map(policy => {
+              const quality = frequencyQuality.find(item => item.objectId === policy.objectId && item.status !== 'valid')?.status;
+              return <FrequencyCard key={policy.objectId} policy={policy} quality={quality} />;
+            })}
           </div>
         </section>
       ) : frequencyQuality.length > 0 && (
@@ -427,7 +433,10 @@ export function CpuMonitoringPage({
             <span className="text-[10px] tabular-nums text-white/40">{telemetry.perCore.length} CPU</span>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
-            {telemetry.perCore.filter(core => core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null).map(core => <CoreMetricCard key={core.objectId} core={core} />)}
+            {telemetry.perCore.filter(core => core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null).map(core => {
+              const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId)?.status;
+              return <CoreMetricCard key={core.objectId} core={core} quality={quality} />;
+            })}
           </div>
         </section>
       )}
