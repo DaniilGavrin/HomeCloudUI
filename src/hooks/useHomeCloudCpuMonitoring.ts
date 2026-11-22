@@ -77,8 +77,6 @@ export type CpuTelemetry = {
   quality: Record<string, CpuMetricQuality>;
   observedAt: string | null;
   subscriptionId: string | null;
-  frequencyObservedAt: string | null;
-  frequencyError: string | null;
   error: string | null;
 };
 
@@ -104,8 +102,6 @@ const INITIAL: CpuTelemetry = {
   quality: {},
   observedAt: null,
   subscriptionId: null,
-  frequencyObservedAt: null,
-  frequencyError: null,
   error: null,
 };
 
@@ -422,8 +418,6 @@ export function useHomeCloudCpuMonitoring(
               additionalMetrics: [...additional.values()],
               quality,
               observedAt,
-              frequencyObservedAt: items.find(frequencyMetric)?.observed_at ?? previous.frequencyObservedAt,
-              frequencyError: null,
               error: null,
             };
           });
