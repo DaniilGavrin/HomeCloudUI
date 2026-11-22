@@ -229,6 +229,7 @@ pub async fn homecloud_monitoring_get_topology(
 mod tests {
     use super::*;
     use serde_json::json;
+    use serde_json::json;
 
     #[test]
     fn shared_cpu_panel_update_contains_only_total_usage() {
