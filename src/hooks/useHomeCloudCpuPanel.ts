@@ -17,7 +17,7 @@ const EVENT = 'homecloud:monitoring';
 
 function finitePercent(value: unknown): number | null {
   const parsed = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
-  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
 }
 
 export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: string): CpuPanelTelemetry {
@@ -50,8 +50,13 @@ export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: strin
             : [];
           const item = items.find(candidate => candidate.metric_id === 'system.cpu.totalusage');
           if (!item) return;
-          const value = finitePercent(item.value);
-          if (value !== null) setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: value }));
+          const status = typeof item.status === 'string' ? item.status : 'valid';
+          const value = status === 'valid' || status === 'partial' ? finitePercent(item.value) : null;
+          if (value !== null) {
+            setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: value }));
+          } else if (status !== 'valid' && status !== 'partial') {
+            setTelemetry(previous => ({ ...previous, phase: 'streaming' }));
+          }
         });
         if (disposed) { stop(); return; }
         unlisten = stop;
