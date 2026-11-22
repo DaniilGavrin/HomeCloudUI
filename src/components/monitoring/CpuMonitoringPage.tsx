@@ -317,10 +317,16 @@ export function CpuMonitoringPage({
   telemetry,
   topology,
   onRefreshTopology,
+  perfEnabled,
+  onTogglePerf,
+  perfControlError,
 }: {
   telemetry: CpuTelemetry;
   topology: CpuTopology;
   onRefreshTopology: () => void;
+  perfEnabled: boolean;
+  onTogglePerf: (enabled: boolean) => void;
+  perfControlError: string | null;
 }) {
   const timeMetrics = [
     ['system.cpu.user', 'User Time', telemetry.userTimeNs, <Timer size={14} />],
@@ -339,6 +345,8 @@ export function CpuMonitoringPage({
   const cstates = extra.filter(metric => metric.metricId === 'system.cpu.idle.cstate' || metric.metricId.startsWith('system.cpu.idle.cstate.'));
   const throttling = extra.filter(metric => metric.metricId === 'system.cpu.throttling' || metric.metricId.startsWith('system.cpu.throttling.'));
   const pressure = extra.filter(metric => metric.metricId.startsWith('system.cpu.pressure.'));
+  const perfMetrics = extra.filter(metric => metric.metricId.startsWith('system.cpu.perf.'));
+  const perfStatus = perfMetrics.find(metric => metric.status !== 'valid' && metric.status !== 'partial');
   const scheduler = extra.filter(metric => [
     'system.cpu.runqueue',
     'system.cpu.interrupts',
@@ -440,6 +448,40 @@ export function CpuMonitoringPage({
       <MetricFamilySection title="Throttling и ограничения CPU" metrics={throttling} />
       <MetricFamilySection title="Scheduler и системные счётчики" metrics={scheduler} />
       <MetricFamilySection title="CPU Pressure" metrics={pressure} />
+
+      <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Аппаратные счётчики CPU">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-cyan-100/80" aria-hidden="true" />
+            <h3 className="text-[12px] font-semibold text-white/85">Аппаратные счётчики PMU</h3>
+          </div>
+          <button
+            type="button"
+            aria-pressed={perfEnabled}
+            onClick={() => onTogglePerf(!perfEnabled)}
+            className={`min-h-[30px] rounded-[9px] border px-3 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/50 ${perfEnabled ? 'border-amber-200/20 bg-amber-200/[0.07] text-amber-100/80 hover:bg-amber-200/[0.12]' : 'border-cyan-200/20 bg-cyan-300/[0.07] text-cyan-100/85 hover:bg-cyan-300/[0.12]'}`}
+          >
+            {perfEnabled ? 'Отключить PMU' : 'Включить PMU'}
+          </button>
+        </div>
+        {perfControlError && <p role="alert" className="mb-2 text-[10px] text-rose-100/80">{perfControlError}</p>}
+        {telemetry.perfError && <p role="alert" className="mb-2 text-[10px] text-rose-100/80">{telemetry.perfError}</p>}
+        {perfEnabled ? (
+          perfMetrics.some(metric => metric.value !== null && metric.value !== undefined) ? (
+            <MetricFamilySection title="PMU metrics" metrics={perfMetrics} />
+          ) : (
+            <p className="px-1 py-2 text-[10px] text-white/40">
+              {perfStatus
+                ? `${statusLabel(perfStatus.status)}${perfStatus.reason ? ` · ${perfStatus.reason.replace(/_/g, ' ')}` : ''}`
+                : 'Ожидание аппаратных счётчиков. Доступность зависит от CPU, ядра и разрешений perf_event.'}
+            </p>
+          )
+        ) : (
+          <p className="px-1 py-2 text-[10px] text-white/40">
+            PMU выключен. Счётчики открываются только после явного включения.
+          </p>
+        )}
+      </section>
 
       <TopologySection topology={topology} onRefresh={onRefreshTopology} />
 
