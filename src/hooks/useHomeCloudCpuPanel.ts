@@ -58,7 +58,7 @@ export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: strin
           const value = status === 'valid' || status === 'partial' ? finitePercent(item.value) : null;
           if (value !== null) {
             setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: value }));
-          } else if (status !== 'valid' && status !== 'partial') {
+          } else {
             setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: null }));
           }
         });
