@@ -305,7 +305,30 @@ export function useHomeCloudCpuMonitoring(
               }
 
               if (KNOWN_METRICS.has(item.metric_id)) {
-                if (!isUsable(item)) continue;
+                if (!isUsable(item)) {
+                  if (item.object_id && (
+                    item.metric_id === 'system.cpu.core.totalusage'
+                    || item.metric_id === 'system.cpu.core.usage'
+                    || item.metric_id === 'system.cpu.core.user'
+                  )) {
+                    const core = cores.get(item.object_id);
+                    if (core && (item.reason === 'cpu_offline' || item.reason === 'not_present')) {
+                      if (item.metric_id === 'system.cpu.core.user') core.userTimeNs = null;
+                      else core.totalUsage = null;
+                      if (item.reason === 'not_present' || item.reason === 'cpu_offline') {
+                        core.totalUsage = null;
+                        core.userTimeNs = null;
+                        core.frequencyHz = null;
+                      }
+                      if (core.totalUsage === null && core.userTimeNs === null && core.frequencyHz === null) {
+                        cores.delete(item.object_id);
+                      } else {
+                        cores.set(item.object_id, core);
+                      }
+                    }
+                  }
+                  continue;
+                }
                 switch (item.metric_id) {
                   case 'system.cpu.totalusage':
                     totalUsage = finitePercent(item.value) ?? totalUsage;
