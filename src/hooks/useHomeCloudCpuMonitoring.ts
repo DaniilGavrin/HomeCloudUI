@@ -215,7 +215,7 @@ export function useHomeCloudCpuMonitoring(
                 perfSubscriptionId: subscriptionId,
                 perfError: null,
                 additionalMetrics: previous.additionalMetrics.filter(item => !item.metricId.startsWith('system.cpu.perf.')),
-                quality: Object.fromEntries(Object.entries(previous.quality).filter(([key]) => !key.startsWith('system.cpu.perf.|'))),
+                quality: Object.fromEntries(Object.entries(previous.quality).filter(([key]) => !key.startsWith('system.cpu.perf.'))),
               }));
               return;
             }
