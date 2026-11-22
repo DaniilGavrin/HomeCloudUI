@@ -628,7 +628,7 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                 monitoring_section = monitoring_session.active.borrow().clone();
                 panel_retry_blocked = false;
                 cpu_retry_blocked = false;
-                if monitoring_section.is_none() {
+                if monitoring_section.is_none() || monitoring_section.as_deref() == Some("cpu") {
                     if let (Some(subscription_id), Some(node_id)) = (panel_subscription_id.take(), panel_node_id.as_deref()) {
                         cancel_monitoring_subscription(&mut socket, &entry.id, node_id, &subscription_id, &mut monitoring_counter).await?;
                     }
