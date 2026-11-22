@@ -1,4 +1,4 @@
-export function CpuGauge({ value }: { value: number | null }) {
+export function CpuGauge({ value, statusLabel }: { value: number | null; statusLabel?: string }) {
   const radius = 43;
   const circumference = 2 * Math.PI * radius;
   const progress = value === null ? 0 : Math.max(0, Math.min(100, value));
@@ -22,6 +22,7 @@ export function CpuGauge({ value }: { value: number | null }) {
           <span className="ml-0.5 text-[17px] text-white/65">%</span>
         </span>
         <span className="mt-2 text-[10px] font-medium uppercase tracking-[0.13em] text-white/45">CPU</span>
+        {statusLabel && <span className="mt-1 text-[8px] text-amber-100/65">{statusLabel}</span>}
       </div>
     </div>
   );
