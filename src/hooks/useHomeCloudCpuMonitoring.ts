@@ -203,7 +203,7 @@ export function useHomeCloudCpuMonitoring(
       try {
         const stop = await listen<MonitoringEvent>(EVENT, event => {
           const message = event.payload;
-          if (message.server_id !== serverId || message.target !== 'system.cpu') return;
+          if (disposed || message.server_id !== serverId || message.target !== 'system.cpu') return;
 
           if (message.kind === 'created') {
             const subscriptionId = typeof message.payload.subscription_id === 'string'
