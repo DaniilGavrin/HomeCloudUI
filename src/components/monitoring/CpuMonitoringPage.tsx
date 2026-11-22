@@ -199,6 +199,10 @@ function TopologyCoreCard({ core }: { core: CpuTopologyCore }) {
 
 function TopologySection({ topology, onRefresh }: { topology: CpuTopology; onRefresh: () => void }) {
   const firstCpu = topology.cores[0];
+  const hasTopology = topology.cores.length > 0 || topology.logicalCount !== null
+    || topology.onlineCount !== null || topology.physicalCoreCount !== null
+    || topology.packageCount !== null || topology.architecture !== null;
+  if (!hasTopology && topology.phase !== 'loading' && topology.phase !== 'error') return null;
   const summary = [
     ['Логических CPU', topology.logicalCount, <Cpu size={13} />],
     ['Online CPU', topology.onlineCount, <Activity size={13} />],
@@ -278,43 +282,31 @@ function metricTitle(metricId: string): string {
 function MetricFamilySection({
   title,
   metrics,
-  emptyLabel,
 }: {
   title: string;
   metrics: CpuAdditionalMetric[];
-  emptyLabel: string;
 }) {
   if (metrics.length === 0) return null;
-  const available = metrics.filter(metric =>
-    metric.value !== null && metric.value !== undefined && (metric.status === 'valid' || metric.status === 'partial'),
-  );
-  const firstUnavailable = metrics.find(metric => metric.status !== 'valid' && metric.status !== 'partial');
+  const available = metrics.filter(metric => metric.value !== null && metric.value !== undefined);
+  if (available.length === 0) return null;
   return (
     <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5">
       <div className="mb-3 flex items-center gap-2 px-1">
         <Activity size={14} className="text-cyan-100/80" aria-hidden="true" />
         <h3 className="text-[12px] font-semibold text-white/85">{title}</h3>
       </div>
-      {available.length > 0 ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
-          {available.map(metric => (
-            <CompactMetric
-              key={`${metric.metricId}|${metric.objectId ?? ''}|${metric.windowMS ?? ''}`}
-              className="w-full"
-              title={`${metricTitle(metric.metricId)}${metric.objectId ? ` · ${metric.objectId}` : ''}${metric.windowMS ? ` · ${metric.windowMS / 1000}s` : ''}`}
-              value={metricValue(metric)}
-              icon={<Activity size={13} />}
-              status={metric.status}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="px-1 py-2 text-[10px] text-white/40">
-          {firstUnavailable
-            ? `${statusLabel(firstUnavailable.status)}${firstUnavailable.reason ? ` · ${firstUnavailable.reason.replace(/_/g, ' ')}` : ''}`
-            : emptyLabel}
-        </p>
-      )}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
+        {available.map(metric => (
+          <CompactMetric
+            key={`${metric.metricId}|${metric.objectId ?? ''}|${metric.windowMS ?? ''}`}
+            className="w-full"
+            title={`${metricTitle(metric.metricId)}${metric.objectId ? ` · ${metric.objectId}` : ''}${metric.windowMS ? ` · ${metric.windowMS / 1000}s` : ''}`}
+            value={metricValue(metric)}
+            icon={<Activity size={13} />}
+            status={metric.status}
+          />
+        ))}
+      </div>
     </section>
   );
 }
@@ -372,11 +364,12 @@ export function CpuMonitoringPage({
         <div role="alert" className="rounded-[12px] border border-rose-300/20 bg-rose-400/[0.06] px-3 py-2 text-[11px] leading-5 text-rose-100/85">{telemetry.error}</div>
       )}
 
+      {(telemetry.totalUsage !== null || availableTimeMetrics.length > 0) && (
       <div className="homecloud-glass flex w-full max-w-full flex-wrap items-center justify-start gap-3 rounded-[20px] border border-sky-200/[0.13] p-3.5">
-        <div className="flex justify-center sm:justify-start"><CpuGauge value={telemetry.totalUsage} statusLabel={(() => {
+        {telemetry.totalUsage !== null && <div className="flex justify-center sm:justify-start"><CpuGauge value={telemetry.totalUsage} statusLabel={(() => {
           const quality = qualityFor(telemetry, 'system.cpu.totalusage');
           return quality && quality.status !== 'valid' ? statusLabel(quality.status) : undefined;
-        })()} /></div>
+        })()} /></div>}
         {availableTimeMetrics.map(([metricId, title, value, icon]) => {
           const quality = qualityFor(telemetry, metricId);
           return (
@@ -391,6 +384,7 @@ export function CpuMonitoringPage({
         })}
         {availableTimeMetrics.length > 0 && <p className="w-full px-1 text-[9px] text-white/30">Накопительное CPU time с момента запуска системы</p>}
       </div>
+      )}
 
       {(telemetry.forks !== null || telemetry.processesRunning !== null || telemetry.processesBlocked !== null) && (
         <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Процессы и планировщик CPU">
@@ -420,11 +414,7 @@ export function CpuMonitoringPage({
             })}
           </div>
         </section>
-      ) : frequencyQuality.length > 0 && (
-        <p className="px-1 text-[10px] text-white/40">
-          Частоты CPU: {statusLabel(frequencyQuality[0].status)}{frequencyQuality[0].reason ? ` · ${frequencyQuality[0].reason.replace(/_/g, ' ')}` : ''}
-        </p>
-      )}
+      ) : null}
 
       {telemetry.perCore.some(core => core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null) && (
         <section className="homecloud-glass rounded-[20px] border border-sky-200/[0.13] p-3.5" aria-label="Мониторинг отдельных ядер CPU">
@@ -444,10 +434,10 @@ export function CpuMonitoringPage({
         </section>
       )}
 
-      <MetricFamilySection title="C-states и энергосбережение" metrics={cstates} emptyLabel="C-states не обнаружены" />
-      <MetricFamilySection title="Throttling и ограничения CPU" metrics={throttling} emptyLabel="Счётчики throttling недоступны" />
-      <MetricFamilySection title="Scheduler и системные счётчики" metrics={scheduler} emptyLabel="Дополнительные счётчики недоступны" />
-      <MetricFamilySection title="CPU Pressure" metrics={pressure} emptyLabel="CPU Pressure не предоставляется платформой" />
+      <MetricFamilySection title="C-states и энергосбережение" metrics={cstates} />
+      <MetricFamilySection title="Throttling и ограничения CPU" metrics={throttling} />
+      <MetricFamilySection title="Scheduler и системные счётчики" metrics={scheduler} />
+      <MetricFamilySection title="CPU Pressure" metrics={pressure} />
 
       <TopologySection topology={topology} onRefresh={onRefreshTopology} />
 
