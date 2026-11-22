@@ -19,6 +19,8 @@ const SECTIONS: &[&str] = &[
 struct ActiveNode {
     section: Option<String>,
     sender: Option<watch::Sender<Option<String>>>,
+    perf_enabled: bool,
+    perf_sender: Option<watch::Sender<bool>>,
     generation: u64,
 }
 
@@ -33,6 +35,7 @@ pub struct MonitoringSession {
     server_id: String,
     generation: u64,
     pub active: watch::Receiver<Option<String>>,
+    pub perf_enabled: watch::Receiver<bool>,
 }
 
 impl Drop for MonitoringSession {
@@ -42,6 +45,7 @@ impl Drop for MonitoringSession {
         if let Some(node) = nodes.get_mut(&self.server_id) {
             if node.generation == self.generation {
                 node.sender = None;
+                node.perf_sender = None;
             }
         }
     }
@@ -76,13 +80,53 @@ pub fn homecloud_monitoring_set_active(
     let node = nodes.entry(server_id.clone()).or_insert(ActiveNode {
         section: None,
         sender: None,
+        perf_enabled: false,
+        perf_sender: None,
         generation: 0,
     });
     node.section = section.clone();
+    if section.as_deref() != Some("cpu") {
+        node.perf_enabled = false;
+        if let Some(sender) = &node.perf_sender {
+            sender.send_replace(false);
+        }
+    }
     crate::diagnostics::log("INFO", &format!("Monitoring active section changed server_id={} section={:?}", server_id, section));
     if let Some(sender) = &node.sender {
         sender.send_replace(section);
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn homecloud_monitoring_set_perf_enabled(
+    app: AppHandle,
+    server_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    if server_id.trim().is_empty() {
+        return Err("Не указан сервер мониторинга".into());
+    }
+    let exists = {
+        let pool = app.state::<crate::server_pool::ServerPool>();
+        let snapshot = pool.inner.lock().unwrap_or_else(|e| e.into_inner());
+        snapshot.servers.iter().any(|node| node.entry.id == server_id)
+    };
+    if !exists {
+        return Err("Сервер мониторинга не найден".into());
+    }
+
+    let manager = app.state::<MonitoringManager>();
+    let mut nodes = manager.nodes.lock().unwrap_or_else(|e| e.into_inner());
+    let node = nodes.get_mut(&server_id).ok_or("Сессия Monitoring не активна")?;
+    if enabled && node.section.as_deref() != Some("cpu") {
+        return Err("PMU можно включить только на экране CPU".into());
+    }
+    node.perf_enabled = enabled;
+    if let Some(sender) = &node.perf_sender {
+        sender.send_replace(enabled);
+    }
+    crate::diagnostics::log("INFO", &format!("Monitoring CPU PMU changed server_id={} enabled={}", server_id, enabled));
     Ok(())
 }
 
@@ -97,13 +141,16 @@ pub fn attach(app: &AppHandle, server_id: &str) -> MonitoringSession {
     });
     crate::diagnostics::log("INFO", &format!("Monitoring session attached server_id={} section={:?}", server_id, node.section));
     let (sender, active) = watch::channel(node.section.clone());
+    let (perf_sender, perf_enabled) = watch::channel(node.perf_enabled);
     node.sender = Some(sender);
+    node.perf_sender = Some(perf_sender);
     node.generation = generation;
     MonitoringSession {
         app: app.clone(),
         server_id: server_id.to_owned(),
         generation,
         active,
+        perf_enabled,
     }
 }
 
