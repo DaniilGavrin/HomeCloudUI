@@ -37,11 +37,11 @@ export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: strin
           const message = event.payload;
           if (disposed || message.server_id !== serverId || message.target !== 'system.cpu.totalusage') return;
           if (message.kind === 'created') {
-            setTelemetry(previous => ({ ...previous, phase: 'streaming' }));
+            setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: null }));
             return;
           }
           if (message.kind === 'error') {
-            setTelemetry(previous => ({ ...previous, phase: 'error' }));
+            setTelemetry(previous => ({ ...previous, phase: 'error', totalUsage: null }));
             return;
           }
           if (message.kind !== 'update') return;
@@ -55,7 +55,7 @@ export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: strin
           if (value !== null) {
             setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: value }));
           } else if (status !== 'valid' && status !== 'partial') {
-            setTelemetry(previous => ({ ...previous, phase: 'streaming' }));
+            setTelemetry(previous => ({ ...previous, phase: 'streaming', totalUsage: null }));
           }
         });
         if (disposed) { stop(); return; }
