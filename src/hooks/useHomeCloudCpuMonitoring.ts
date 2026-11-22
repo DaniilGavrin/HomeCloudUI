@@ -174,6 +174,27 @@ function invalidQuality(quality: CpuMetricQuality, reason: string): CpuMetricQua
   return { ...quality, status: 'invalid', reason, errorCode: quality.errorCode ?? 'SOURCE_INVALID_DATA' };
 }
 
+function normalizeAdditionalValue(
+  item: MetricItem,
+  previousValue: unknown,
+  qualityItem: CpuMetricQuality,
+): { value: unknown; quality: CpuMetricQuality } {
+  if (!isUsable(item)) return { value: previousValue ?? null, quality: qualityItem };
+  if (item.unit === 'ns' || item.unit === 'count') {
+    const value = exactCounter(item.value);
+    return value === null
+      ? { value: previousValue ?? null, quality: invalidQuality(qualityItem, 'invalid_integer_counter') }
+      : { value, quality: qualityItem };
+  }
+  if (item.unit === 'percent') {
+    const value = finitePercent(item.value);
+    return value === null
+      ? { value: previousValue ?? null, quality: invalidQuality(qualityItem, 'percentage_out_of_range_or_non_finite') }
+      : { value, quality: qualityItem };
+  }
+  return { value: item.value, quality: qualityItem };
+}
+
 function frequencyMetric(item: MetricItem): boolean {
   return item.metric_id.startsWith('system.cpu.frequency.')
     || item.metric_id === 'system.cpu.frequency'
@@ -251,12 +272,14 @@ export function useHomeCloudCpuMonitoring(
                 }), { ...item }]),
               );
               for (const item of items) {
+                const key = metricKey(item);
                 const qualityItem = qualityOf(item);
-                quality[metricKey(item)] = qualityItem;
-                additional.set(metricKey(item), {
-                  ...qualityItem,
-                  value: isUsable(item) ? item.value : additional.get(metricKey(item))?.value ?? null,
-                  unit: item.unit ?? additional.get(metricKey(item))?.unit ?? null,
+                const normalized = normalizeAdditionalValue(item, additional.get(key)?.value, qualityItem);
+                quality[key] = normalized.quality;
+                additional.set(key, {
+                  ...normalized.quality,
+                  value: normalized.value,
+                  unit: item.unit ?? additional.get(key)?.unit ?? null,
                 });
               }
               return {
@@ -498,10 +521,12 @@ export function useHomeCloudCpuMonitoring(
 
               // Keep extended CPU metrics as typed samples. They are rendered
               // by family below, while status/reason/source remain available.
-              additional.set(metricKey(item), {
-                ...qualityItem,
-                value: isUsable(item) ? item.value : additional.get(metricKey(item))?.value ?? null,
-                unit: item.unit ?? additional.get(metricKey(item))?.unit ?? null,
+              const normalized = normalizeAdditionalValue(item, additional.get(key)?.value, qualityItem);
+              quality[key] = normalized.quality;
+              additional.set(key, {
+                ...normalized.quality,
+                value: normalized.value,
+                unit: item.unit ?? additional.get(key)?.unit ?? null,
               });
             }
 
