@@ -124,53 +124,68 @@ pub fn node_id(app: &AppHandle, server_id: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_id: Option<&str>, payload: Value) {
-    let mut payload = payload;
-    // Keep cumulative nanosecond counters exact across the Rust -> JavaScript
-    // boundary. UI formatting uses BigInt rather than lossy JS Number values.
+pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_id: Option<&str>, mut payload: Value) {
+    // Preserve exact integer counters across the Rust -> JavaScript boundary.
+    // Tauri events are decoded as JS Numbers, which cannot represent every u64.
     if kind == "update" {
         if let Some(items) = payload.get_mut("items").and_then(Value::as_array_mut) {
             for item in items {
-                let metric = item.get("metric_id").and_then(Value::as_str).unwrap_or("");
-                let is_nanosecond_counter = matches!(
-                    metric,
-                    "system.cpu.user"
-                        | "system.cpu.system"
-                        | "system.cpu.nice"
-                        | "system.cpu.idle"
-                        | "system.cpu.iowait"
-                        | "system.cpu.irq"
-                        | "system.cpu.softirq"
-                        | "system.cpu.steal"
-                        | "system.cpu.guest"
-                        | "system.cpu.guest_nice"
-                        | "system.cpu.core.user"
-                );
-                if is_nanosecond_counter {
-                    if let Some(value) = item.get("value").and_then(Value::as_u64) {
-                        item["value"] = Value::String(value.to_string());
-                    }
+                let unit = item.get("unit").and_then(Value::as_str).unwrap_or("");
+                if unit != "ns" && unit != "count" {
+                    continue;
+                }
+                if let Some(value) = item.get("value").and_then(Value::as_u64) {
+                    item["value"] = Value::String(value.to_string());
+                } else if let Some(value) = item.get("value").and_then(Value::as_i64) {
+                    item["value"] = Value::String(value.to_string());
                 }
             }
         }
     }
-    if target == "system.cpu" || target == "system.cpu.frequency" || target == "system.cpu.totalusage" {
-        let summary = payload.get("items").and_then(Value::as_array).map(|items| {
-            items.iter().map(|item| json!({
-                "metric_id": item.get("metric_id").and_then(Value::as_str).unwrap_or(""),
-                "object_id": item.get("object_id").and_then(Value::as_str),
-            })).collect::<Vec<_>>()
-        }).unwrap_or_default();
+
+    // The base system.cpu group already contains totalusage. Reuse that
+    // sample for the always-visible server panel instead of maintaining a
+    // second Backend subscription while the CPU page is open.
+    let panel_payload = if target == "system.cpu" {
+        match kind {
+            "update" => {
+                let mut panel = payload.clone();
+                if let Some(items) = panel.get_mut("items").and_then(Value::as_array_mut) {
+                    items.retain(|item| item.get("metric_id").and_then(Value::as_str) == Some("system.cpu.totalusage"));
+                }
+                if panel.get("items").and_then(Value::as_array).is_some_and(|items| !items.is_empty()) {
+                    Some(panel)
+                } else {
+                    None
+                }
+            }
+            "created" | "error" => Some(payload.clone()),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    if kind != "update" {
         crate::diagnostics::log(
-            "INFO",
-            &format!(
-                "CPU emit server_id={} kind={} target={} subscription_id={} items={:?}",
-                server_id, kind, target,
-                payload.get("subscription_id").and_then(Value::as_str).unwrap_or(""),
-                summary,
-            ),
+            if kind == "error" { "ERROR" } else { "INFO" },
+            &format!("Monitoring event server_id={} target={} kind={}", server_id, target, kind),
         );
     }
+    emit_monitoring_event(app, server_id, target, kind, node_id, payload);
+    if let Some(panel_payload) = panel_payload {
+        emit_monitoring_event(app, server_id, "system.cpu.totalusage", kind, node_id, panel_payload);
+    }
+}
+
+fn emit_monitoring_event(
+    app: &AppHandle,
+    server_id: &str,
+    target: &str,
+    kind: &str,
+    node_id: Option<&str>,
+    payload: Value,
+) {
     let event = json!({
         "server_id": server_id,
         "kind": kind,
@@ -178,19 +193,13 @@ pub fn publish(app: &AppHandle, server_id: &str, target: &str, kind: &str, node_
         "node_id": node_id,
         "payload": payload,
     });
-    match app.emit(EVENT, event) {
-        Ok(()) if target.starts_with("system.cpu") => crate::diagnostics::log(
-            "INFO",
-            &format!("Tauri event emitted server_id={} target={} kind={}", server_id, target, kind),
-        ),
-        Ok(()) => {}
-        Err(error) => crate::diagnostics::log(
+    if let Err(error) = app.emit(EVENT, event) {
+        crate::diagnostics::log(
             "ERROR",
-            &format!("Tauri event emit failed server_id={} target={} kind={} error={}", server_id, target, kind, error),
-        ),
+            &format!("Monitoring event emit failed server_id={} target={} kind={} error={}", server_id, target, kind, error),
+        );
     }
 }
-
 
 #[tauri::command]
 pub async fn homecloud_monitoring_get_topology(
