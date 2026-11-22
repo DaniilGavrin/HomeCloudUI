@@ -35,7 +35,7 @@ export function useHomeCloudCpuPanel(serverId: string | null, serverPhase: strin
       try {
         const stop = await listen<MonitoringEvent>(EVENT, event => {
           const message = event.payload;
-          if (message.server_id !== serverId || message.target !== 'system.cpu.totalusage') return;
+          if (disposed || message.server_id !== serverId || message.target !== 'system.cpu.totalusage') return;
           if (message.kind === 'created') {
             setTelemetry(previous => ({ ...previous, phase: 'streaming' }));
             return;
