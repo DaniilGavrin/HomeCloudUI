@@ -107,12 +107,14 @@ function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: s
     <article className="min-w-0 rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="truncate text-[12px] font-semibold text-white/85">{coreLabel(core.objectId)}</span>
-        <span className="shrink-0 text-[13px] font-semibold tabular-nums text-cyan-100">{formatPercent(usage)}</span>
+        {usage !== null && <span className="shrink-0 text-[13px] font-semibold tabular-nums text-cyan-100">{formatPercent(usage)}</span>}
       </div>
-      <div className="mt-2 h-[5px] overflow-hidden rounded-full bg-white/[0.08]" role="meter"
-        aria-label={`Загрузка ${coreLabel(core.objectId)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usage ?? 0}>
-        <div className="h-full rounded-full bg-cyan-300 transition-[width] duration-500" style={{ width: `${usage ?? 0}%` }} />
-      </div>
+      {usage !== null && (
+        <div className="mt-2 h-[5px] overflow-hidden rounded-full bg-white/[0.08]" role="meter"
+          aria-label={`Загрузка ${coreLabel(core.objectId)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usage}>
+          <div className="h-full rounded-full bg-cyan-300 transition-[width] duration-500" style={{ width: `${usage}%` }} />
+        </div>
+      )}
       {quality && quality !== 'valid' && <p className="mt-1 text-[9px] text-amber-100/65">{statusLabel(quality)}</p>}
       {core.frequencyHz !== null && (
         <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-white/45">
@@ -136,14 +138,12 @@ function FrequencyCard({ policy, quality }: { policy: CpuFrequencyTelemetry; qua
     ['Минимальная', formatFrequency(policy.minHz)],
     ['Максимальная', formatFrequency(policy.maxHz)],
     ['Базовая', formatFrequency(policy.baseHz)],
-  ] as const;
+  ].filter(([, value]) => value !== '—');
   return (
     <article className="min-w-0 rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] p-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <span className="text-[12px] font-semibold text-white/85">{policy.objectId}</span>
-        <span className="rounded-full border border-cyan-200/15 bg-cyan-300/[0.07] px-2 py-1 text-[10px] text-cyan-100/80">
-          {policy.governor ?? 'Governor —'}
-        </span>
+        {policy.governor && <span className="rounded-full border border-cyan-200/15 bg-cyan-300/[0.07] px-2 py-1 text-[10px] text-cyan-100/80">{policy.governor}</span>}
       </div>
       {quality && quality !== 'valid' && <p className="mb-2 text-[9px] text-amber-100/65">{statusLabel(quality)}</p>}
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -164,7 +164,7 @@ function TopologyCoreCard({ core }: { core: CpuTopologyCore }) {
     ['Package', core.packageId],
     ['Die', core.dieId],
     ['NUMA', core.numaNodeId],
-  ] as const;
+  ].filter(([, value]) => value !== null);
   return (
     <article className="min-w-0 rounded-[15px] border border-sky-200/[0.10] bg-white/[0.025] p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -437,7 +437,11 @@ export function CpuMonitoringPage({
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
             {telemetry.perCore.filter(core => core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null).map(core => {
-              const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId)?.status;
+              const quality = [
+                qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId),
+                qualityFor(telemetry, 'system.cpu.core.user', core.objectId),
+                qualityFor(telemetry, 'system.cpu.core.frequency', core.objectId),
+              ].find(item => item && item.status !== 'valid')?.status;
               return <CoreMetricCard key={core.objectId} core={core} quality={quality} />;
             })}
           </div>
