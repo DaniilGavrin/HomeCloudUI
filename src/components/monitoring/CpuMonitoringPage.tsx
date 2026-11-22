@@ -439,11 +439,7 @@ export function CpuMonitoringPage({
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
             {telemetry.perCore.filter(core => core.totalUsage !== null || core.userTimeNs !== null || core.frequencyHz !== null).map(core => {
-              const quality = [
-                qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId),
-                qualityFor(telemetry, 'system.cpu.core.user', core.objectId),
-                qualityFor(telemetry, 'system.cpu.core.frequency', core.objectId),
-              ].find(item => item && item.status !== 'valid')?.status;
+              const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId)?.status;
               return <CoreMetricCard key={core.objectId} core={core} quality={quality} />;
             })}
           </div>
