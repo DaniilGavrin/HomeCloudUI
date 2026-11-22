@@ -740,21 +740,14 @@ async fn run_secondary_session(app: &AppHandle, entry: &ServerEntry, url: &str, 
                     } else if cpu_subscription_id.as_deref() == Some(subscription_id) {
                         Some("system.cpu")
                     } else { None };
-                    let items = payload.pointer("/payload/items").and_then(Value::as_array);
-                    let summary = items.map(|items| items.iter().map(|item| json!({
-                        "metric_id": item.get("metric_id").and_then(Value::as_str).unwrap_or(""),
-                        "object_id": item.get("object_id").and_then(Value::as_str),
-                    })).collect::<Vec<_>>()).unwrap_or_default();
                     if let Some(target) = target {
-                        crate::diagnostics::log(
-                            "INFO",
-                            &format!("CPU subscription.update server_id={} subscription_id={} routed_target={} items={:?}", entry.id, subscription_id, target, summary),
-                        );
-                        crate::monitoring::publish(app, &entry.id, target, "update", payload.get("node_id").and_then(Value::as_str), payload.get("payload").cloned().unwrap_or(Value::Null));
-                    } else {
-                        crate::diagnostics::log(
-                            "WARN",
-                            &format!("CPU subscription.update not routed server_id={} subscription_id={} items={:?}", entry.id, subscription_id, summary),
+                        crate::monitoring::publish(
+                            app,
+                            &entry.id,
+                            target,
+                            "update",
+                            payload.get("node_id").and_then(Value::as_str),
+                            payload.get("payload").cloned().unwrap_or(Value::Null),
                         );
                     }
                     continue;
