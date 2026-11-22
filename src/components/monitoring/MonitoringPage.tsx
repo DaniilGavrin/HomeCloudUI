@@ -97,12 +97,42 @@ export function MonitoringPage() {
   const [cpuPerfEnabled, setCpuPerfEnabled] = useState(false);
   const [cpuPerfControlError, setCpuPerfControlError] = useState<string | null>(null);
   const sectionScroller = useRef<HTMLDivElement>(null);
+  const lastTopologySyncKey = useRef<string | null>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
   const serverId = selectedServer?.id ?? null;
   const cpuPanelTelemetry = useHomeCloudCpuPanel(serverId, selectedServer?.phase ?? 'offline');
   const cpuTelemetry = useHomeCloudCpuMonitoring(serverId, selectedServer?.phase ?? 'offline', activeSection, cpuPanelTelemetry.readyFor);
   const cpuTopologyState = useHomeCloudCpuTopology(serverId, activeSection === 'cpu', selectedServer?.phase ?? 'offline');
+
+  const liveCoreIDs = cpuTelemetry.perCore.map(core => core.objectId).sort().join('|');
+  const topologyCoreIDs = cpuTopologyState.topology.cores
+    .filter(core => core.online !== false)
+    .map(core => core.objectId)
+    .sort()
+    .join('|');
+
+  useEffect(() => {
+    lastTopologySyncKey.current = null;
+  }, [serverId, activeSection]);
+
+  useEffect(() => {
+    if (!serverId || activeSection !== 'cpu' || cpuTelemetry.phase !== 'streaming'
+      || cpuTopologyState.topology.phase !== 'ready' || !liveCoreIDs) return;
+    const syncKey = `${serverId}:${liveCoreIDs}`;
+    if (topologyCoreIDs !== liveCoreIDs && lastTopologySyncKey.current !== syncKey) {
+      lastTopologySyncKey.current = syncKey;
+      void cpuTopologyState.refresh();
+    }
+  }, [
+    serverId,
+    activeSection,
+    cpuTelemetry.phase,
+    liveCoreIDs,
+    topologyCoreIDs,
+    cpuTopologyState.topology.phase,
+    cpuTopologyState.refresh,
+  ]);
 
   useEffect(() => {
     if (!serverId || activeSection !== 'cpu') {
