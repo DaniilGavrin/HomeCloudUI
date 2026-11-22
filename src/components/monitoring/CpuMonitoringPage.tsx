@@ -276,7 +276,9 @@ function finiteNumber(value: unknown): number | null {
 }
 
 function metricTitle(metricId: string): string {
-  return metricId.replace(/^system\.cpu\./, '').replace(/\\./g, ' · ');
+  return metricId.startsWith('system.cpu.')
+    ? metricId.slice('system.cpu.'.length).split('.').join(' · ')
+    : metricId;
 }
 
 function MetricFamilySection({
