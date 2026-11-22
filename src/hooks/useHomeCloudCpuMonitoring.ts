@@ -179,6 +179,9 @@ function normalizeAdditionalValue(
   previousValue: unknown,
   qualityItem: CpuMetricQuality,
 ): { value: unknown; quality: CpuMetricQuality } {
+  if (item.status === 'valid' && (item.value === undefined || item.value === null)) {
+    return { value: previousValue ?? null, quality: invalidQuality(qualityItem, 'missing_value') };
+  }
   if (!isUsable(item)) return { value: previousValue ?? null, quality: qualityItem };
   if (item.unit === 'ns' || item.unit === 'count') {
     const value = exactCounter(item.value);
