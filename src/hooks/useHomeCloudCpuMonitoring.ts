@@ -77,6 +77,8 @@ export type CpuTelemetry = {
   quality: Record<string, CpuMetricQuality>;
   observedAt: string | null;
   subscriptionId: string | null;
+  perfSubscriptionId: string | null;
+  perfError: string | null;
   error: string | null;
 };
 
@@ -102,6 +104,8 @@ const INITIAL: CpuTelemetry = {
   quality: {},
   observedAt: null,
   subscriptionId: null,
+  perfSubscriptionId: null,
+  perfError: null,
   error: null,
 };
 
@@ -199,7 +203,68 @@ export function useHomeCloudCpuMonitoring(
       try {
         const stop = await listen<MonitoringEvent>(EVENT, event => {
           const message = event.payload;
-          if (disposed || message.server_id !== serverId || message.target !== 'system.cpu') return;
+          if (disposed || message.server_id !== serverId) return;
+
+          if (message.target === 'system.cpu.perf') {
+            if (message.kind === 'created') {
+              const subscriptionId = typeof message.payload.subscription_id === 'string'
+                ? message.payload.subscription_id
+                : null;
+              setTelemetry(previous => ({
+                ...previous,
+                perfSubscriptionId: subscriptionId,
+                perfError: null,
+                additionalMetrics: previous.additionalMetrics.filter(item => !item.metricId.startsWith('system.cpu.perf.')),
+                quality: Object.fromEntries(Object.entries(previous.quality).filter(([key]) => !key.startsWith('system.cpu.perf.|'))),
+              }));
+              return;
+            }
+            if (message.kind === 'error') {
+              const errorObject = message.payload.error as { message?: unknown; code?: unknown } | undefined;
+              const errorText = typeof errorObject?.message === 'string'
+                ? errorObject.message
+                : typeof errorObject?.code === 'string'
+                  ? errorObject.code
+                  : 'Не удалось получить PMU-счётчики CPU';
+              setTelemetry(previous => ({ ...previous, perfSubscriptionId: null, perfError: errorText }));
+              return;
+            }
+            if (message.kind !== 'update') return;
+            const subscriptionId = typeof message.payload.subscription_id === 'string'
+              ? message.payload.subscription_id
+              : null;
+            const items = Array.isArray(message.payload.items) ? message.payload.items as MetricItem[] : [];
+            setTelemetry(previous => {
+              if (previous.perfSubscriptionId && subscriptionId !== previous.perfSubscriptionId) return previous;
+              const quality = { ...previous.quality };
+              const additional = new Map<string, CpuAdditionalMetric>(
+                previous.additionalMetrics.map(item => [metricKey({
+                  metric_id: item.metricId,
+                  object_id: item.objectId ?? undefined,
+                  window_ms: item.windowMS ?? undefined,
+                }), { ...item }]),
+              );
+              for (const item of items) {
+                const qualityItem = qualityOf(item);
+                quality[metricKey(item)] = qualityItem;
+                additional.set(metricKey(item), {
+                  ...qualityItem,
+                  value: isUsable(item) ? item.value : additional.get(metricKey(item))?.value ?? null,
+                  unit: item.unit ?? additional.get(metricKey(item))?.unit ?? null,
+                });
+              }
+              return {
+                ...previous,
+                perfSubscriptionId: subscriptionId ?? previous.perfSubscriptionId,
+                perfError: null,
+                additionalMetrics: [...additional.values()],
+                quality,
+              };
+            });
+            return;
+          }
+
+          if (message.target !== 'system.cpu') return;
 
           if (message.kind === 'created') {
             const subscriptionId = typeof message.payload.subscription_id === 'string'
