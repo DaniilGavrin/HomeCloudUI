@@ -141,7 +141,7 @@ function finiteNumber(value: unknown): number | null {
 }
 
 function exactCounter(value: unknown): string | null {
-  if (typeof value === 'string') return /^\\d+$/.test(value) ? value : null;
+  if (typeof value === 'string') return /^\d+$/.test(value) ? value : null;
   if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value);
   return null;
 }
@@ -394,8 +394,8 @@ export function useHomeCloudCpuMonitoring(
             }
 
             const perCore = [...cores.values()].sort((a, b) => {
-              const aNumber = Number(a.objectId.match(/\\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
-              const bNumber = Number(b.objectId.match(/\\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
+              const aNumber = Number(a.objectId.match(/\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
+              const bNumber = Number(b.objectId.match(/\d+/)?.[0] ?? Number.MAX_SAFE_INTEGER);
               return aNumber - bNumber || a.objectId.localeCompare(b.objectId);
             });
 
