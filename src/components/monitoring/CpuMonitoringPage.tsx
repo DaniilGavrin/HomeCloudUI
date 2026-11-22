@@ -97,7 +97,7 @@ function CompactMetric({
 }
 
 function coreLabel(objectId: string): string {
-  const match = objectId.match(/(\\d+)/);
+  const match = objectId.match(/(\d+)/);
   return match ? `CPU ${match[1]}` : objectId;
 }
 
@@ -270,7 +270,7 @@ function finiteNumber(value: unknown): number | null {
 }
 
 function metricTitle(metricId: string): string {
-  return metricId.replace(/^system\\.cpu\\./, '').replaceAll('.', ' · ');
+  return metricId.replace(/^system\.cpu\./, '').replaceAll('.', ' · ');
 }
 
 function MetricFamilySection({
