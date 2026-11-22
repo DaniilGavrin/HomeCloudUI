@@ -276,14 +276,14 @@ export function useHomeCloudCpuMonitoring(
 
               if (frequencyMetric(item)) {
                 if (item.metric_id === 'system.cpu.core.frequency') {
-                  if (!item.object_id || !isUsable(item)) continue;
+                  if (!item.object_id) continue;
                   const core = cores.get(item.object_id) ?? {
                     objectId: item.object_id,
                     totalUsage: null,
                     userTimeNs: null,
                     frequencyHz: null,
                   };
-                  core.frequencyHz = finiteNumber(item.value);
+                  core.frequencyHz = isUsable(item) ? finiteNumber(item.value) : null;
                   cores.set(item.object_id, core);
                   continue;
                 }
@@ -296,15 +296,13 @@ export function useHomeCloudCpuMonitoring(
                   baseHz: null,
                   governor: null,
                 };
-                if (isUsable(item)) {
-                  const numeric = finiteNumber(item.value);
-                  switch (item.metric_id) {
-                    case 'system.cpu.frequency.current': policy.currentHz = numeric; break;
-                    case 'system.cpu.frequency.min': policy.minHz = numeric; break;
-                    case 'system.cpu.frequency.max': policy.maxHz = numeric; break;
-                    case 'system.cpu.frequency.base': policy.baseHz = numeric; break;
-                    case 'system.cpu.frequency.governor': policy.governor = typeof item.value === 'string' ? item.value : null; break;
-                  }
+                const numeric = isUsable(item) ? finiteNumber(item.value) : null;
+                switch (item.metric_id) {
+                  case 'system.cpu.frequency.current': policy.currentHz = numeric; break;
+                  case 'system.cpu.frequency.min': policy.minHz = numeric; break;
+                  case 'system.cpu.frequency.max': policy.maxHz = numeric; break;
+                  case 'system.cpu.frequency.base': policy.baseHz = numeric; break;
+                  case 'system.cpu.frequency.governor': policy.governor = isUsable(item) && typeof item.value === 'string' ? item.value : null; break;
                 }
                 policies.set(item.object_id, policy);
                 continue;
