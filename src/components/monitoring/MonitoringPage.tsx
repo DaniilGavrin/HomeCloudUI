@@ -1,7 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { useHomeCloudPool } from '../../hooks/useHomeCloudPool';
+import { CpuMonitoringPage } from './CpuMonitoringPage';
+import { useHomeCloudCpuMonitoring } from '../../hooks/useHomeCloudCpuMonitoring';
+import { useHomeCloudCpuPanel } from '../../hooks/useHomeCloudCpuPanel';
+import { useHomeCloudCpuTopology } from '../../hooks/useHomeCloudCpuTopology';
+import { CpuGauge } from './CpuGauge';
 
 const MONITORING_SECTIONS = [
   { id: 'overview', label: 'Главная' },
@@ -53,8 +59,27 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section }: { section: MonitoringSectionId }) {
+function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology, cpuPerfEnabled, onToggleCpuPerf, cpuPerfControlError }: {
+  section: MonitoringSectionId;
+  cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring>;
+  cpuTopology: ReturnType<typeof useHomeCloudCpuTopology>['topology'];
+  refreshCpuTopology: () => void;
+  cpuPerfEnabled: boolean;
+  onToggleCpuPerf: (enabled: boolean) => void;
+  cpuPerfControlError: string | null;
+}) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
+
+  if (section === 'cpu') return (
+    <CpuMonitoringPage
+      telemetry={cpuTelemetry}
+      topology={cpuTopology}
+      onRefreshTopology={refreshCpuTopology}
+      perfEnabled={cpuPerfEnabled}
+      onTogglePerf={onToggleCpuPerf}
+      perfControlError={cpuPerfControlError}
+    />
+  );
 
   return (
     <section
@@ -69,9 +94,63 @@ export function MonitoringPage() {
   const { snapshot, error } = useHomeCloudPool();
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<MonitoringSectionId>('overview');
+  const [cpuPerfEnabled, setCpuPerfEnabled] = useState(false);
+  const [cpuPerfControlError, setCpuPerfControlError] = useState<string | null>(null);
   const sectionScroller = useRef<HTMLDivElement>(null);
+  const lastTopologySyncKey = useRef<string | null>(null);
   const reduced = Boolean(useReducedMotion());
   const selectedServer = snapshot.servers.find(server => server.id === selectedServerId) ?? null;
+  const serverId = selectedServer?.id ?? null;
+  const cpuPanelTelemetry = useHomeCloudCpuPanel(serverId, selectedServer?.phase ?? 'offline');
+  const cpuTelemetry = useHomeCloudCpuMonitoring(serverId, selectedServer?.phase ?? 'offline', activeSection, cpuPanelTelemetry.readyFor);
+  const cpuTopologyState = useHomeCloudCpuTopology(serverId, activeSection === 'cpu', selectedServer?.phase ?? 'offline');
+
+  const liveCoreIDs = cpuTelemetry.perCore.map(core => core.objectId).sort().join('|');
+  const topologyCoreIDs = cpuTopologyState.topology.cores
+    .filter(core => core.online !== false)
+    .map(core => core.objectId)
+    .sort()
+    .join('|');
+
+  useEffect(() => {
+    lastTopologySyncKey.current = null;
+  }, [serverId, activeSection]);
+
+  useEffect(() => {
+    if (!serverId || activeSection !== 'cpu' || cpuTelemetry.phase !== 'streaming'
+      || cpuTopologyState.topology.phase !== 'ready' || !liveCoreIDs) return;
+    const syncKey = `${serverId}:${liveCoreIDs}`;
+    if (topologyCoreIDs !== liveCoreIDs && lastTopologySyncKey.current !== syncKey) {
+      lastTopologySyncKey.current = syncKey;
+      void cpuTopologyState.refresh();
+    }
+  }, [
+    serverId,
+    activeSection,
+    cpuTelemetry.phase,
+    liveCoreIDs,
+    topologyCoreIDs,
+    cpuTopologyState.topology.phase,
+    cpuTopologyState.refresh,
+  ]);
+
+  useEffect(() => {
+    if (!serverId || activeSection !== 'cpu') {
+      setCpuPerfEnabled(false);
+      setCpuPerfControlError(null);
+    }
+  }, [serverId, activeSection]);
+
+  const toggleCpuPerf = async (enabled: boolean) => {
+    if (!serverId) return;
+    setCpuPerfControlError(null);
+    try {
+      await invoke('homecloud_monitoring_set_perf_enabled', { serverId, enabled });
+      setCpuPerfEnabled(enabled);
+    } catch (error) {
+      setCpuPerfControlError(String(error));
+    }
+  };
 
   const changeSection = (section: MonitoringSectionId) => {
     setActiveSection(section);
@@ -124,9 +203,24 @@ export function MonitoringPage() {
             </header>
 
             <div
-              className="homecloud-glass min-h-[150px] w-full flex-none rounded-[22px] border border-sky-200/[0.13]"
+              className="homecloud-glass flex min-h-[150px] w-full flex-none items-center gap-5 rounded-[22px] border border-sky-200/[0.13] px-5 py-3"
               aria-label="Постоянная панель мониторинга сервера"
-            />
+            >
+              {cpuPanelTelemetry.totalUsage !== null && (
+                <>
+                  <div className="flex shrink-0 items-center gap-4">
+                    <CpuGauge value={cpuPanelTelemetry.totalUsage} />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[12px] font-semibold text-white/85">Загрузка CPU</span>
+                      <span className="text-[11px] tabular-nums text-white/45">
+                        {cpuPanelTelemetry.phase === 'streaming' ? 'Обновление каждую секунду' : cpuPanelTelemetry.phase === 'error' ? 'Ошибка получения данных' : 'Ожидание телеметрии'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-[82px] w-px shrink-0 bg-sky-100/[0.10]" aria-hidden="true" />
+                </>
+              )}
+            </div>
 
             <nav
               className="homecloud-glass flex min-h-[54px] w-full flex-none items-center gap-2 overflow-hidden rounded-[18px] border border-sky-200/[0.13] px-2 py-[7px]"
@@ -186,7 +280,15 @@ export function MonitoringPage() {
                 exit={{ opacity: 0, x: reduced ? 0 : -8 }}
                 transition={{ duration: reduced ? 0.06 : 0.16 }}
               >
-                <MonitoringSectionPage section={activeSection} />
+                <MonitoringSectionPage
+                  section={activeSection}
+                  cpuTelemetry={cpuTelemetry}
+                  cpuTopology={cpuTopologyState.topology}
+                  refreshCpuTopology={cpuTopologyState.refresh}
+                  cpuPerfEnabled={cpuPerfEnabled}
+                  onToggleCpuPerf={toggleCpuPerf}
+                  cpuPerfControlError={cpuPerfControlError}
+                />
               </motion.div>
             </AnimatePresence>
           </motion.div>
@@ -199,7 +301,7 @@ export function MonitoringPage() {
             exit={{ opacity: 0, x: reduced ? 0 : -12 }}
             transition={{ duration: reduced ? 0.08 : 0.24 }}
           >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pr-[3px] [scrollbar-color:rgba(155,224,255,.30)_transparent] [scrollbar-width:thin]">
+            <div className="homecloud-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pr-[3px]">
               <header className="mb-[17px] flex flex-col items-start gap-2">
                 <p className="text-xs leading-[1.5] text-white/60">
                   Мониторинг узлов и доступности серверов HomeCloud.

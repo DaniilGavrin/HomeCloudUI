@@ -54,3 +54,20 @@ pub async fn request_media(app: &AppHandle, server_id: &str, action: &str, data:
         .map_err(|_| "Backend не ответил на команду HC SS / Media Room".to_owned())?
         .map_err(|_| "Соединение прервалось до ответа".to_owned())?
 }
+
+
+/// Request the one-shot CPU topology inventory over the existing identified
+/// Backend control-plane WebSocket. This is intentionally not a subscription.
+pub async fn request_cpu_topology(app: &AppHandle, server_id: &str) -> Result<Value, String> {
+    let channel = app.state::<StorageTransport>().channels.lock().unwrap_or_else(|e| e.into_inner())
+        .get(server_id).cloned().ok_or("Backend Offline: нет активной WebSocket-сессии")?;
+    let (reply, rx) = oneshot::channel();
+    channel.send(StorageRequest {
+        action: "system.cpu.topology".to_owned(),
+        data: Value::Null,
+        reply,
+    }).await.map_err(|_| "Сессия Backend закрылась".to_owned())?;
+    tokio::time::timeout(COMMAND_TIMEOUT, rx).await
+        .map_err(|_| "Backend не ответил на запрос топологии CPU".to_owned())?
+        .map_err(|_| "Соединение прервалось до ответа".to_owned())?
+}
