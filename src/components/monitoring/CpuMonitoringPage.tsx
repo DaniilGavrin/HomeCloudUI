@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Activity, Cpu, Gauge, Timer, Zap, Layers, RefreshCw, Network, GitFork, Play, Pause, Thermometer, GaugeCircle } from 'lucide-react';
+import { Activity, Cpu, Gauge, Timer, Zap, Layers, RefreshCw, Network, GitFork, Play, Pause } from 'lucide-react';
 import type {
   CpuAdditionalMetric,
   CpuCoreTelemetry,
