@@ -283,7 +283,7 @@ export function useHomeCloudCpuMonitoring(
                     userTimeNs: null,
                     frequencyHz: null,
                   };
-                  core.frequencyHz = isUsable(item) ? finiteNumber(item.value) : null;
+                  core.frequencyHz = isUsable(item) ? finiteNumber(item.value) : core.frequencyHz;
                   cores.set(item.object_id, core);
                   continue;
                 }
@@ -298,11 +298,11 @@ export function useHomeCloudCpuMonitoring(
                 };
                 const numeric = isUsable(item) ? finiteNumber(item.value) : null;
                 switch (item.metric_id) {
-                  case 'system.cpu.frequency.current': policy.currentHz = numeric; break;
-                  case 'system.cpu.frequency.min': policy.minHz = numeric; break;
-                  case 'system.cpu.frequency.max': policy.maxHz = numeric; break;
-                  case 'system.cpu.frequency.base': policy.baseHz = numeric; break;
-                  case 'system.cpu.frequency.governor': policy.governor = isUsable(item) && typeof item.value === 'string' ? item.value : null; break;
+                  case 'system.cpu.frequency.current': if (isUsable(item)) policy.currentHz = numeric; break;
+                  case 'system.cpu.frequency.min': if (isUsable(item)) policy.minHz = numeric; break;
+                  case 'system.cpu.frequency.max': if (isUsable(item)) policy.maxHz = numeric; break;
+                  case 'system.cpu.frequency.base': if (isUsable(item)) policy.baseHz = numeric; break;
+                  case 'system.cpu.frequency.governor': if (isUsable(item)) policy.governor = typeof item.value === 'string' ? item.value : null; break;
                 }
                 policies.set(item.object_id, policy);
                 continue;
@@ -386,8 +386,8 @@ export function useHomeCloudCpuMonitoring(
               // by family below, while status/reason/source remain available.
               additional.set(metricKey(item), {
                 ...qualityItem,
-                value: isUsable(item) ? item.value : null,
-                unit: item.unit ?? null,
+                value: isUsable(item) ? item.value : additional.get(metricKey(item))?.value ?? null,
+                unit: item.unit ?? additional.get(metricKey(item))?.unit ?? null,
               });
             }
 
