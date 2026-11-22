@@ -27,6 +27,7 @@ export type CpuCoreTelemetry = {
   objectId: string;
   totalUsage: number | null;
   userTimeNs: string | null;
+  frequencyHz: number | null;
 };
 
 export type CpuFrequencyTelemetry = {
@@ -168,7 +169,9 @@ function isUsable(item: MetricItem): boolean {
 }
 
 function frequencyMetric(item: MetricItem): boolean {
-  return item.metric_id.startsWith('system.cpu.frequency.');
+  return item.metric_id.startsWith('system.cpu.frequency.')
+    || item.metric_id === 'system.cpu.frequency'
+    || item.metric_id === 'system.cpu.core.frequency';
 }
 
 export function useHomeCloudCpuMonitoring(
@@ -272,6 +275,18 @@ export function useHomeCloudCpuMonitoring(
               if (typeof item.observed_at === 'string') observedAt = item.observed_at;
 
               if (frequencyMetric(item)) {
+                if (item.metric_id === 'system.cpu.core.frequency') {
+                  if (!item.object_id || !isUsable(item)) continue;
+                  const core = cores.get(item.object_id) ?? {
+                    objectId: item.object_id,
+                    totalUsage: null,
+                    userTimeNs: null,
+                    frequencyHz: null,
+                  };
+                  core.frequencyHz = finiteNumber(item.value);
+                  cores.set(item.object_id, core);
+                  continue;
+                }
                 if (!item.object_id) continue;
                 const policy = policies.get(item.object_id) ?? {
                   objectId: item.object_id,
@@ -347,6 +362,7 @@ export function useHomeCloudCpuMonitoring(
                       objectId: item.object_id,
                       totalUsage: null,
                       userTimeNs: null,
+                      frequencyHz: null,
                     };
                     core.totalUsage = finitePercent(item.value) ?? core.totalUsage;
                     cores.set(item.object_id, core);
@@ -358,6 +374,7 @@ export function useHomeCloudCpuMonitoring(
                       objectId: item.object_id,
                       totalUsage: null,
                       userTimeNs: null,
+                      frequencyHz: null,
                     };
                     core.userTimeNs = exactCounter(item.value) ?? core.userTimeNs;
                     cores.set(item.object_id, core);
@@ -401,7 +418,9 @@ export function useHomeCloudCpuMonitoring(
               processesRunning,
               processesBlocked,
               perCore,
-              frequency: [...policies.values()].sort((a, b) => a.objectId.localeCompare(b.objectId, undefined, { numeric: true })),
+              frequency: [...policies.values()]
+                .filter(policy => policy.currentHz !== null || policy.minHz !== null || policy.maxHz !== null || policy.baseHz !== null || policy.governor !== null)
+                .sort((a, b) => a.objectId.localeCompare(b.objectId, undefined, { numeric: true })),
               additionalMetrics: [...additional.values()],
               quality,
               observedAt,
