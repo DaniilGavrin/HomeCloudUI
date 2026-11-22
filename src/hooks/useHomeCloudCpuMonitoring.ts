@@ -147,7 +147,9 @@ function exactCounter(value: unknown): string | null {
 }
 
 function metricKey(item: MetricItem): string {
-  return [item.metric_id, item.object_id ?? '', item.window_ms ?? ''].join('|');
+  const windowedMetric = item.metric_id === 'system.cpu.pressure.some'
+    || item.metric_id === 'system.cpu.pressure.full';
+  return [item.metric_id, item.object_id ?? '', windowedMetric ? item.window_ms ?? '' : ''].join('|');
 }
 
 function qualityOf(item: MetricItem): CpuMetricQuality {
