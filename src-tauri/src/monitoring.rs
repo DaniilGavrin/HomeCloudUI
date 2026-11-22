@@ -137,6 +137,8 @@ pub fn attach(app: &AppHandle, server_id: &str) -> MonitoringSession {
     let node = nodes.entry(server_id.to_owned()).or_insert(ActiveNode {
         section: None,
         sender: None,
+        perf_enabled: false,
+        perf_sender: None,
         generation: 0,
     });
     crate::diagnostics::log("INFO", &format!("Monitoring session attached server_id={} section={:?}", server_id, node.section));
