@@ -131,7 +131,11 @@ const KNOWN_METRICS = new Set([
 ]);
 
 function finitePercent(value: unknown): number | null {
-  const parsed = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number(value)
+      : NaN;
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
 }
 
