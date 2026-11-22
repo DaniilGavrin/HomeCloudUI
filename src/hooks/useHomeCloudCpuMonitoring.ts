@@ -140,7 +140,11 @@ function finitePercent(value: unknown): number | null {
 }
 
 function finiteNumber(value: unknown): number | null {
-  const parsed = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number(value)
+      : NaN;
   return Number.isFinite(parsed) ? parsed : null;
 }
 
