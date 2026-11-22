@@ -200,8 +200,10 @@ function TopologyCoreCard({ core }: { core: CpuTopologyCore }) {
 function TopologySection({ topology, onRefresh }: { topology: CpuTopology; onRefresh: () => void }) {
   const firstCpu = topology.cores[0];
   const hasTopology = topology.cores.length > 0 || topology.logicalCount !== null
-    || topology.onlineCount !== null || topology.physicalCoreCount !== null
-    || topology.packageCount !== null || topology.architecture !== null;
+    || topology.onlineCount !== null || topology.offlineCount !== null
+    || topology.physicalCoreCount !== null || topology.packageCount !== null
+    || topology.dieCount !== null || topology.numaNodeCount !== null
+    || topology.architecture !== null;
   if (!hasTopology && topology.phase !== 'loading' && topology.phase !== 'error') return null;
   const summary = [
     ['Логических CPU', topology.logicalCount, <Cpu size={13} />],
