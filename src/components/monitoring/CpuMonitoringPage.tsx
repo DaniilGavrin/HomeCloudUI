@@ -475,7 +475,7 @@ export function CpuMonitoringPage({
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-2">
             {[...coreGroups.entries()].map(([groupKey, group]) => {
               const cards = group.cores.map(core => {
-                const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId)?.status;
+                const quality = qualityFor(telemetry, 'system.cpu.core.totalusage', core.objectId);
                 return <CoreMetricCard key={core.objectId} core={core} quality={quality} />;
               });
               return group.title ? (
