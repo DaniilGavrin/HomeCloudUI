@@ -59,13 +59,14 @@ function ServerStatus({ phase }: { phase: string }) {
   );
 }
 
-function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology, cpuPerfEnabled, onToggleCpuPerf }: {
+function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuTopology, cpuPerfEnabled, onToggleCpuPerf, cpuPerfControlError }: {
   section: MonitoringSectionId;
   cpuTelemetry: ReturnType<typeof useHomeCloudCpuMonitoring>;
   cpuTopology: ReturnType<typeof useHomeCloudCpuTopology>['topology'];
   refreshCpuTopology: () => void;
   cpuPerfEnabled: boolean;
   onToggleCpuPerf: (enabled: boolean) => void;
+  cpuPerfControlError: string | null;
 }) {
   const definition = MONITORING_SECTIONS.find(item => item.id === section)!;
 
@@ -76,6 +77,7 @@ function MonitoringSectionPage({ section, cpuTelemetry, cpuTopology, refreshCpuT
       onRefreshTopology={refreshCpuTopology}
       perfEnabled={cpuPerfEnabled}
       onTogglePerf={onToggleCpuPerf}
+      perfControlError={cpuPerfControlError}
     />
   );
 
@@ -255,6 +257,7 @@ export function MonitoringPage() {
                   refreshCpuTopology={cpuTopologyState.refresh}
                   cpuPerfEnabled={cpuPerfEnabled}
                   onToggleCpuPerf={toggleCpuPerf}
+                  cpuPerfControlError={cpuPerfControlError}
                 />
               </motion.div>
             </AnimatePresence>
