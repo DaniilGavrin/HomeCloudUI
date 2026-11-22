@@ -373,7 +373,10 @@ export function CpuMonitoringPage({
       )}
 
       <div className="homecloud-glass flex w-full max-w-full flex-wrap items-center justify-start gap-3 rounded-[20px] border border-sky-200/[0.13] p-3.5">
-        <div className="flex justify-center sm:justify-start"><CpuGauge value={telemetry.totalUsage} statusLabel={qualityFor(telemetry, 'system.cpu.totalusage')?.status !== 'valid' ? statusLabel(qualityFor(telemetry, 'system.cpu.totalusage')?.status ?? 'unknown') : undefined} /></div>
+        <div className="flex justify-center sm:justify-start"><CpuGauge value={telemetry.totalUsage} statusLabel={(() => {
+          const quality = qualityFor(telemetry, 'system.cpu.totalusage');
+          return quality && quality.status !== 'valid' ? statusLabel(quality.status) : undefined;
+        })()} /></div>
         {availableTimeMetrics.map(([metricId, title, value, icon]) => {
           const quality = qualityFor(telemetry, metricId);
           return (
