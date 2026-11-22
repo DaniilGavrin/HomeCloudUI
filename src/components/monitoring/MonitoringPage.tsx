@@ -143,19 +143,20 @@ export function MonitoringPage() {
               className="homecloud-glass flex min-h-[150px] w-full flex-none items-center gap-5 rounded-[22px] border border-sky-200/[0.13] px-5 py-3"
               aria-label="Постоянная панель мониторинга сервера"
             >
-              <div className="flex shrink-0 items-center gap-4">
-                <CpuGauge value={cpuPanelTelemetry.totalUsage} />
-                <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-semibold text-white/85">Загрузка CPU</span>
-                  <span className="text-[11px] tabular-nums text-white/45">
-                    {cpuPanelTelemetry.phase === 'streaming' ? 'Обновление каждую секунду' : cpuPanelTelemetry.phase === 'error' ? 'Ошибка получения данных' : 'Ожидание телеметрии'}
-                  </span>
-                </div>
-              </div>
-              <div className="h-[82px] w-px shrink-0 bg-sky-100/[0.10]" aria-hidden="true" />
-              <div className="flex min-w-0 flex-1 items-center gap-3 text-[11px] text-white/25">
-                Остальные показатели появятся по мере реализации метрик
-              </div>
+              {cpuPanelTelemetry.totalUsage !== null && (
+                <>
+                  <div className="flex shrink-0 items-center gap-4">
+                    <CpuGauge value={cpuPanelTelemetry.totalUsage} />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[12px] font-semibold text-white/85">Загрузка CPU</span>
+                      <span className="text-[11px] tabular-nums text-white/45">
+                        {cpuPanelTelemetry.phase === 'streaming' ? 'Обновление каждую секунду' : cpuPanelTelemetry.phase === 'error' ? 'Ошибка получения данных' : 'Ожидание телеметрии'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-[82px] w-px shrink-0 bg-sky-100/[0.10]" aria-hidden="true" />
+                </>
+              )}
             </div>
 
             <nav
