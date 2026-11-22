@@ -73,12 +73,14 @@ function CompactMetric({
   icon,
   className = 'w-[190px] shrink-0',
   status,
+  detail,
 }: {
   title: string;
   value: string;
   icon: ReactNode;
   className?: string;
   status?: string;
+  detail?: string;
 }) {
   return (
     <article className={`flex min-h-[112px] min-w-0 flex-col ${className} justify-center rounded-[18px] border border-sky-200/[0.10] bg-white/[0.025] px-4 py-3`}>
@@ -92,6 +94,9 @@ function CompactMetric({
       {status && status !== 'valid' && (
         <span className="mt-1 text-[9px] text-amber-100/65">{statusLabel(status)}</span>
       )}
+      {detail && status !== 'valid' && (
+        <span className="mt-0.5 line-clamp-2 text-[8px] leading-3 text-white/30" title={detail}>{detail.replace(/_/g, ' ')}</span>
+      )}
     </article>
   );
 }
@@ -101,7 +106,7 @@ function coreLabel(objectId: string): string {
   return match ? `Logical CPU ${match[1]}` : objectId;
 }
 
-function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: string }) {
+function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: CpuMetricQuality }) {
   const usage = core.totalUsage;
   return (
     <article className="min-w-0 rounded-[16px] border border-sky-200/[0.10] bg-white/[0.025] p-3">
@@ -115,7 +120,11 @@ function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: s
           <div className="h-full rounded-full bg-cyan-300 transition-[width] duration-500" style={{ width: `${usage}%` }} />
         </div>
       )}
-      {quality && quality !== 'valid' && <p className="mt-1 text-[9px] text-amber-100/65">{statusLabel(quality)}</p>}
+      {quality && quality.status !== 'valid' && (
+        <p className="mt-1 text-[9px] text-amber-100/65">
+          {statusLabel(quality.status)}{quality.reason ? ` · ${quality.reason.replace(/_/g, ' ')}` : ''}
+        </p>
+      )}
       {core.frequencyHz !== null && (
         <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-white/45">
           <span>Частота</span>
@@ -132,7 +141,7 @@ function CoreMetricCard({ core, quality }: { core: CpuCoreTelemetry; quality?: s
   );
 }
 
-function FrequencyCard({ policy, quality }: { policy: CpuFrequencyTelemetry; quality?: string }) {
+function FrequencyCard({ policy, quality }: { policy: CpuFrequencyTelemetry; quality?: CpuMetricQuality }) {
   const rows = [
     ['Текущая', formatFrequency(policy.currentHz)],
     ['Минимальная', formatFrequency(policy.minHz)],
@@ -145,7 +154,11 @@ function FrequencyCard({ policy, quality }: { policy: CpuFrequencyTelemetry; qua
         <span className="text-[12px] font-semibold text-white/85">{policy.objectId}</span>
         {policy.governor && <span className="rounded-full border border-cyan-200/15 bg-cyan-300/[0.07] px-2 py-1 text-[10px] text-cyan-100/80">{policy.governor}</span>}
       </div>
-      {quality && quality !== 'valid' && <p className="mb-2 text-[9px] text-amber-100/65">{statusLabel(quality)}</p>}
+      {quality && quality.status !== 'valid' && (
+        <p className="mb-2 text-[9px] text-amber-100/65">
+          {statusLabel(quality.status)}{quality.reason ? ` · ${quality.reason.replace(/_/g, ' ')}` : ''}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         {rows.map(([label, value]) => (
           <div key={label} className="min-w-0">
@@ -410,6 +423,7 @@ export function CpuMonitoringPage({
               value={formatCpuTime(value)}
               icon={icon}
               status={quality?.status}
+              detail={quality?.reason ?? quality?.errorCode ?? undefined}
             />
           );
         })}
@@ -424,9 +438,9 @@ export function CpuMonitoringPage({
             <h3 className="text-[12px] font-semibold text-white/85">Процессы и планировщик</h3>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-2">
-            {telemetry.forks !== null && <CompactMetric className="w-full" title="Создано задач с загрузки" value={formatCounter(telemetry.forks)} icon={<GitFork size={13} />} status={qualityFor(telemetry, 'system.cpu.forks')?.status} />}
-            {telemetry.processesRunning !== null && <CompactMetric className="w-full" title="Выполняются / готовы" value={formatCounter(telemetry.processesRunning)} icon={<Play size={13} />} status={qualityFor(telemetry, 'system.cpu.processes.running')?.status} />}
-            {telemetry.processesBlocked !== null && <CompactMetric className="w-full" title="Заблокированы" value={formatCounter(telemetry.processesBlocked)} icon={<Pause size={13} />} status={qualityFor(telemetry, 'system.cpu.processes.blocked')?.status} />}
+            {telemetry.forks !== null && <CompactMetric className="w-full" title="Создано задач с загрузки" value={formatCounter(telemetry.forks)} icon={<GitFork size={13} />} status={qualityFor(telemetry, 'system.cpu.forks')?.status} detail={qualityFor(telemetry, 'system.cpu.forks')?.reason ?? undefined} />}
+            {telemetry.processesRunning !== null && <CompactMetric className="w-full" title="Выполняются / готовы" value={formatCounter(telemetry.processesRunning)} icon={<Play size={13} />} status={qualityFor(telemetry, 'system.cpu.processes.running')?.status} detail={qualityFor(telemetry, 'system.cpu.processes.running')?.reason ?? undefined} />}
+            {telemetry.processesBlocked !== null && <CompactMetric className="w-full" title="Заблокированы" value={formatCounter(telemetry.processesBlocked)} icon={<Pause size={13} />} status={qualityFor(telemetry, 'system.cpu.processes.blocked')?.status} detail={qualityFor(telemetry, 'system.cpu.processes.blocked')?.reason ?? undefined} />}
           </div>
         </section>
       )}
@@ -440,7 +454,7 @@ export function CpuMonitoringPage({
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-2">
             {telemetry.frequency.map(policy => {
-              const quality = frequencyQuality.find(item => item.objectId === policy.objectId && item.status !== 'valid')?.status;
+              const quality = frequencyQuality.find(item => item.objectId === policy.objectId && item.status !== 'valid');
               return <FrequencyCard key={policy.objectId} policy={policy} quality={quality} />;
             })}
           </div>
