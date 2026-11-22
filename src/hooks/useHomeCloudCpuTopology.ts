@@ -55,7 +55,11 @@ const INITIAL: CpuTopology = {
 };
 
 function finiteNumber(value: unknown): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value);
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+      ? Number(value)
+      : NaN;
   return Number.isFinite(parsed) ? parsed : null;
 }
 
